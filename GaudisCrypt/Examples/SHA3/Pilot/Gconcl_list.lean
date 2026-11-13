@@ -43,6 +43,12 @@ Translation:
   then `equiv_proc` (EC's form opens the callees).  `equiv_call (_ : ={glob IF})` on the same
   concrete callee falls back to the frameless rule (no footprint bound for `IF`'s `init`):
   `={F.RO.m}`.
+* GAP 6: the frame of `equiv_call (_ : P ==> Q)` is the callee module's (`S(F)`), not the
+  procedure's: `S(F).fi` does not call `F`, but the call loses the oracles' maps, and the
+  invariant on them is carried in `P` and `Q` (the callee by `sim (_ : inv)`).
+* The side goal of a one-sided `rcond` has the other side's memory in its context; the closer's
+  first phase generalizes the reads of the bound state only: `generalize_reads_all` for the
+  memory's reads, where a hand step needs them as values.
 
 From `Ideal_equiv_valid` on, the proofs are written on the strict tactics (`ec_auto`, `ec_close`,
 `ec_progress`, `ec_prep`: `Logic/ECAutoStrict.lean`, `Logic/ECProgress.lean`); `ideal_equiv` is
@@ -592,5 +598,419 @@ theorem ideal_equiv2 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     ec_auto; ec_close
   -- EC: by auto;smt(parse_valid parseK formatK).
   ec_auto; ec_close
+
+/-- EC's `local module (L3 (D : DISTINGUISHER) : F.RO_Distinguisher) (F : F.RO)`:
+`proc distinguish = SLCommon.IdealIndif(IF2(F,F2.RO), S, A(D)).main` (an alias; the old port's
+`L3` is a `def`). -/
+noncomputable abbrev L3 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
+  SLCommon.IdealIndif (Module.app IF2 (Module.pair F F2.RO.asRO)) S (A D)
+
+-- the oracles' three judgments; the functionality's is EC's 60 lines over both inlined loops
+set_option maxHeartbeats 8000000 in
+/-- EC's `local equiv Ideal_equiv3 (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S, -F2.RO}) :
+L(D,F.RO).distinguish ~ L3(D,F.RO).distinguish : ={glob D} ==> ={glob D, res}`.
+
+Deviations: GAPs 5 and 6 of the file header.  EC's `smt(lemma1 lemma2 incl_dom parse_valid …)`
+calls are closed by hand with those lemmas and the old port's `inv_L_L3.dom_valid`, `get_valid`,
+`set_valid`, `dom_invalid`, `get_invalid` (the invariant on a query with a valid, or an invalid,
+prefix); the hypotheses are taken by type.  In the side goal of a one-sided `rcond` the reads of
+the other side's memory are made values by `generalize_reads_all` before the hand step. -/
+theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO}),
+    equiv[ L(D, SLCommon.F.RO.asRO).distinguish ~ L3(D, SLCommon.F.RO.asRO).distinguish :
+      ={glob D} ==> ={glob D, res} ] := by
+  intro D _
+  --     (EC's `parse_valid` for our `valid`, the decision of `valid_block`)
+  have hparse : ∀ q : List block, valid q = true → parse q = (q, 1) := fun q h =>
+    parse_valid q (by simpa [valid] using h)
+  -- EC: proc;inline*;auto;sp.
+  equiv_proc; stmt_inline*; ec_auto; stmt_sp
+  -- EC: call(: ={glob S, glob C} /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});auto;first last.
+  equiv_call (_ : ={glob S, glob C} ∧
+    inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  rotate_left
+  -- EC: + proc;sp;if;auto.
+  --       by call(: ={glob S});auto;sim.
+  · equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto
+    --     (GAP 6: the frame of the call is the module's, `S(F)`, not the procedure's — `fi`
+    --     does not call `F` — and loses the oracles' maps: the invariant is carried along)
+    equiv_call (_ : ={arg, S.m, S.mi, S.paths} ∧
+        inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ==>
+      ={res, S.m, S.mi, S.paths} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    on_goals 2 => ec_auto
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc; sim (_ : inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  -- EC: + proc;sp;if;auto;call(: inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});auto;sp.
+  · equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    --     (EC's `auto`: nothing to do here)
+    equiv_call (_ : ={arg} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ==>
+      ={res} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    on_goals 2 => (ec_auto; ec_close)
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc; stmt_sp
+    -- EC: inline*;if;auto;sp.
+    stmt_inline*; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    --     (EC's `auto`: nothing to do here)
+    stmt_sp
+    -- EC: rcondt{1}1;1:auto;1:smt(parse_valid parseK formatK).
+    stmt_rcondt{1} 1
+    · ec_auto
+    -- EC: rcondt{2}1;1:auto;1:smt(parse_valid parseK formatK).
+    stmt_rcondt{2} 1
+    · ec_auto
+    -- EC: rcondt{2}1;1:auto;1:smt(parse_valid parseK formatK);sp.
+    stmt_rcondt{2} 1
+    · ec_auto
+    stmt_sp
+    -- EC: rcondf{1}3;1:auto;1:smt(parse_valid parseK formatK);sp.
+    stmt_rcondf{1} 3
+    · ec_auto
+    -- EC: rcondf{2}3;1:auto;1:smt(parse_valid parseK formatK);sp.
+    stmt_rcondf{2} 3
+    · ec_auto
+    -- EC: rcondf{1}5;2:rcondf{2}5;
+    --       1,2:by auto;smt(mem_set nseq0 cats0 parse_valid).
+    stmt_rcondf{1} 5
+    on_goals 2 => stmt_rcondf{2} 5
+    · ec_auto; smt_close [FMap.mem_set, format_one, parse_valid, valid]
+    · ec_auto; smt_close [FMap.mem_set, format_one, parse_valid, valid]
+    -- EC: case(0 < n{1});auto;last first.
+    equiv_case (0 < §n{1})
+    rotate_left
+    -- EC: - rcondf{1}7;1:auto;rcondf{2}7;1:auto.
+    · stmt_rcondf{1} 7
+      · ec_auto
+      stmt_rcondf{2} 7
+      · ec_auto
+      -- EC: by wp;rnd;auto;progress;smt(lemma1 nseq0 cats0 lemma2 incl_dom
+      --       parse_valid parseK formatK in_fsetU).
+      stmt_wp; equiv_rnd; ec_auto; ec_progress
+      --     (EC's `smt`, by hand: `parse_valid` on the valid `p`, then one lemma per goal)
+      all_goals
+        have hpv : parse x₂.1 = (x₂.1, 1) :=
+          parse_valid _ (by simpa [valid] using ‹valid x₂.1 = true›)
+        simp only [hpv] at *
+      · exact absurd (lemma2 _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› one_pos
+          ‹FMap.dom m₁ _›) ‹¬ FMap.dom F_RO_m₂ _›
+      · exact absurd ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl ‹FMap.dom F_RO_m₂ _›))
+          ‹¬ FMap.dom m₁ _›
+      · exact lemma1 _ _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› one_pos ‹¬ FMap.dom m₁ _›
+          ‹¬ FMap.dom F_RO_m₂ _›
+    -- EC: while(={i,n,p,lres,b} /\ valid p{1} /\ 0 <= i{1} <= n{1}
+    --       /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2}).
+    equiv_while (={i, n, p, lres, b} ∧ valid §p{1} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+      inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    -- EC: - sp;if;1,3:auto=>/#.
+    · stmt_sp; stmt_if
+      · ec_close
+      on_goals 2 => (ec_auto; ec_close)
+      -- EC: sp;rcondt{2}1;1:auto;1:smt(parse_valid parseK formatK).
+      stmt_sp; stmt_rcondt{2} 1
+      · ec_auto; smt_close [parse_valid, parseK, formatK, valid]
+      -- EC: conseq(:_==> ={b} /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});1:progress=>/#.
+      equiv_conseq (: _ ==> ={b} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+      case post => ec_close
+      -- EC: auto=>/=.
+      ec_auto
+      -- EC: conseq(:_==> inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});progress.
+      equiv_conseq (: _ ==> inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+      --     * by rewrite!get_setE//=.
+      --     * smt(lemma1 parse_valid).
+      --     * smt(lemma2 parse_valid).
+      --     * smt(lemma2 parse_valid).
+      --     * smt(incl_dom).
+      --     * smt(incl_dom).
+      --     * case:H8;smt(joinE).
+      --     (EC's `smt`s by hand: the query `format p k` is valid, then the invariant's lemmas)
+      case post =>
+        ec_progress
+        all_goals
+          have hvf : ∀ k : ℤ, 0 < k → valid (parse (format p₂ k)).1 = true := fun k hk => by
+            rw [parseK _ _ hk (by simpa [valid] using ‹valid p₂ = true›)]; assumption
+          have hinv := ‹inv_L_L3 SLCommon_F_RO_m₁ SLCommon_F_RO_m₂ _›
+        · exact congrArg oget (inv_L_L3.get_valid hinv (hvf _ (by omega)))
+        · refine absurd ((inv_L_L3.dom_valid hinv (hvf _ ?_)).mp
+            ‹FMap.dom SLCommon_F_RO_m₁ _›) ‹¬ FMap.dom SLCommon_F_RO_m₂ _›
+          omega
+        · refine absurd ((inv_L_L3.dom_valid hinv (hvf _ ?_)).mpr
+            ‹FMap.dom SLCommon_F_RO_m₂ _›) ‹¬ FMap.dom SLCommon_F_RO_m₁ _›
+          omega
+        · refine absurd ((inv_L_L3.dom_valid hinv (hvf _ ?_)).mp
+            ‹FMap.dom SLCommon_F_RO_m₁ _›) ‹¬ FMap.dom SLCommon_F_RO_m₂ _›
+          omega
+        · refine absurd ((inv_L_L3.dom_valid hinv (hvf _ ?_)).mpr
+            ‹FMap.dom SLCommon_F_RO_m₂ _›) ‹¬ FMap.dom SLCommon_F_RO_m₁ _›
+          omega
+        · exact inv_L_L3.set_valid hinv (hvf _ (by omega)) _
+      -- EC: while(={i1,n1,p1} /\ valid p1{1} /\ 0 <= i1{1} <= n1{1}
+      --       /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2}).
+      equiv_while (={i1, n1, p1} ∧ valid §p1{1} ∧ 0 ≤ §i1{1} ∧ §i1{1} ≤ §n1{1} ∧
+        inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+      -- EC: * sp;conseq(:_==> inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});1:smt().
+      · stmt_sp
+        equiv_conseq (: _ ==> inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+        case post => ec_close
+        -- EC: case(x6{1} \in F.RO.m{1}).
+        equiv_case (FMap.dom §SLCommon.F.RO.m{1} §x6{1})
+        -- EC: + by rcondf{1}2;2:rcondf{2}2;auto;smt(incl_dom lemma2).
+        · stmt_rcondf{1} 2
+          on_goals 2 => stmt_rcondf{2} 2
+          · ec_auto
+          · ec_auto; smt_close [incl_dom, lemma2]
+          ec_auto; ec_close
+        -- EC: by rcondt{1}2;2:rcondt{2}2;auto;smt(lemma2 incl_dom lemma1).
+        stmt_rcondt{1} 2
+        on_goals 2 => stmt_rcondt{2} 2
+        · ec_auto
+        --     (EC's `smt`, by hand; the reads of the other side's memory as values first)
+        · ec_auto; ec_prep; generalize_reads_all; subst_vars
+          exact fun h => ‹¬ FMap.dom _ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
+        ec_auto; ec_prep
+        exact lemma1 _ _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› (by omega) ‹¬ FMap.dom m₁ _›
+          fun h => ‹¬ FMap.dom m₁ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
+      -- EC: by auto;smt(parseK).
+      ec_auto; smt_close [parseK, valid]
+    -- EC: wp;rnd;wp 2 2.
+    stmt_wp; equiv_rnd; stmt_wp 2 2
+    -- EC: conseq(:_==> F.RO.m{1}.[p{1}] = F.RO.m{2}.[p{2}]
+    --       /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});progress.
+    equiv_conseq (: _ ==> (§SLCommon.F.RO.m{1}).get §p{1} = (§SLCommon.F.RO.m{2}).get §p{2} ∧
+      inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    --     (EC's two `progress` goals: closed by `progress` already)
+    case post => ec_progress
+    -- EC: case(x5{1} \in F.RO.m{1}).
+    --     (EC's `x5` of the left's inlined `F.RO.sample` is our `x2`)
+    equiv_case (FMap.dom §SLCommon.F.RO.m{1} §x2{1})
+    -- EC: - rcondf{1}2;2:rcondf{2}2;auto;progress.
+    --       * smt(lemma2 incl_dom parse_valid).
+    --       by have[]add_maps h1 h2:=H1;rewrite add_maps joinE//=;smt(parse_valid).
+    --     (EC's `smt`s by hand: `parse_valid` on the valid `p`, then the invariant's lemmas; in
+    --     the side goal the reads of the other side's memory are made values first)
+    · stmt_rcondf{1} 2
+      on_goals 2 => stmt_rcondf{2} 2
+      · ec_auto
+      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+        have hpv := hparse _ ‹valid _ = true›
+        simp only [hpv] at *
+        simpa using lemma2 _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› one_pos ‹FMap.dom _ _›
+      ec_auto; ec_progress
+      exact inv_L_L3.get_valid ‹_› (by rw [hparse _ ‹valid x₂.1 = true›]; assumption)
+    -- EC: rcondt{1}2;2:rcondt{2}2;auto;progress.
+    --     - move:H4;rewrite/format/=nseq0 !cats0 => p0_notin_ROm_m.
+    --       case: H1 => joint _ _; move: p0_notin_ROm_m.
+    --       by rewrite joint mem_join negb_or; smt(parse_valid).
+    --     - have[]add_maps h1 h2:=H1;rewrite add_maps !get_setE joinE//=;
+    --       smt(parse_valid nseq0 cats0).
+    --     - have:=H;rewrite -H0=>//=[][]->>->>;apply lemma1=>//=;1:smt(parse_valid).
+    --       have[]add_maps h1 h2:=H1;smt(parse_valid formatK parseK incl_dom).
+    stmt_rcondt{1} 2
+    on_goals 2 => stmt_rcondt{2} 2
+    · ec_auto
+    · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      have hpv := hparse _ ‹valid _ = true›
+      simp only [hpv] at *
+      exact fun h => ‹¬ FMap.dom _ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
+    ec_auto; ec_progress
+    all_goals
+      have hpv := hparse _ ‹valid x₂.1 = true›
+      simp only [hpv, format_one] at *
+    · simp [FMap.get_set_sameE]
+    · have hn2 : ¬ FMap.dom F_RO_m₂ (format x₂.1 1) := fun h => ‹¬ FMap.dom m₁ _›
+        ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl (by simpa [format_one] using h)))
+      simpa [format_one] using lemma1 _ _ _ x₂.1 1 a ‹inv_L_L3 _ _ _› ‹valid _ = true› one_pos
+        (by simpa [format_one] using ‹¬ FMap.dom m₁ _›) hn2
+  -- EC: + progress;split.
+  --       - by apply/fmap_eqP=>x;rewrite joinE mem_empty.
+  --       - smt(mem_empty).
+  --       - smt(mem_empty).
+  --     (the invariant on the empty maps: the old port's `inv_L_L3_empty`)
+  · ec_auto; ec_progress
+    exact inv_L_L3_empty
+  -- EC: proc;sp;if;auto;call(: ={glob S} /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});auto.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  ec_auto
+  equiv_call (_ : ={arg, S.m, S.mi, S.paths} ∧
+      inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ==>
+    ={res, S.m, S.mi, S.paths} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  on_goals 2 => ec_auto
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  -- EC: if;1,3:auto.
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  -- EC: seq 1 1 : (={x, y1, S.paths, S.mi, S.m} /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});
+  --     last first.
+  equiv_seq 1 1 : (={x, y1, S.paths, S.mi, S.m} ∧
+    inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  rotate_left
+  -- EC: + by conseq(:_==> ={y, S.paths, S.mi, S.m});progress;sim.
+  · equiv_conseq (: _ ==> ={y, S.paths, S.mi, S.m})
+    case post => ec_progress
+    sim
+  -- EC: if;auto.
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's `auto`: nothing to do here)
+  -- EC: call(: inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});auto;sp;inline*.
+  equiv_call (_ : ={arg} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ==>
+    ={res} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  on_goals 2 => ec_auto
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc; stmt_sp; stmt_inline*
+  -- EC: if{2}.
+  stmt_if{2}
+  -- EC: + seq 1 1 : (={x,p,n} /\ parse x{1} = (p,n){1} /\ valid p{1}
+  --         /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});last first.
+  · equiv_seq 1 1 : (={x, p, n} ∧ parse §x{1} = (§p{1}, §n{1}) ∧ valid §p{1} ∧
+      inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    rotate_left
+    -- EC: - sp;case(x1{1} \in F.RO.m{1}).
+    --     (EC's `x1` of the inlined `F.RO.get` is our `x2`)
+    · stmt_sp
+      equiv_case (FMap.dom §SLCommon.F.RO.m{1} §x2{1})
+      -- EC: * rcondf{1}2;2:rcondf{2}2;auto;progress.
+      --       + have:=H2;rewrite -formatK H/=;smt(lemma2 incl_dom parse_gt0).
+      --       have[]add_maps h1 h2:=H1;rewrite add_maps joinE.
+      --       have:=H2;rewrite -formatK H/==>in_dom1.
+      --       case(format p{2} n{2} \in F2.RO.m{2})=>//=in_dom3.
+      --       by have:=h2 _ in_dom3;rewrite parseK//=;smt(parse_gt0).
+      --     (by hand: the invariant on a query with a valid prefix, `inv_L_L3.dom_valid`,
+      --     `get_valid`, `set_valid` of the old port)
+      · stmt_rcondf{1} 2
+        on_goals 2 => stmt_rcondf{2} 2
+        · ec_auto
+        · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+          simpa using (inv_L_L3.dom_valid ‹inv_L_L3 _ _ _› ‹valid _ = true›).mp ‹FMap.dom _ _›
+        ec_auto; ec_progress
+        exact congrArg _ (inv_L_L3.get_valid ‹_› ‹valid _ = true›)
+      -- EC: rcondt{1}2;2:rcondt{2}2;auto;progress.
+      --     + smt(incl_dom lemma2).
+      --     + have[]:=H1;smt(get_setE joinE).
+      --     by have:=H2;rewrite-formatK H/==>nin_dom1;rewrite lemma1//=;
+      --       smt(parse_gt0 lemma2 incl_dom).
+      stmt_rcondt{1} 2
+      on_goals 2 => stmt_rcondt{2} 2
+      · ec_auto
+      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+        exact fun h => ‹¬ FMap.dom _ _›
+          ((inv_L_L3.dom_valid ‹inv_L_L3 _ _ _› ‹valid _ = true›).mpr h)
+      ec_auto; ec_progress
+      exact inv_L_L3.set_valid ‹_› ‹valid _ = true› _
+    -- EC: conseq(:_==> inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});1:smt().
+    equiv_conseq (: _ ==> inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    case post => ec_close
+    -- EC: while(={i,n,p} /\ 0 <= i{1} /\ valid p{1} /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2}).
+    equiv_while (={i, n, p} ∧ 0 ≤ §i{1} ∧ valid §p{1} ∧
+      inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    -- EC: + sp;case(x2{1} \in F.RO.m{1}).
+    --     (EC's `x2` of the inlined `F.RO.sample` is our `x1`)
+    · stmt_sp
+      equiv_case (FMap.dom §SLCommon.F.RO.m{1} §x1{1})
+      -- EC: - by rcondf{1}2;2:rcondf{2}2;auto;smt(lemma2).
+      · stmt_rcondf{1} 2
+        on_goals 2 => stmt_rcondf{2} 2
+        · ec_auto
+        · ec_auto; ec_prep; generalize_reads_all; subst_vars
+          simpa using lemma2 _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› (by omega)
+            ‹FMap.dom _ _›
+        ec_auto; ec_progress
+      -- EC: rcondt{1}2;2:rcondt{2}2;auto;progress.
+      --     - smt(incl_dom lemma1).
+      --     - smt(incl_dom lemma1).
+      --     apply/lemma1=> //=.
+      --     - smt().
+      --     smt(incl_dom mem_join).
+      stmt_rcondt{1} 2
+      on_goals 2 => stmt_rcondt{2} 2
+      · ec_auto
+      · ec_auto; ec_prep; generalize_reads_all; subst_vars
+        exact fun h => ‹¬ FMap.dom _ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
+      ec_auto; ec_progress
+      exact lemma1 _ _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› (by omega) ‹¬ FMap.dom m₁ _›
+        fun h => ‹¬ FMap.dom m₁ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
+    -- EC: auto;smt().
+    ec_auto; ec_progress
+  -- EC: seq 1 1 : (={x,p,n} /\ parse x{1} = (p,n){1} /\ ! valid p{1}
+  --       /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});last first.
+  equiv_seq 1 1 : (={x, p, n} ∧ parse §x{1} = (§p{1}, §n{1}) ∧ valid §p{1} = false ∧
+    inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  rotate_left
+  -- EC: + sp;case(x1{1} \in F.RO.m{1}).
+  --     (by hand, as above: the invariant on a query with an invalid prefix,
+  --     `inv_L_L3.dom_invalid`, `get_invalid` of the old port, and EC's `lemma3`)
+  · stmt_sp
+    equiv_case (FMap.dom §SLCommon.F.RO.m{1} §x2{1})
+    -- EC: - rcondf{1}2;2:rcondf{2}2;auto;progress.
+    --       * have[]:=H1;smt(incl_dom).
+    --       have[]:=H1;smt(joinE incl_dom).
+    · stmt_rcondf{1} 2
+      on_goals 2 => stmt_rcondf{2} 2
+      · ec_auto
+      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+        simpa using (inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _› ‹valid _ = false›).mp ‹FMap.dom _ _›
+      ec_auto; ec_progress
+      exact congrArg _ (inv_L_L3.get_invalid ‹_› ‹valid _ = false›)
+    -- EC: rcondt{1}2;2:rcondt{2}2;auto;progress.
+    --     * have[]:=H1;smt(incl_dom).
+    --     * have[]:=H1;smt(joinE incl_dom get_setE).
+    --     by rewrite(lemma3 _ _ _ _ rL H1 _ H2)H//=.
+    stmt_rcondt{1} 2
+    on_goals 2 => stmt_rcondt{2} 2
+    · ec_auto
+    · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      exact fun h => ‹¬ FMap.dom _ _›
+        ((inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _› ‹valid _ = false›).mpr h)
+    ec_auto; ec_progress
+    exact lemma3 _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = false› ‹¬ FMap.dom m₁ _›
+  -- EC: conseq(:_==> inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});1:smt().
+  equiv_conseq (: _ ==> inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  case post => ec_close
+  -- EC: while(={i,n,p,x} /\ 0 <= i{1} /\ ! valid p{1} /\ parse x{1} = (p,n){1}
+  --       /\ inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2}).
+  equiv_while (={i, n, p, x} ∧ 0 ≤ §i{1} ∧ valid §p{1} = false ∧ parse §x{1} = (§p{1}, §n{1}) ∧
+    inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  -- EC: + sp;case(x2{1} \in F.RO.m{1}).
+  · stmt_sp
+    equiv_case (FMap.dom §SLCommon.F.RO.m{1} §x1{1})
+    -- EC: - rcondf{1}2;2:rcondf{2}2;auto;progress.
+    --       * have[]h_join h1 h2:=H2.
+    --         have:= H5; rewrite h_join mem_join.
+    --         have:= h1 (format p{hr} (i_R + 1)).
+    --         have:=parse_not_valid x{hr}; rewrite H1 /= H0 /= => h.
+    --         by rewrite (h (i_R+1)) /= => ->.
+    --       smt().
+    · stmt_rcondf{1} 2
+      on_goals 2 => stmt_rcondf{2} 2
+      · ec_auto
+      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+        simpa using (inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _›
+          (parse_not_valid _ ‹valid _ = false› _)).mp ‹FMap.dom _ _›
+      ec_auto; ec_progress
+    -- EC: rcondt{1}2;2:rcondt{2}2;auto;progress.
+    --     * smt(incl_dom lemma1).
+    --     * smt().
+    --     * have//=:=lemma3 _ _ _ _ r0L H2 _ H5.
+    --       by have:= parse_not_valid x{2}; rewrite H1 /= H0 /= => h; exact/(h (i_R+1)).
+    stmt_rcondt{1} 2
+    on_goals 2 => stmt_rcondt{2} 2
+    · ec_auto
+    · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      exact fun h => ‹¬ FMap.dom _ _› ((inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _›
+        (parse_not_valid _ ‹valid _ = false› _)).mpr h)
+    ec_auto; ec_progress
+    exact lemma3 _ _ _ _ _ ‹inv_L_L3 _ _ _› (parse_not_valid _ ‹valid _ = false› _)
+      ‹¬ FMap.dom m₁ _›
+  -- EC: auto;smt().
+  ec_auto; ec_progress
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
