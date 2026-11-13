@@ -3499,28 +3499,45 @@ theorem pr_real : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Red
 /-! ## Section `Real_Ideal`
 
 `concl` (EC l. 1786) applies `Gconcl.Real_Ideal` to the composed distinguisher `A(D)`, with
-`A_lossless` for its `D_ll`.  The pilots' `Real_Ideal` is stated for a declared module `D`, its
-`D_ll` over oracles restricted against `glob D`; for `A(D)` that restriction is against
-`glob (A(D))`, and only an upper bound of the footprint of an application is known (EC reads
-`glob A(D) = glob D ∪ {C.c}` off the code).  This is step 4 of `notes/SHA3/TacticReview.md`
-(EC's syntactic `glob`): `concl` waits for it, and with it `neg_D_concl`,
-`Inefficient_Real_Ideal` and the final `Real_Ideal`. -/
+`A_lossless` for its `D_ll`.  EC's `glob A(D)` is `glob D` and `C.c` by definition; here the
+footprint of an application is bounded from above only, so `{-A(D)}` does not give `{-D}`.  The
+pilots' `Real_Ideal` is therefore stated against a region for `glob D`
+(`declare module … with glob R`, `Logic/DeclareModule.lean`; exception E14), and `concl` gives the
+region of `A(D)` written out, `R ⊔ C.c.footprint`.  This section's `D` has a region too: EC
+applies `concl` to `Neg_D(D)` (`neg_D_concl`). -/
 
 section Real_Ideal
 
+-- (the modules of the files `Real_Ideal` goes through are fresh for `D`: in EC they are local to
+-- their sections or defined after `D`'s restriction is checked)
 declare module D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Redo, -SLCommon.F.RO,
-  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m}
+  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
 
--- EC's `declare axiom D_lossless`
-variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-D}), ∀ (P0 <: DPRIMITIVE {-D}),
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob A(D)`: `glob D` (the region given for `D`; a declared module's is its `glob`) and
+`C.c`, the variable of `A`'s code. -/
+instance (D : DISTINGUISHER) {R : Footprint VariableAssignment} [h : Module.ECGlob D R] :
+    Module.ECGlob (A D) (R ⊔ C.c.footprint) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_A D), (fvP_A D).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ C.c.footprint, hGF.sup (by fp_finite),
+      sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
+        (Footprint.le_glob_of_le le_sup_right)⟩⟩
+
+-- EC's `declare axiom D_lossless` (`glob D` as the region `R`)
+variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-R}), ∀ (P0 <: DPRIMITIVE {-R}),
   islossless P0.f → islossless P0.fi → islossless F0.f → islossless D(F0, P0).distinguish)
 
 include D_lossless in
 /-- EC's `lemma A_lossless (F <: SLCommon.DFUNCTIONALITY{-A(D)})
 (P0 <: SLCommon.DPRIMITIVE{-A(D)}) : islossless P0.f => islossless P0.fi => islossless F.f =>
-islossless A(D, F, P0).distinguish`; `{-A(D)}` is `{-D, -C}`, its globals. -/
-theorem A_lossless : ∀ (F <: SLCommon.DFUNCTIONALITY {-D, -C}),
-    ∀ (P0 <: SLCommon.DPRIMITIVE {-D, -C}),
+islossless A(D, F, P0).distinguish`; `{-A(D)}` is `{-R, -C}`, its globals. -/
+theorem A_lossless : ∀ (F <: SLCommon.DFUNCTIONALITY {-R, -C}),
+    ∀ (P0 <: SLCommon.DPRIMITIVE {-R, -C}),
     islossless P0.f → islossless P0.fi → islossless F.f →
       islossless A(D, F, P0).distinguish := by
   intro F _ P0 _ H H0 H1
@@ -3552,6 +3569,40 @@ theorem A_lossless : ∀ (F <: SLCommon.DFUNCTIONALITY {-D, -C}),
         · phoare_call H1; phoare_auto
       · phoare_auto
     · phoare_auto
+
+set_option synthInstance.maxHeartbeats 400000 in
+set_option synthInstance.maxSize 1024 in
+-- EC's restriction checks by instance search (`D` against the modules of `pr_real` and
+-- `equiv_ideal`, among the thirty-five variables of its declaration)
+include D_lossless in
+/-- EC's `lemma concl &m : Pr [ RealIndif(Sponge,P,DRestr(D)).main() @ &m : res ] <=
+Pr [ IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res ] +
+(max_size ^ 2 - max_size)%r / 2%r / (2^r)%r / (2^c)%r + max_size%r * ((2*max_size)%r / (2^c)%r) +
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem concl (m : VariableAssignment) :
+    Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] ≤
+      Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] +
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 / ((2 ^ r.toNat : ℤ) : ℝ) /
+          ((2 ^ c.toNat : ℤ) : ℝ) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: rewrite-(pr_real D &m).
+  rw [← pr_real D m]
+  -- EC: rewrite-(equiv_ideal D &m).
+  rw [← equiv_ideal D m]
+  -- EC: have:=Real_Ideal (A(D)) A_lossless &m.
+  --     (EC's `glob A(D)` written out, `glob D` and `C.c`, exception E14: the instance above;
+  --     here EC's two restriction checks, `A(D)` against `Real_Ideal`'s modules and the region
+  --     against them)
+  have := @Pilot.Gconcl.Real_Ideal _ (A D) ⟨by fp_finite, by fp_disjoint⟩ _ _
+    ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩
+    (A_lossless D D_lossless) m
+  -- EC: pose x:=witness;elim:x=>a b.
+  --     rewrite/dstate dprod1E DBlock.dunifin1E DCapacity.dunifin1E/=
+  --       block_card capacity_card;smt().
+  rw [dstate1E_toReal] at this
+  refine this.trans (le_of_eq ?_)
+  ring
 
 end Real_Ideal
 

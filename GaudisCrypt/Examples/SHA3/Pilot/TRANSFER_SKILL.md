@@ -108,6 +108,7 @@ do better, deviate — and **document the deviation in the theorem's docstring**
 | `module CF(D) = Indif(SqueezelessSponge(PF), PF, D)` (alias) | `noncomputable abbrev CF (D : T) := Module.app Indif (Module.pair …)` | Prefer an alias over a `def` (a `def` needs `unfold` in proofs). |
 | `section S. declare module A <: T {-M₁, -M₂}.` | `section S` … `declare module A <: T {-M₁, -M₂}` … `end S` (`Logic/DeclareModule.lean`; needs the enclosing `section`, as do `declare axiom`s) | Variable + instance-implicit `[Module.Declared A S]`; `S` read off the `global_var`s of `M₁`'s code / `glob` of declared modules. Representability is derived. |
 | `declare axiom D_ll : …` | `variable (D_ll : ∀ (F <: T {-D}), …, islossless D(F, P).distinguish)` + `include D_ll in` on the lemmas using it | `∀ (F <: T {-X}), P` and `∃ (S <: T {-X}), P` are `Logic/ECModuleBinders.lean`. |
+| `declare module D` whose lemma is later applied to a module built from a declared one (`Real_Ideal (A(D))`), with `declare axiom D_ll` over `{-D}` | `declare module D <: T {-M₁, -M₂} with glob R` and `{-R}` for `{-D}` in `D_ll` | E14. EC's `glob A(D)` is `glob D` and `A`'s variables by definition; ours is known from above only, so `{-A(D)}` does not give `{-D}`. `R` is a region above `D`'s footprint, restricted like `D`. Proofs do not change. At the application the region is written out: an instance `Module.ECGlob (A D) (R ⊔ C.c.footprint)` next to `A` (from `fvP_A`), and `@Real_Ideal _ (A D) ⟨by fp_finite, by fp_disjoint⟩ _ _ ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ A_lossless m` (`Gconcl_list.concl`). A section whose lemmas receive such a `D_ll` needs the form too (the whole chain below the application). |
 | `local module L (A : T) = { … }` | an ordinary `module` (or `module_var`s + `module`) inside `namespace Section` *before* the section's `declare module` | Its freshness for the declared adversary goes in the adversary's restriction list (EC: implicit) — e.g. `{-RO, -Preimage, -Preimage.Preimage2}`. |
 | `local` (clones, lemmas) | nothing — names stay visible | |
 | `lemma l &m (h : to) : Pr[ … ]` | `theorem l (m : VariableAssignment) (h : «to») : Pr[ … ]` | `&m` is an explicit memory argument. |
@@ -363,8 +364,9 @@ Document each in the docstring when it applies.
   the older `prhlProc_abstract_call_upto` rule, whose oracle premises are Hoare triples.)
 * **E13, E14** will recur in Gconcl, Gconcl_list, SHA3Indiff, SHA3(O)Security: variables of
   local games fresh for `D` by hypothesis (`Gext0Fresh`), `D_ll` over a region rather than
-  `glob D`.  Read them before porting those files; retire them if `declare module` /
-  `Module.ECGlob` now cover the case.
+  `glob D`.  Read them before porting those files.  E13 is `declare module`'s restriction list
+  (the local games' modules named in it).  E14 is `declare module … with glob R` (§2): it stays
+  an exception, in two lines per section.
 * **Clone ops given as functions** (`op dout _ <- bdistr`) stay applied in our code
   (`r <$ F.dout x`), but `stmt_swap` sees such a distribution as constant (equal up to reducible
   unfolding), so EC's swaps go through.  Moving a statement to an earlier position past

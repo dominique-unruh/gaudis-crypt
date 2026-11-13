@@ -482,3 +482,31 @@ is an equality), and restore `(fvP D).glob`.
   `IndifRO_is_secure.coll_resistant_if_indifferentiable_at` (whose proof, as EC's, does not use it);
   `Sponge_coll_resistant` and `coll_resistant_if_indifferentiable` are the `glob A` instances, and
   `SHA3_coll_resistant` is `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` at `glob A`.
+
+**In the pilots (2026-11-13): `declare module … with glob R`.** The pilots keep E14, in one
+statement per lemma instead of the pair `X_at` / `X`. This follows Dominique's proposal, taken up
+as a trial: `glob` stays as it is (the footprint, rounded up to whole variables), EasyCrypt's
+syntactic `glob` is not taken over, and where `glob F(A)` is needed it is written out as `glob F`
+and `glob A`.
+
+    declare module D <: DISTINGUISHER {-C, -Perm, …} with glob R
+    variable (D_ll : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}), … )
+
+declares, with `D`, a region `R` above `D`'s footprint (`Module.ECGlob D R`), restricted like `D`
+(`Footprint.Restricted R S`), and `{-R}` in a restriction names it (`Logic/DeclareModule.lean`).
+Two lines per section differ from EasyCrypt: the declaration, and `{-R}` for `{-D}` in `D_ll`.
+The proofs are unchanged: `fp_disjoint` reads the region's restriction, and the up-to-bad call
+states its `D_ll` goal against `R`. The sections in this form: `SLCommon` (`COUNT`), `ConcreteF`
+(`Real_Concrete`), `Handle` (`AUX`), `Gext` (`REAL`), `Gconcl` (`REAL`), `Gconcl_list`
+(`Real_Ideal`).
+
+A lemma in this form is applied to a module built from a declared one with the region written
+out. `Gconcl_list.concl` applies `Real_Ideal` to `A(D)` with the region `R ⊔ C.c.footprint`: an
+instance `Module.ECGlob (A D) (R ⊔ C.c.footprint)` (from the upper bound `fvP_A`), and the
+region's restriction `⟨_, by fp_disjoint⟩` at the application. `ConcreteF`'s `D'(D)` is the same
+(`R ⊔ (C.c, C.queries, Redo.prefixes)`). Applied to a declared module, the region is its `glob`
+(`Module.ECGlob.declared`, `Footprint.Restricted.glob_declared`).
+
+What this does not give: an equivalence about `glob F(A)` obtained by instantiating a lemma's
+`={glob D}` at `F(A)` is about the footprint of the application, not about `glob F ⊔ glob A`.
+No proof of the port needs it so far.

@@ -798,13 +798,16 @@ theorem fvP_D' (D : DISTINGUISHER) : FVP.fvP (D' D) ≤
   fp_module (Lens.pair (Lens.pair C.c C.queries) Redo.prefixes)
 
 set_option synthInstance.checkSynthOrder false in
-/-- EC's `glob D'`: `glob D` and the variables of `D'`'s code. -/
-instance (D : DISTINGUISHER) {S : Footprint VariableAssignment} [h : Module.Declared D S] :
+/-- EC's `glob D'`: `glob D` (the region `R` given for `D`; a declared module's is its `glob`) and
+the variables of `D'`'s code. -/
+instance (D : DISTINGUISHER) {R : Footprint VariableAssignment} [h : Module.ECGlob D R] :
     Module.ECGlob (D' D)
-      ((FVP.fvP D).glob ⊔ (C.c.footprint ⊔ C.queries.footprint ⊔ Redo.prefixes.footprint)) :=
-  ⟨(h.finite.sup (by fp_finite)).mono (fvP_D' D),
-    (fvP_D' D).trans (sup_le_sup_right (Footprint.le_glob _) _),
-    ⟨_, h.finite.sup (by fp_finite), sup_le (Footprint.glob_mono le_sup_left)
+      (R ⊔ (C.c.footprint ⊔ C.queries.footprint ⊔ Redo.prefixes.footprint)) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_D' D),
+    (fvP_D' D).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ (C.c.footprint ⊔ C.queries.footprint ⊔ Redo.prefixes.footprint),
+      hGF.sup (by fp_finite), sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
       (Footprint.le_glob_of_le le_sup_right)⟩⟩
 
 namespace Switching
@@ -836,10 +839,11 @@ end Switching
 section
 
 -- EC's section's `D`, with the local clone's modules fresh for it (as `DoubleBounding`'s)
-declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo, -DBounder, -ARP, -PRPi.PRPi}
+-- (`glob D` as a region `R`, exception E14)
+declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo, -DBounder, -ARP, -PRPi.PRPi} with glob R
 
 -- EC's `declare axiom D_ll`
-variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
 set_option maxHeartbeats 4000000 in

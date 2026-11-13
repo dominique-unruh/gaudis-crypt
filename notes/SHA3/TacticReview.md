@@ -105,6 +105,8 @@ Stop adding special cases. In this order:
 Decisions this needs:
 - Phase 2 reverses the choice recorded in `notes/SHA3/GlobGranularity.md` §5 (2026-11-01) and
   touches `Syntax/ModuleSyntax.lean`; it needs Dominique's agreement.
+  (2026-11-13: Dominique prefers not to take over EC's `glob`; a smaller form is on trial, see
+  "Step 4, tried another way" in §6.)
 - Whether the port pauses for Phases 0–1, or continues in parallel with manual proofs wherever
   a closer misses.
 
@@ -348,19 +350,13 @@ test; it touches `Logic/Inline.lean` (a rebuild of everything), so it waits for 
 GAP 9 (`ec_prep` on split-loop guards) and the Hoare `seq`.
 
 **Sections `Real_Ideal`, `Real_Ideal_Abs` (2026-11-13): what waits, and for what.**
-`A_lossless` and `Neg_D_lossless` are done (EC's scripts, `phoare` tactics).  The rest waits for
+`A_lossless` and `Neg_D_lossless` are done (EC's scripts, `phoare` tactics).  The rest waited for
 three things, none of them a proof step:
 
-* `concl` applies `Gconcl.Real_Ideal` to `A(D)`.  The pilots state `Real_Ideal` (and all it rests
-  on, down to `ConcreteF`) for `declare module D`, with `D_ll` over oracles `{-D}`.  For the
-  composed `A(D)`, EC's `{-A(D)}` is `glob D ∪ {C.c}`, read off the code; here `fvP (A D)` is
-  only bounded above by that, so an oracle outside `glob (A D)` is not known to be outside
-  `glob D`, and `A_lossless` cannot be given as the `D_ll` of `A(D)`.  The `ConcreteF` pilot met
-  the same thing once (`Switching.Conclusion` over `Module.ECGlob`).  Doing it here means stating
-  the chain `Real_Concrete` … `Real_Ideal` over `Module.ECGlob` instead of `declare module`, in
-  five pilot files: this *is* step 4 (EC's syntactic `glob`), and is not started without a
-  decision.  `neg_D_concl`, `Inefficient_Real_Ideal` and the final `Real_Ideal` follow `concl`
-  (`concl (Neg_D(D))` is the same situation).
+* `concl` applied `Gconcl.Real_Ideal` to `A(D)` and waited for step 4: **done**, see "Step 4,
+  tried another way" below.  `neg_D_concl`, `Inefficient_Real_Ideal` and the final `Real_Ideal` now wait
+  only for the two lemmas below (`concl (Neg_D(D))` is the same application, with the region
+  `glob D`).
 * `Real_lossless`: EC's `call (: invm Perm.m Perm.mi)` on the abstract `D` in a `phoare … = 1`
   goal.  `phoare_call` has the rule for lossless oracles only.  (The first port avoided the
   invariant: `Perm.f` is lossless unconditionally; that is not EC's script.)
@@ -376,6 +372,33 @@ lines; three new gaps, 14–16: `glob D` past initializations after `skip`, EC's
 its three easy goals, the simulator's `f` up to the split on `valid q`; its two branches (the
 loop of `BIRO.IRO.f` and the eager oracle's loop against `BIRO2.IRO.f`) are left, with
 `Simplify_simulator` (one `RO_LRO_D`).
+
+**Step 4, tried another way (2026-11-13): no syntactic `glob`; a region where `glob F(A)` is
+needed.**  Dominique's concern: EasyCrypt's `glob` system may be inconsistent, and taking it over closely
+is dangerous; where `glob F(A)` is needed, write `glob F` and `glob A` explicitly.  A lemma about
+a module variable `D` cannot have `glob D` rewritten at its use, so the lemma takes it as a
+parameter: `declare module D <: T {-…} with glob R` declares a region `R` above `D`'s footprint,
+restricted like `D`, and `D_ll` restricts its oracles against `R` (`{-R}`).  The application to
+`A(D)` gives `R ⊔ C.c.footprint`.  Every region is checked against the footprint by a proof;
+nothing is read off EasyCrypt's `glob`.  This is exception E14 in the pilots
+(`notes/SHA3/Exceptions.md`).  If the trial is kept, Phase 2's "`glob` defined syntactically"
+is dropped.
+
+What it took:
+* `Logic/FootprintSolver.lean`: the class `Footprint.Restricted R S`, read by `fp_disjoint` as a
+  restriction hypothesis; one more rule (an abstract module against a region).
+* `Logic/DeclareModule.lean`: the command, `{-R}` in restrictions, the weakening instances (as a
+  declaration's), `Footprint.FinitelySupported.glob`.
+* `Logic/ECCallUpto.lean`: the up-to-bad call states `D_ll` against the region of a module that
+  has one (`Module.ECGlob`); for every other module the goal is as before.
+* Golden tests in `Logic/ECCallsTest.lean`.
+* The pilots: two lines in each of six sections (`SLCommon`, `ConcreteF`, `Handle`, `Gext`,
+  `Gconcl`, `Gconcl_list`), one instance generalized (`D'(D)`), one added (`A(D)`), no proof
+  changed.  `concl` is EC's five lines; the region is written at the one application.
+
+Still to come with the same form: `SHA3Indiff`'s `security` (`Real_Ideal` of `Gconcl_list` at
+`LowerDist(Dist)`), `SHA3Security` (three `SHA3Indiff (DSetSize(…(A)))`, one
+`Sponge_coll_resistant`), `SHA3OSecurity` (three), `SHA3_OIndiff` (one).
 
 **The batch of rule fixes this port has collected** (each small, each with a golden test; the
 first needs a full rebuild, so they go together):

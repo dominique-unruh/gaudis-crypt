@@ -32,7 +32,9 @@ outright.
 relational): the global variables the three read become the view `L` (EC's invariants on memories,
 here on `L`'s contents), and the goals come in EC's order —
 1. `D_ll`'s statement (`∀ (F <: … {-D}) (P <: … {-D}), islossless P.f → … → islossless D(F, P)`,
-   the oracles' procedures in EC's order: the last component's first), closed by `exact D_ll`;
+   the oracles' procedures in EC's order: the last component's first), closed by `exact D_ll`
+   (for `D` declared `with glob R`, `Logic/DeclareModule.lean`, the statement is against `R`:
+   `∀ (F <: … {-R}) …`);
 2. per oracle procedure, in that order: the equivalence, the left oracle's `islossless`, the right
    one's `phoare[ … : bad ∧ J ==> bad ∧ J ] = 1`, and (the deviation) the right one's
    `islossless`;
@@ -452,7 +454,15 @@ elab_rules (kind := equivCallUpto) : tactic
           rightGs := rightGs.push h
         done := done.push gr
       -- the losslessness of `D(O₁)`, `D(O₂)` from EC's `D_ll` and the oracles' losslessness
-      let G ← mkAppM ``Footprint.glob #[← mkAppM ``FVP.fvP #[D]]
+      -- `glob D`: the region given for `D` (`declare module … with glob R`, `Module.ECGlob D R`),
+      -- else `D`'s own
+      let Gdef ← mkAppM ``Footprint.glob #[← mkAppM ``FVP.fvP #[D]]
+      let G ← try
+          let R ← mkFreshExprMVar (← inferType Gdef)
+          let _ ← synthInstance (← mkAppM ``Module.ECGlob #[D, R])
+          let R ← instantiateMVars R
+          if R.hasExprMVar || R.isAppOfArity ``Footprint.glob 1 then pure Gdef else pure R
+        catch _ => pure Gdef
       let llOf (p : Lean.Expr) : MetaM Lean.Expr := mkAppM ``Procedure.IsLossless #[p]
       let llL ← ecOrder.mapM fun i => do
         let m ← mkFreshExprSyntheticOpaqueMVar (← llOf procs₁[i]!) `left

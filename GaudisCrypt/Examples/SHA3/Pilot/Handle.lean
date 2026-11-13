@@ -923,10 +923,10 @@ section AUX
 -- `clone Strong_RP_RF as Switching`: in EC a local clone is fresh, here its modules are named)
 declare module D <: DISTINGUISHER {-PF, -F.RO, -ROhandle.RO, -G1, -Redo, -C, -Perm,
   -Pilot.ConcreteF.Switching.DBounder, -Pilot.ConcreteF.Switching.ARP,
-  -Pilot.ConcreteF.Switching.PRPi.PRPi}
+  -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
 
--- EC's `declare axiom D_ll`
-variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+-- EC's `declare axiom D_ll` (`glob D` as the region `R`, exception E14)
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
 set_option maxHeartbeats 8000000 in

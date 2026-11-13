@@ -1118,10 +1118,10 @@ section REAL
 declare module D <: DISTINGUISHER {-C.c, -C.queries, -PF, -G1, -G2, -Perm, -ROhandle.RO.m, -Redo,
   -ReSample.count, -F.RO, -ROhandle.RO, -Pilot.Gcol.Gcol.sample_c,
   -Pilot.ConcreteF.Switching.DBounder, -Pilot.ConcreteF.Switching.ARP,
-  -Pilot.ConcreteF.Switching.PRPi.PRPi}
+  -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
 
--- EC's `declare axiom D_ll`
-variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+-- EC's `declare axiom D_ll` (`glob D` as the region `R`, exception E14)
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
 set_option maxHeartbeats 4000000 in

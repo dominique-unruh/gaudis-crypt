@@ -25,6 +25,23 @@ restriction hypothesis `FVP.fvP A ≤ Sᶜ` it states.
 * a global variable: itself;
 * a declared module (a section variable): `glob X`, EC's restriction against an abstract module.
 
+**A region for `glob A`** (exception E14 of the SHA-3 port).
+
+    declare module D <: DISTINGUISHER {-C, -Perm} with glob R
+
+also declares a region `R` above `D`'s footprint, restricted like `D`
+(`Module.ECGlob D R`, `Footprint.Restricted R S`), and `{-R}` in a restriction names it:
+
+    variable (D_ll : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}), … → islossless D(F, P).distinguish)
+
+This is for a lemma that restricts other modules against `glob D` (EC's `{-D}` on a module bound in
+a hypothesis) and is applied to a module built from a declared one, `A(D')`.  EC's `glob A(D')` is
+`glob D'` and the variables of `A`, by definition; here the footprint of an application is bounded
+from above only, so `{-A(D')}` does not give `{-D'}`.  Stated against `R`, the lemma is applied
+with the region written out, `glob D' ⊔ C.c.footprint` (an instance `Module.ECGlob (A D') _`, and
+`Footprint.Restricted _ _` by `⟨by fp_finite, by fp_disjoint⟩`).  Applied to a declared module it
+is applied with `R` its `glob` (`Module.ECGlob.declared`, `Footprint.Restricted.glob_declared`).
+
 **Representability** (exception E2 of the SHA-3 port) is not a hypothesis: over a first-order
 module type it is a theorem (`Module.representable_of_firstOrder`), and
 `Module.Declared.ecModule A ext` gives `Module.ECModule A ext` with its side conditions
@@ -195,6 +212,28 @@ instance (priority := low) Module.Declared.ofECGlob {M : Type 1} [IsModule M] {A
     Module.Declared A S :=
   ⟨h.finite, h.le.trans hO.le⟩
 
+/-- The `glob` of a finitely supported footprint is finitely supported: within the same
+variables. -/
+theorem Footprint.FinitelySupported.glob {F : Footprint VariableAssignment}
+    (hF : F.FinitelySupported) : F.glob.FinitelySupported := by
+  letI := variableGranularity
+  obtain ⟨vs, hvs⟩ := hF
+  refine ⟨vs, ?_⟩
+  unfold Footprint.glob
+  rw [dif_pos (Footprint.FinitelySupported.isSubGranular ⟨vs, hvs⟩),
+    Footprint.IsSubGranular.granularCover_footprint_eq_sSup]
+  refine sSup_le fun g ⟨hg, hFg⟩ => ?_
+  obtain ⟨w, rfl, -⟩ := hg
+  by_contra hle
+  apply hFg
+  refine hvs.trans (iSup₂_le fun v hv => ?_)
+  have hne : v ≠ w := by
+    rintro rfl
+    exact hle (le_iSup₂_of_le (f := fun v (_ : v ∈ vs) => (GaudisCrypt.varLens v).footprint) v hv
+      le_rfl)
+  haveI := varLens_disjoint hne
+  exact Lens.footprint_le_compl_of_disjoint (GaudisCrypt.varLens v) (GaudisCrypt.varLens w)
+
 /-- What stays outside `S₀` (a finitely supported footprint) stays outside `S`. -/
 class Footprint.Covers (S₀ S : Footprint VariableAssignment) : Prop where
   le : ∀ F : Footprint VariableAssignment, F.FinitelySupported → F ≤ S₀ᶜ → F ≤ Sᶜ
@@ -224,6 +263,40 @@ instance (priority := low) Module.Declared.weakenCovers {M : Type 1} [IsModule M
     {S₀ S : Footprint VariableAssignment} [h : Module.Declared A S₀] [hS : Footprint.Covers S₀ S] :
     Module.Declared A S :=
   ⟨h.finite, hS.le _ h.finite h.restr⟩
+
+/-! ### A region for `glob A` (`declare module … with glob R`)
+
+`Footprint.Restricted R S` (`Logic/FootprintSolver.lean`) is weakened like a declaration, and
+gives the `Footprint.Outside` instances of `R` (so a module with `Module.ECGlob A R` is declared,
+`Module.Declared.ofECGlob`). -/
+
+set_option synthInstance.checkSynthOrder false in
+/-- A region restricted against `S₀` is restricted against any sub-join `S` of it
+(as `Module.Declared.weaken`). -/
+instance (priority := low) Footprint.Restricted.weaken {R S₀ S : Footprint VariableAssignment}
+    [h : Footprint.Restricted R S₀] [hS : Footprint.JoinLe S S₀] : Footprint.Restricted R S :=
+  ⟨h.finite, h.restr.trans (Footprint.compl_antimono hS.le)⟩
+
+set_option synthInstance.checkSynthOrder false in
+/-- `Footprint.Restricted.weaken`, to what the restriction `Covers`
+(as `Module.Declared.weakenCovers`). -/
+instance (priority := low) Footprint.Restricted.weakenCovers
+    {R S₀ S : Footprint VariableAssignment} [h : Footprint.Restricted R S₀]
+    [hS : Footprint.Covers S₀ S] : Footprint.Restricted R S :=
+  ⟨h.finite, hS.le _ h.finite h.restr⟩
+
+set_option synthInstance.checkSynthOrder false in
+/-- A restricted region stays outside the sub-joins of its restriction. -/
+instance (priority := low) Footprint.Outside.ofRestricted {R S₀ S : Footprint VariableAssignment}
+    [h : Footprint.Restricted R S₀] [hS : Footprint.JoinLe S S₀] : Footprint.Outside R S :=
+  ⟨h.restr.trans (Footprint.compl_antimono hS.le)⟩
+
+/-- **A declared module's `glob` is a restricted region**: the lemma stated against a region is
+applied to a declared module with `R` its `glob`. -/
+theorem Footprint.Restricted.glob_declared {M : Type 1} [IsModule M] (A : M)
+    {S : Footprint VariableAssignment} [h : Module.Declared A S] [hS : Footprint.GlobalJoin S] :
+    Footprint.Restricted (FVP.fvP A).glob S :=
+  ⟨h.finite.glob, (Footprint.le_compl_comm _ _).mp (hS.le_compl_glob _ h.finite h.restr)⟩
 
 /-- Every procedure signature of `holes` has nonempty parameter and result types. -/
 def HoleSigs.AllNonempty : HoleSigs → Prop
@@ -360,14 +433,19 @@ def globalVarsOf (env : Environment) (roots : Array Name) (cap : Nat := 20000) :
 
 open Elab Term in
 /-- The restriction `{-X₁, …, -Xₖ}` as a footprint term, resolved in the current context, as
-`declare module` resolves it: a declared module (a local) is `glob X`; a global variable itself;
-a concrete module (a definition) the globals its code mentions. -/
+`declare module` resolves it: a declared module (a local) is `glob X`; a region (a local, of
+`declare module … with glob R`) itself; a global variable itself; a concrete module (a definition)
+the globals its code mentions. -/
 def restrictionTerm (xs : Array Ident) : Elab.Term.TermElabM (TSyntax `term) := do
   let mut out : Array (TSyntax `term) := #[]
   let mut seen : NameSet := {}
   for x in xs do
-    if (← getLCtx).findFromUserName? x.getId |>.isSome then
-      out := out.push (← `((FVP.fvP $x).glob))
+    if let some d := (← getLCtx).findFromUserName? x.getId then
+      -- a region (`declare module … with glob R`): itself
+      if (← whnfR (← instantiateMVars d.type)).isAppOf ``Footprint then
+        out := out.push x
+      else
+        out := out.push (← `((FVP.fvP $x).glob))
       continue
     let c ← Elab.realizeGlobalConstNoOverloadWithInfo x
     let env ← getEnv
@@ -408,6 +486,27 @@ elab_rules : command
     elabCommand (← `(variable ($A : $ty) [Module.Declared $A $S]))
     -- EC generalizes every lemma of the section that mentions `A` over the declaration, the
     -- restriction included whether the proof needs it or not
+    elabCommand (← `(set_option linter.unusedSectionVars false))
+
+/-- `declare module A <: T a₁ … aₙ {-X₁, …, -Xₖ} with glob R`: `declare module`, and a region `R`
+above `A`'s footprint, restricted like `A` (`{-R}` names it in a restriction): see the module
+docstring. -/
+syntax (name := declareModuleGlob) "declare " "module " ident " <: " ident
+  (ppSpace declare_module_arg)* (" {" ("-" ident),* "}")? " with " "glob " ident : command
+
+open Elab Command Term Meta DeclareModule in
+elab_rules : command
+  | `(declare module $A:ident <: $T:ident $args:declare_module_arg* $[{ $[- $xs:ident],* }]?
+      with glob $R:ident) => do
+    let argTs : Array Term ← args.mapM fun
+      | `(declare_module_arg| $x:ident) => pure (x : Term)
+      | `(declare_module_arg| ($t:term)) => `(($t))
+      | _ => throwUnsupportedSyntax
+    let ty ← `($T $argTs*)
+    let xs := (xs.getD #[])
+    let S ← runTermElabM fun _ => restrictionTerm xs
+    elabCommand (← `(variable ($A : $ty) [Module.Declared $A $S]
+      {$R : Footprint VariableAssignment} [Module.ECGlob $A $R] [Footprint.Restricted $R $S]))
     elabCommand (← `(set_option linter.unusedSectionVars false))
 
 end GaudisCrypt

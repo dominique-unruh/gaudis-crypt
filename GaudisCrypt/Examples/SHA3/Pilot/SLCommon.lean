@@ -164,11 +164,13 @@ section COUNT
 
 declare module P <: PRIMITIVE {-C}
 declare module CO <: CONSTRUCTION {-C, -P}
-declare module D <: DISTINGUISHER {-C, -P, -CO}
+-- (`glob D` as a region `R`, exception E14: `D_ll`'s oracles stay outside `R`, so that the lemma
+-- applies to a distinguisher built from a declared one)
+declare module D <: DISTINGUISHER {-C, -P, -CO} with glob R
 
 -- EC's `declare axiom`s
 variable (f_ll : islossless P.f) (fi_ll : islossless P.fi) (CO_ll : islossless CO(P).f)
-variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
 set_option maxHeartbeats 1000000 in

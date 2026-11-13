@@ -7,6 +7,7 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECCallUpto
 import GaudisCrypt.Logic.DeclareModule
+import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.FootprintUpper
 import GaudisCrypt.Syntax.Syntax
 
@@ -505,6 +506,63 @@ example : equiv[ Game(Inc, A).main ~ Game(Inc2, A).main : ={glob A, cCount} ==> 
   equiv_proc; sim
   trace_state
   all_goals sorry
+
+end
+
+/-! ## A declared adversary with a region for its `glob` (`declare module … with glob R`)
+
+The lemma's hypothesis restricts the oracles against the region `R` (`{-R}`), so that it applies
+to an adversary built from a declared one (`Logic/DeclareModule.lean`). -/
+
+section
+
+declare module A <: ADV {-cCount, -cFlag} with glob R
+
+variable (A_ll : ∀ (O <: Orc {-R}), islossless O.get → islossless A(O).run)
+
+-- `call (_ : bad, I)`: `A_ll`'s statement is against the region
+include A_ll in
+/--
+trace: case ll
+A : ADV
+inst✝² : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
+R : Footprint VariableAssignment
+inst✝¹ : Module.ECGlob A R
+inst✝ : R.Restricted (cCount.footprint ⊔ cFlag.footprint)
+A_ll : ∀ (O : Orc) [Module.Declared O R], O.get.procedure.IsLossless → (Module.app A O).procedure.IsLossless
+⊢ ∀ (O0 : Orc) [inst : Module.Declared O0 R], O0.get.procedure.IsLossless → (Module.app A O0).procedure.IsLossless
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ Game(Inc, A).main ~ Game(Inc, A).main :
+    ={glob A, cCount} ==> ¬ (10 < §cCount{2}) → ={res} ] := by
+  equiv_proc
+  equiv_call (_ : 10 < §cCount, ={cCount})
+  · trace_state
+    exact A_ll
+  all_goals sorry
+
+-- the restrictions against the region, as EC checks them: a concrete module (its variables are
+-- in `R`'s restriction), a module built from one declared against `R`
+example : Module.Declared Inc R := ⟨by fp_finite, by fp_disjoint⟩
+
+example (O : Orc) [Module.Declared O R] : FVP.fvP (Module.app Twice O) ≤ Rᶜ := by fp_disjoint
+
+-- the region is restricted against less (as a declaration is)
+example : Footprint.Restricted R cFlag.footprint := inferInstance
+
+example : Module.Declared A cFlag.footprint := inferInstance
+
+end
+
+section
+
+declare module B <: Orc {-cCount}
+declare module A <: ADV {-cCount, -cFlag, -B} with glob R
+
+-- an abstract module the region is restricted against
+example : Module.Declared (Module.app Twice B) R := ⟨by fp_finite, by fp_disjoint⟩
 
 end
 

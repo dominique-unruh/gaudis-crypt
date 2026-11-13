@@ -19,6 +19,10 @@ variables.  A variable `v` is outside `glob D` when it is outside `D` and `D` is
 support from a hypothesis `Module.ECModule D _` (or `(FVP.fvP D).FinitelySupported`).  A
 restriction between abstract modules is symmetric (`Footprint.le_compl_glob_symm`): `M` is outside
 `glob D` when `D` is outside `glob M`.
+
+A **region** `R` given for a module in place of its `glob` (`Footprint.Restricted R S`: `R` stays
+outside `S`; `Logic/DeclareModule.lean`, `declare module … with glob R`) is read like a restriction
+hypothesis `R ≤ Sᶜ`: a variable or an abstract module among the joinands of `S` is outside `R`.
 -/
 
 /-- `@[fp_bound]`: a bound `FVP.fvP M ≤ B` on a concrete module that `fp_disjoint` uses. -/
@@ -72,6 +76,17 @@ theorem Footprint.exists_fresh_glob (T : Type) [Nonempty T] {F G : Footprint Var
   exact ⟨GaudisCrypt.varLens w, Footprint.varLens_le_compl_glob hF w
     ((Footprint.le_compl_comm _ _).mp (hw.trans (Footprint.compl_antimono le_sup_left))), hw,
     Footprint.FinitelySupported.varLens w⟩
+
+/-- **A region restricted against `S`**: `R`, finitely supported, stays outside `S`.  The region
+given for a module in place of its `glob` (`declare module D <: T {-…} with glob R`,
+`Logic/DeclareModule.lean`): where a lemma about a declared module `D` restricts other modules
+against `glob D` (EC's `forall (F <: T {-D})`) and is applied to a module built from a declared
+one, `glob D` of the application is known only from above; the lemma is stated against a region
+`R` above `D`'s footprint instead, which the application gives explicitly (EC's `glob F(A)`:
+`glob F` and `glob A`).  `fp_disjoint` reads it as the hypothesis `R ≤ Sᶜ`. -/
+class Footprint.Restricted (R S : Footprint VariableAssignment) : Prop where
+  finite : R.FinitelySupported
+  restr : R ≤ Sᶜ
 
 namespace FootprintSolver
 
@@ -154,11 +169,15 @@ partial def solveLeSup (g : MVarId) (fuel : Nat := 8) : MetaM Unit := do
       return ← solveLeSup g' (fuel - 1)
   throwError "fp_disjoint: cannot show{indentExpr ty}"
 
-/-- A restriction hypothesis as `(F, S, proof of F ≤ Sᶜ)`: `h : F ≤ Sᶜ` itself, or a declared
-module `h : Module.Declared A S` (`Logic/DeclareModule.lean`), with `F = FVP.fvP A`. -/
+/-- A restriction hypothesis as `(F, S, proof of F ≤ Sᶜ)`: `h : F ≤ Sᶜ` itself, a declared
+module `h : Module.Declared A S` (`Logic/DeclareModule.lean`), with `F = FVP.fvP A`, or a
+restricted region `h : Footprint.Restricted R S`, with `F = R`. -/
 def restriction? (h : LocalDecl) : MetaM (Option (Lean.Expr × Lean.Expr × Lean.Expr)) := do
   if h.isImplementationDetail then return none
   let hty ← instantiateMVars h.type
+  if hty.isAppOfArity ``Footprint.Restricted 2 then
+    return some (hty.getArg! 0, hty.getArg! 1, ← mkAppOptM ``Footprint.Restricted.restr
+      #[hty.getArg! 0, hty.getArg! 1, h.toExpr])
   if hty.isAppOfArity `GaudisCrypt.Module.Declared 4 then
     let F ← mkAppOptM ``FVP.fvP #[hty.getArg! 0, hty.getArg! 1, hty.getArg! 2]
     let pf ← mkAppOptM `GaudisCrypt.Module.Declared.restr
@@ -194,6 +213,9 @@ def finitelySupported (F : Lean.Expr) : MetaM Lean.Expr := do
       else if hty.isAppOfArity `GaudisCrypt.Module.Declared 4 then
         pure (some (← mkAppOptM `GaudisCrypt.Module.Declared.finite
           #[hty.getArg! 0, hty.getArg! 1, hty.getArg! 2, hty.getArg! 3, h.toExpr]))
+      else if hty.isAppOfArity ``Footprint.Restricted 2 then
+        pure (some (← mkAppOptM ``Footprint.Restricted.finite
+          #[hty.getArg! 0, hty.getArg! 1, h.toExpr]))
       else if hty.isAppOf ``Footprint.FinitelySupported then pure (some h.toExpr)
       else pure none
     if let some cand := cand? then
@@ -345,6 +367,16 @@ partial def solveFvP (hook : BoundHook) (g : MVarId) (fuel : Nat := 64) : MetaM 
               (← mkAppM ``LE.le #[F, ← mkAppM ``Compl.compl #[← mkAppM ``Footprint.glob #[X]]])
             g.assign (← mkAppM ``Footprint.le_compl_glob_symm #[hF, g'])
             solveFvP hook g'.mvarId! (fuel - 1)) then return
+      -- an abstract module against a region `T` with a restriction hypothesis `T ≤ Sᶜ`, the
+      -- module (or its `glob`) in `S`: turned around
+      if ← attempt (do
+          let g' ← mkFreshExprSyntheticOpaqueMVar
+            (← mkAppM ``LE.le #[T, ← mkAppM ``Compl.compl #[X]])
+          g.assign (← mkAppM ``Iff.mpr #[← mkAppM ``Footprint.le_compl_comm #[X, T], g'])
+          let mut ok := false
+          for h in ← getLCtx do
+            if !ok then ok ← tryHyp g'.mvarId! h
+          unless ok do failure) then return
       throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"
   let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M'], ty.getArg! 3])
   solveFvP hook g' (fuel - 1)
