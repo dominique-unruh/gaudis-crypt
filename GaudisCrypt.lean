@@ -126,6 +126,8 @@ import GaudisCrypt.Logic.ECReport
 import GaudisCrypt.Logic.ReadNorm
 import GaudisCrypt.Logic.ECAutoStrict
 import GaudisCrypt.Logic.ReadNormTest
+import GaudisCrypt.Logic.ECProgress
+import GaudisCrypt.Logic.ECProgressTest
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECAutoTest
 import GaudisCrypt.Logic.ECCloseTest

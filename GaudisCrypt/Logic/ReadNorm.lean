@@ -71,22 +71,30 @@ def normalize (g : MVarId) (σs : Array FVarId) : MetaM MVarId := g.withContext 
 
 /-- The subterms of `e` that use a state of `σs` other than by a read in normal form: an
 application with a state (or its globals) as an argument that is not a read `x.get σ` with `x`
-free of states.  Empty for a proposition in read normal form. -/
-partial def offenders (σs : Array FVarId) (e : Lean.Expr) (acc : Array Lean.Expr := #[]) :
-    Array Lean.Expr :=
+free of states.  Empty for a proposition in read normal form.  Each comes with its printed form,
+made where it stands (under the binders it is under, so that their variables print by name). -/
+partial def offenders (σs : Array FVarId) (e : Lean.Expr) :
+    StateT (Array (Lean.Expr × MessageData)) MetaM Unit := do
   let isState (s : Lean.Expr) : Bool := σs.any (isStateOf · s)
   let hasState (t : Lean.Expr) : Bool := σs.any t.containsFVar
-  if !hasState e then acc
-  else if e.isAppOfArity ``Getter.get 4 && isState e.appArg! && !hasState (e.getArg! 2) then acc
-  else if e.isAppOfArity ``ProgramState.globals 1 && isState e then acc
-  else if e.isApp && e.getAppArgs.any isState then
-    if acc.contains e then acc else acc.push e
-  else match e with
-    | .app f a => offenders σs a (offenders σs f acc)
-    | .lam _ t b _ | .forallE _ t b _ => offenders σs b (offenders σs t acc)
-    | .letE _ t v b _ => offenders σs b (offenders σs v (offenders σs t acc))
-    | .mdata _ b | .proj _ _ b => offenders σs b acc
-    | _ => if acc.contains e then acc else acc.push e
+  let add (t : Lean.Expr) : StateT (Array (Lean.Expr × MessageData)) MetaM Unit := do
+    unless (← get).any (·.1 == t) do
+      let m ← addMessageContext m!"{t}"
+      modify (·.push (t, m))
+  if !hasState e then return
+  if e.isAppOfArity ``Getter.get 4 && isState e.appArg! && !hasState (e.getArg! 2) then return
+  if e.isAppOfArity ``ProgramState.globals 1 && isState e then return
+  if e.isApp && e.getAppArgs.any isState then return ← add e
+  match e with
+  | .app f a => offenders σs f; offenders σs a
+  | .lam n t b bi | .forallE n t b bi =>
+      offenders σs t
+      withLocalDecl n bi t fun x => offenders σs (b.instantiate1 x)
+  | .letE n t v b _ =>
+      offenders σs t; offenders σs v
+      withLetDecl n t v fun x => offenders σs (b.instantiate1 x)
+  | .mdata _ b | .proj _ _ b => offenders σs b
+  | _ => add e
 
 /-- A goal `∀ σ₁ … σₙ : ProgramState, P` (`n` is 1 or 2): `P` normalized and every read
 generalized, `∀ x₁ … xₖ, P'`.  Fails if a state is still used, naming the places. -/
@@ -103,10 +111,10 @@ def generalizeStrict (tac : String) (g : MVarId) : MetaM MVarId := do
   let g2 ← normalize g1 σs
   -- where a state is used other than by a read (printed in the states' context)
   let bad ← g2.withContext do
-    let bs := offenders σs (← instantiateMVars (← g2.getType))
+    let (_, bs) ← (offenders σs (← instantiateMVars (← g2.getType))).run #[]
     if bs.isEmpty then pure m!"" else
       addMessageContext m!"\na state is used other than by a read in normal form in{indentD
-        (MessageData.joinSep (bs.toList.map (m!"{·}")) Format.line)}"
+        (MessageData.joinSep (bs.toList.map (·.2)) Format.line)}"
   let (_, g3) ← g2.revert σs (preserveOrder := true)
   let g4 ← try
       if n == 1 then generalizeReads g3 else PRHLWp.generalizeReadsRel g3 (normDec := true)

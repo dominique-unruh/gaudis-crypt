@@ -488,7 +488,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 ec_auto
                 ec_intro
                 intro hd
-                have hdom : ∀ x a, FMap.dom (FMap.set m1 x a) mess1 :=
+                have hdom : ∀ x a, FMap.dom (FMap.set RO_m x a) mess1 :=
                   fun _ _ => (FMap.mem_set _ _ _ _).mpr (Or.inl hd)
                 split_ifs <;> simp_all
               case pre =>
@@ -536,10 +536,10 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 · -- a fresh key `x ≠ mess1`: the new value hits `RO.m.[mess1]`
                   -- (EC's `rnd (pred1 _)`)
                   have hx' :
-                      ¬ FMap.dom m1 x1 := by
+                      ¬ FMap.dom RO_m x1 := by
                     simpa using hx
                   have hne : mess1 ≠ x1 := fun h => hx' (h ▸ hd)
-                  rnd_pred1 (oget (m1.get mess1))
+                  rnd_pred1 (oget (RO_m.get mess1))
                   · refine indicatorE_le_of_imp fun hs =>
                       (FMap.eq_of_rng_rem_set (x := x1) hr ?_).symm
                     rwa [FMap.get_set_neqE _ _ _ _ hne] at hs
@@ -554,7 +554,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 ec_auto
                 ec_intro
                 rintro ⟨hd, hr, hb, hc⟩
-                have hdom : ∀ x a, FMap.dom (FMap.set m1 x a) mess1 :=
+                have hdom : ∀ x a, FMap.dom (FMap.set RO_m x a) mess1 :=
                   fun _ _ => (FMap.mem_set _ _ _ _).mpr (Or.inl hd)
                 split_ifs <;> simp_all
               case same =>
@@ -568,10 +568,10 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 ec_auto
                 ec_intro
                 rintro ⟨hd, hr⟩
-                have key : ∀ (x : «from») (a : «to»), ¬ FMap.dom m1 x →
-                    FMap.dom (FMap.set m1 x a) mess1 ∧
-                    FMap.rng (FMap.rem (FMap.set m1 x a) mess1)
-                      (oget ((FMap.set m1 x a).get mess1)) := fun x a hx =>
+                have key : ∀ (x : «from») (a : «to»), ¬ FMap.dom RO_m x →
+                    FMap.dom (FMap.set RO_m x a) mess1 ∧
+                    FMap.rng (FMap.rem (FMap.set RO_m x a) mess1)
+                      (oget ((FMap.set RO_m x a).get mess1)) := fun x a hx =>
                   ⟨(FMap.mem_set _ _ _ _).mpr (Or.inl hd), by
                     rw [FMap.get_set_neqE _ _ _ _ (fun (h : mess1 = x) => hx (h ▸ hd))]
                     exact FMap.rng_rem_set_of_rng hx hr a⟩
@@ -740,14 +740,14 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 simp only [indicatorE_of_not hc]
                 split_ifs with _ _ hx
                 · -- a fresh key: a collision only if its value is already in `RO.m` (EC's `mu_mem`)
-                  have hx' : ¬ FMap.dom m1 x1 := by
+                  have hx' : ¬ FMap.dom RO_m x1 := by
                     simpa using hx
                   refine (mu_le fun a => indicatorE_le_of_imp
                     (FMap.rng_of_collision_set hx' hc)).trans ?_
                   refine (FMap.mu_rng_le sampleto_fu _).trans ?_
                   gcongr
                   have :
-                      (FMap.fdom m1).card ≤
+                      (FMap.fdom RO_m).card ≤
                         bounder.toNat := by
                     omega
                   exact_mod_cast this
@@ -761,12 +761,12 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 ec_auto
                 ec_intro
                 rintro ⟨hi, hc, hb, hcc⟩
-                have hcard : ∀ x a, ¬ FMap.dom m1 x →
-                    ((FMap.fdom (FMap.set m1 x a)).card : ℤ) ≤
+                have hcard : ∀ x a, ¬ FMap.dom RO_m x →
+                    ((FMap.fdom (FMap.set RO_m x a)).card : ℤ) ≤
                       bounder + 1 := fun x a hx => by
                   rw [FMap.fcard_set hx]; push_cast; omega
                 have hi1 :
-                    ((FMap.fdom m1).card : ℤ) ≤ bounder + 1
+                    ((FMap.fdom RO_m).card : ℤ) ≤ bounder + 1
                       := by
                   omega
                 split_ifs <;> simp_all
@@ -781,15 +781,15 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 ec_auto
                 ec_intro
                 rintro ⟨hi, hc⟩
-                have hcard : ∀ x a, ¬ FMap.dom m1 x →
-                    ((FMap.fdom (FMap.set m1 x a)).card : ℤ) ≤
+                have hcard : ∀ x a, ¬ FMap.dom RO_m x →
+                    ((FMap.fdom (FMap.set RO_m x a)).card : ℤ) ≤
                       bounder + 1 := fun x a hx => by
                   rw [FMap.fcard_set hx]; push_cast; omega
-                have hcoll : ∀ x a, ¬ FMap.dom m1 x →
-                    collision (FMap.set m1 x a) :=
+                have hcoll : ∀ x a, ¬ FMap.dom RO_m x →
+                    collision (FMap.set RO_m x a) :=
                   fun x a hx => FMap.collision_set hx hc a
                 have hi1 :
-                    ((FMap.fdom m1).card : ℤ) ≤ bounder + 1
+                    ((FMap.fdom RO_m).card : ℤ) ≤ bounder + 1
                       := by
                   omega
                 split_ifs <;> simp_all

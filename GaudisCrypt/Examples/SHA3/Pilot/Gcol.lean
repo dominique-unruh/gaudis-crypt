@@ -547,7 +547,7 @@ theorem Pr_col (m : VariableAssignment) :
       rintro ⟨hb, hg⟩
       rw [if_pos (by simpa using hg)]
       simp only [hb, Bool.false_eq_true, false_or, decide_eq_true_eq]
-      set S := Finset.image Prod.fst (FMap.frng m1)
+      set S := Finset.image Prod.fst (FMap.frng FRO_m)
       calc cdistr.expected (fun a => indicatorE (a ∈ S))
           = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
             congr 1; funext a; by_cases h : a ∈ S <;> simp [h]

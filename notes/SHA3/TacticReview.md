@@ -232,9 +232,30 @@ pilots import (`SmartCounter/Gconcl_list` 7, `SmartCounter/SLCommon` 2, `SmartCo
 Still to do in step 3: `auto_prep`'s script and the positional `rename_i` proofs (the closer in
 two phases); deleting the old skip variants needs the first-port files above migrated or retired.
 
-Seen while migrating, not changed:
-- The generalized values are named after the variable's last name component, numbered on a
-  clash: with a memory `m` in the context `RO.m` is `m1`, and the local `m1` then `m11`.
-  Deterministic, but a scheme without clashes (`RO_m`?) would read better.
-- `ec_skip` prints a place under a binder with a loose index (`#1`).
+Seen while migrating, changed on 2026-11-14 (below):
+- The generalized values were named after the variable's last name component, numbered on a
+  clash: with a memory `m` in the context `RO.m` was `m1`, and the local `m1` then `m11`.
+- `ec_skip` printed a place under a binder with a loose index (`#1`).
+
+### Step 3, fourth piece (2026-11-14): names, and the closer on values
+
+Decided with Denis on 2026-11-13: no bulk rewrite of the 69 `auto_prep` sites of the pilots
+(11 of them followed by `rename_i`; the rest go on with `refine`/`exact`/`simp`).  They stay on
+the old tactics and move only when edited.  New proofs use the strict tactics.
+
+* **Names** (`TacticMisc.readValueNames`): the variable's name; where it is taken (context, or
+  another read) a module's variable is named with its module, `RO_m`, `RO_m₁`.  A name no longer
+  depends on a number for the usual clash (a memory `m`, two modules' `m`).  Golden tests in
+  `Logic/ReadNormTest.lean` ("The names of the values").  `Pilot/SecureRO` and `Pilot/SecureORO`
+  followed (`m1` → `RO_m`, `m11` → `m1`).
+* **`ec_skip`'s message** names a place under a binder with the binder's variable.
+* **The closer on values** (`Logic/ECProgress.lean`, tests `Logic/ECProgressTest.lean`):
+  `ec_values` (a goal `∀ σ, P` about states: every read a value, an error if a state survives),
+  `ec_prep` (`ec_values`, then the steps of `auto_prep` that are logic: introduce — values under
+  their names — take apart, substitute, simplify the tests), `ec_progress`, `ec_close`.  No step
+  after `ec_values` looks at a state.  This is the two-phase closer of the plan, under new names;
+  `auto_prep`, `auto_progress`, `auto_close` are unchanged.
+
+What stays open in step 3: deleting the old skip variants and `auto_prep` (their users are the
+first-port files and the pilot proofs written before 2026-11-13).
 

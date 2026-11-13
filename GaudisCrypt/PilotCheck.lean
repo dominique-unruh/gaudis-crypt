@@ -7,6 +7,7 @@ import GaudisCrypt.Logic.ECConseqTest
 import GaudisCrypt.Logic.ECGoalsTest
 import GaudisCrypt.Logic.ECIfTest
 import GaudisCrypt.Logic.ECLoopTest
+import GaudisCrypt.Logic.ECProgressTest
 import GaudisCrypt.Logic.ECRulesTest
 import GaudisCrypt.Logic.ECSpTest
 import GaudisCrypt.Logic.ECTransTest

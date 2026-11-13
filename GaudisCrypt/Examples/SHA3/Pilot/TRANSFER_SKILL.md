@@ -177,7 +177,7 @@ the `while` row.
 | `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` (EC positions) |
 | `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (EC positions; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
 | `auto` | `equiv_auto` / `hoare_auto` / `phoare_auto` |
-| `auto`, `skip` (new proofs) | `ec_auto`, `ec_skip`: the same on every judgment, every read a value or an error; then `ec_intro` puts the values in the context under their names (`m1`, `bounder`, `x`), and the hand step names values, never `X.get σ.globals` |
+| `auto`, `skip` (new proofs) | `ec_auto`, `ec_skip`: the same on every judgment, every read a value or an error; then `ec_intro` puts the values in the context under their names (`RO_m`, `bounder`, `x`), and the hand step names values, never `X.get σ.globals` |
 | `skip` | `equiv_skip` / `hoare_skip` / `phoare_skip`; if a read under `decide` or an inlined call's renamed state blocks the closer, `equiv_skip_ec` (what `equiv_auto` uses) |
 | `if` / `if{i}` | `stmt_if` (goals EC's: `guard, then, else`; each branch with the code after it, flattened: EC's positions inside a branch) / `stmt_if{i}` |
 | `rcondt{i} n` / `rcondf{i} n` | `stmt_rcondt{i} n` / `stmt_rcondf{i} n`, EC's positions; side goal first: `· hoare_auto; …` |
@@ -231,6 +231,7 @@ the `while` row.
 | `+ …` / `- …` bullets | `·` |
 | `=> //` | usually nothing (the tactics close trivial goals); else `<;> try trivial` |
 | `progress` (286 uses) | `auto_progress` (`Logic/ECClose.lean`), leaves goals split and simplified |
+| `auto => /#`, `progress` (new proofs) | `ec_close`, `ec_progress` (`Logic/ECProgress.lean`): the states first (every read a value, or an error), then logic; `ec_prep` before a hand step |
 
 ## 5. Closers (EC's `smt`, `/#`, `move=>`, `progress`)
 
@@ -597,6 +598,20 @@ Document each in the docstring when it applies.
   is then an error at the tactic, not a warning.  Where a fallback is a known gap, switch it off
   for that one tactic, `set_option ec.strict false in equiv_call (_ : ={glob Perm})`, so the gap
   is visible in the source.  A new pilot file gets the option from the start.
+
+* **The closer in new proofs (2026-11-14)**: `ec_close` (EC's `auto => /#`), `ec_progress`
+  (EC's `progress`), `ec_prep` (the preparation alone, before a hand step) — `Logic/ECProgress.lean`.
+  Two phases.  First the states go: a goal `∀ σ, P` / `∀ σ₁ σ₂, P` (a rule's side goal) gets every
+  read generalized to a value, an error if a state survives (`ec_values`); a goal after
+  `ec_auto`/`ec_skip` is already about values.  Then logic only, `auto_prep`'s steps without the
+  ones about states.  The values are in the context **under their names** (`x`, `x₁`, `RO_m`), so a
+  hand step refers to them by name; the hypotheses have no names: take them by type (`‹_ ≤ _›`),
+  or name them before the closer (`ec_auto; ec_intro; rintro ⟨h₁, h₂⟩`), not by `rename_i`.
+  The old `auto_close`/`auto_progress`/`auto_prep` stay for the proofs written on them.
+* **Names of the values (2026-11-14)**: a generalized read is named after its variable (`x`; `x₁`,
+  `x₂` by side).  Where that name is taken — in the context, or by another read — a module's
+  variable takes the module's name with it: `RO_m`, `RO_m₁` (before: a number, `m1`).  A local
+  variable keeps its name (numbered only if that is taken too).
 
 ## 9. Checklist before calling a lemma done
 

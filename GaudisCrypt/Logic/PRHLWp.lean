@@ -178,7 +178,7 @@ def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
     for d in ← getLCtx do
       used := used.push d.userName.eraseMacroScopes.toString
     let mut reads : Array Lean.Expr := #[]
-    let mut args : Array GeneralizeArg := #[]
+    let mut parts : Array (String × Option String × String) := #[]
     for (σ, sfx) in [(σ₁, "₁"), (σ₂, "₂")] do
       -- a state that occurs other than read (in a statement's run, say) stays: generalizing its
       -- reads would cut them off from it
@@ -186,9 +186,10 @@ def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
       for r in collectReadsOf σ body do
         if ← reads.anyM fun r' => withReducible (isDefEq r r') then continue
         reads := reads.push r
-        let n := freshIn used ((← readBaseName (r.getArg! 2)) ++ sfx)
-        used := used.push n
-        args := args.push { expr := r, xName? := some (Name.mkSimple n) }
+        let (b, q) ← readNameParts (r.getArg! 2)
+        parts := parts.push (b, q, sfx)
+    let args : Array GeneralizeArg := (reads.zip (readValueNames used parts)).map fun (r, n) =>
+      { expr := r, xName? := some (Name.mkSimple n) }
     let (xs, g₀) ← if args.isEmpty then pure (#[], g) else g.generalize args
     let mut gc := g₀
     let mut keep := #[]

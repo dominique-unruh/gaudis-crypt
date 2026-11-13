@@ -201,23 +201,29 @@ def sanitizeName (s : String) : String :=
   let s := String.ofList (s.toList.filter fun c => c.isAlphanum || c == '_' || c == '\'')
   if s.isEmpty then "v" else if s.front.isDigit then "v" ++ s else s
 
-/-- A name for the value a read through the getter `g` yields: the variable's name for a local
-or global variable slot (`(varLens ⟨n, …⟩).intoLocal` / `.intoGlobal`, also spelled
+/-- The parts of a name for the value a read through the getter `g` yields: the base name and,
+for a variable of a module, the module.  The base name is the variable's name for a local or
+global variable slot (`(varLens ⟨n, …⟩).intoLocal` / `.intoGlobal`, also spelled
 `localVarLens n T`); else, through the wrappers of `readNameWrappers`, the last component of the
-lens's head constant or the name of the local it is; else `v`. -/
-partial def readBaseName (g : Lean.Expr) : MetaM String := do
+lens's head constant or the name of the local it is; else `v`.  The module is the component before
+the last of the head constant (`RO` for `RO.m`). -/
+partial def readNameParts (g : Lean.Expr) : MetaM (String × Option String) := do
   -- not `whnfR` on `g`: that turns `Lens.toGetter x` into the primitive projection `x.1`
-  if let some n ← varName? g then return sanitizeName n
+  if let some n ← varName? g then return (sanitizeName n, none)
   match g.getAppFn with
   | .const c _ =>
       match c with
-      | .str _ s =>
-          if readNameWrappers.contains s && g.getAppNumArgs > 0 then readBaseName g.appArg!
-          else if readNameStoplist.contains s then return "v"
-          else return sanitizeName s
-      | _ => return "v"
-  | .fvar x => return sanitizeName (← x.getUserName).eraseMacroScopes.toString
-  | _ => return "v"
+      | .str p s =>
+          if readNameWrappers.contains s && g.getAppNumArgs > 0 then readNameParts g.appArg!
+          else if readNameStoplist.contains s then return ("v", none)
+          else
+            let q := match p with
+              | .str _ q => some (sanitizeName q)
+              | _ => none
+            return (sanitizeName s, q)
+      | _ => return ("v", none)
+  | .fvar x => return (sanitizeName (← x.getUserName).eraseMacroScopes.toString, none)
+  | _ => return ("v", none)
 where
   varName? (l : Lean.Expr) : MetaM (Option String) := do
     let l ← whnfR l
@@ -229,6 +235,9 @@ where
     unless name.isAppOfArity ``VariableName.mk 5 do return none
     let .lit (.strVal n) ← instantiateMVars (name.getArg! 0) | return none
     return some n
+
+/-- The base name of `readNameParts`. -/
+def readBaseName (g : Lean.Expr) : MetaM String := return (← readNameParts g).1
 
 /-- `s` is the state `σ`, or its globals or locals. -/
 def isStateOf (σ : FVarId) (s : Lean.Expr) : Bool :=
@@ -359,6 +368,26 @@ def freshIn (used : Array String) (base : String) : String := Id.run do
   let mut i := 1
   while used.contains (base ++ toString i) do i := i + 1
   return base ++ toString i
+
+/-- Names for the values of reads, given each read's base name, module and suffix (the side of a
+relational judgment, or none): the base name with the suffix (`m`, `m₁`).  Where that name is
+taken, in `used` or by another of the reads, a variable of a module is named with the module
+(`RO_m`, `RO_m₁`), so that its name does not depend on a number.  A name still taken is numbered
+(`freshIn`). -/
+def readValueNames (used : Array String) (parts : Array (String × Option String × String)) :
+    Array String := Id.run do
+  let plain := parts.map fun (b, _, sfx) => b ++ sfx
+  let mut taken := used
+  let mut out : Array String := #[]
+  for (b, q, sfx) in parts do
+    let n := b ++ sfx
+    let cand := match q with
+      | some q => if used.contains n || plain.count n > 1 then q ++ "_" ++ n else n
+      | none => n
+    let name := freshIn taken cand
+    taken := taken.push name
+    out := out.push name
+  return out
 
 /-- The `Decidable` instances under `decide p` re-synthesized for `p` as it stands: simplifying
 the reads in `p` (`simp_reads`) leaves the instance about the old `p` — equal by unfolding, but
@@ -555,7 +584,7 @@ def globTuplesAll (g : MVarId) : MetaM MVarId := do
 
 /-- On a goal `∀ σ : ProgramState, P σ`: first unfold the reads of `σ` through expressions,
 pairs and the like down to reads of lenses and getters (`unfoldReads`), then generalize every read
-`g.get σ` (or `g.get σ.globals`) to a universally quantified value (`readBaseName`, made unique
+`g.get σ` (or `g.get σ.globals`) to a universally quantified value (named by `readValueNames`,
 against the context, the goal's binders and each other).  Reads that agree up to reducible
 unfolding become one value.  If `σ` is then unused it is dropped, giving `∀ m x …, P'`; otherwise
 it stays in front, `∀ σ m x …, P'`.  With no read left, only the unfolding is done (and `σ`
@@ -576,15 +605,16 @@ def generalizeReads (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext
     for d in ← getLCtx do
       used := used.push d.userName.eraseMacroScopes.toString
     let mut reads : Array Lean.Expr := #[]
-    let mut args : Array GeneralizeArg := #[]
     for r in collectReadsOf σ body do
       -- `generalize` abstracts up to instances-transparency defeq, so a read that agrees with
       -- an earlier one is taken by it, and would only leave an unused variable behind
       if ← reads.anyM fun r' => withReducible (isDefEq r r') then continue
       reads := reads.push r
-      let n := freshIn used (← readBaseName (r.getArg! 2))
-      used := used.push n
-      args := args.push { expr := r, xName? := some (Name.mkSimple n) }
+    let parts ← reads.mapM fun r => do
+      let (b, q) ← readNameParts (r.getArg! 2)
+      pure (b, q, "")
+    let args : Array GeneralizeArg := (reads.zip (readValueNames used parts)).map fun (r, n) =>
+      { expr := r, xName? := some (Name.mkSimple n) }
     let (xs, g) ← if args.isEmpty then pure (#[], g) else g.generalize args
     let (g, keepσ) ← try pure (← g.clear σ, false) catch _ => pure (g, true)
     let (_, g) ← g.revert (if keepσ then #[σ] ++ xs else xs) (preserveOrder := true)

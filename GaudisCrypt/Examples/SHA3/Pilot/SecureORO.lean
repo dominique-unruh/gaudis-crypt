@@ -328,10 +328,10 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
             simp only [Option.some.injEq, decide_eq_true_eq]
             intro he
             apply hr
-            have hd' : FMap.dom m1 m2 := by
+            have hd' : FMap.dom RO_m m1 := by
               simpa using hd
             obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd')
-            refine ⟨m2, ?_⟩
+            refine ⟨m1, ?_⟩
             rw [← he]
             simp only [FMap.get] at hv ⊢
             rw [hv]
@@ -543,10 +543,10 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 · -- a fresh key `x ≠ mess1`: the new value hits `RO.m.[mess1]`
                   -- (EC's `rnd (pred1 _)`)
                   have hx' :
-                      ¬ FMap.dom m1 x1 := by
+                      ¬ FMap.dom RO_m x1 := by
                     simpa using hx
                   have hne : mess1 ≠ x1 := fun h => hx' (h ▸ hd)
-                  rnd_pred1 (oget (m1.get mess1))
+                  rnd_pred1 (oget (RO_m.get mess1))
                   · refine indicatorE_le_of_imp fun hs =>
                       (FMap.eq_of_rng_rem_set (x := x1) hr ?_).symm
                     rwa [FMap.get_set_neqE _ _ _ _ hne] at hs
@@ -562,7 +562,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 ec_intro
                 rintro ⟨⟨-, -, hd⟩, -, ⟨hc, hlt⟩, rfl⟩
                 have hdom := fun x a =>
-                  (FMap.mem_set m1 x a mess1).mpr (Or.inl hd)
+                  (FMap.mem_set RO_m x a mess1).mpr (Or.inl hd)
                 split_ifs
                 · refine fun _ _ => ⟨fun hx => ⟨⟨?_, by omega, hdom _ _⟩, Or.inr (by omega)⟩,
                     fun _ => ⟨⟨by omega, by omega, hd⟩, Or.inr (by omega)⟩⟩
@@ -584,14 +584,14 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 split_ifs with hlt
                 · simp only [decide_eq_true_eq] at hlt
                   have hdom := fun x a =>
-                    (FMap.mem_set m1 x a mess1).mpr (Or.inl hd)
+                    (FMap.mem_set RO_m x a mess1).mpr (Or.inl hd)
                   refine fun a _ => ⟨fun hx => ⟨⟨?_, by omega, hdom _ _⟩, ?_⟩,
                     fun _ => ⟨⟨by omega, by omega, hd⟩, hr⟩⟩
                   · rw [FMap.fcard_set (by simpa using hx)]
                     push_cast
                     omega
                   · have hx' :
-                        ¬ FMap.dom m1 x := by
+                        ¬ FMap.dom RO_m x := by
                       simpa using hx
                     have hne : mess1 ≠ x := fun h => hx' (h ▸ hd)
                     rw [FMap.get_set_neqE _ _ _ _ hne]
@@ -611,7 +611,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             · -- a fresh `m2`: its value hits `RO.m.[m1]` (EC's `rnd (pred1 (oget RO.m.[x3]))`); the
               -- first query's sample is not used (`m1` is in `RO.m`)
               rnd_bound
-              rnd_pred1 (oget (m1.get m11))
+              rnd_pred1 (oget (RO_m.get m1))
               · refine indicatorE_le_of_imp fun hP => ?_
                 simp only [decide_eq_true_eq, FMap.get_set_sameE, oget, Option.some.injEq] at hP
                 obtain ⟨-, y, rfl, rfl⟩ := hP
@@ -625,13 +625,13 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               simp only [decide_eq_true_eq, Option.some.injEq]
               rintro ⟨hne, y, hy1, hy2⟩
               apply hr
-              have hd2 : FMap.dom m1 m2 := by
+              have hd2 : FMap.dom RO_m m2 := by
                 simpa using h5
               obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
               refine ⟨m2, ?_⟩
               have he := hy1.symm.trans hy2
-              have h1 : (FMap.rem m1 m11).get
-                  m2 = m1.get
+              have h1 : (FMap.rem RO_m m1).get
+                  m2 = RO_m.get
                     m2 := by
                 rw [FMap.remE, if_neg (Ne.symm hne)]
               simp only [FMap.get] at h1 hw he ⊢
@@ -773,14 +773,14 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 split_ifs with _ hx
                 · -- a fresh key: a collision only if its value is already in `RO.m` (EC's `mu_mem`)
                   have hx' :
-                      ¬ FMap.dom m1 x1 := by
+                      ¬ FMap.dom RO_m x1 := by
                     simpa using hx
                   refine (mu_le fun a => indicatorE_le_of_imp
                     (FMap.rng_of_collision_set hx' hc)).trans ?_
                   refine (FMap.mu_rng_le sampleto_fu _).trans ?_
                   gcongr
                   have :
-                      (FMap.fdom m1).card ≤
+                      (FMap.fdom RO_m).card ≤
                         bounder.toNat := by
                     omega
                   exact_mod_cast this

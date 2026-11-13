@@ -313,6 +313,88 @@ example (Q : ℤ → Prop) :
   trace_state
   sorry
 
+/-! ## The names of the values -/
+
+global_var RnA.c : ℤ
+global_var RnB.c : ℤ
+
+-- a module's variable alone: its last name
+/--
+trace: P Q : ℤ → Prop
+⊢ ∀ (c : ℤ), P c → Q (c + 1)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (P Q : ℤ → Prop) : hoare[ P §RnA.c ==> Q §RnA.c ] { RnA.c <- $RnA.c + 1; } := by
+  ec_auto
+  trace_state
+  sorry
+
+-- the name taken in the context: the module's name with it (not a number)
+/--
+trace: c : ℤ
+P Q : ℤ → ℤ → Prop
+⊢ ∀ (RnA_c : ℤ), P c RnA_c → Q c (RnA_c + 1)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (c : ℤ) (P Q : ℤ → ℤ → Prop) : hoare[ P c §RnA.c ==> Q c §RnA.c ] {
+      RnA.c <- $RnA.c + 1;
+    } := by
+  ec_auto
+  trace_state
+  sorry
+
+-- two modules' variables of one name, and a local of that name: the local keeps it
+/--
+trace: P Q : ℤ → ℤ → ℤ → Prop
+⊢ ∀ (RnA_c RnB_c c : ℤ), P RnA_c RnB_c c → Q RnA_c RnB_c (c + 1)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (P Q : ℤ → ℤ → ℤ → Prop) : hoare[ P §RnA.c §RnB.c §c ==> Q §RnA.c §RnB.c §c ] {
+      var c : ℤ;
+      c <- $c + 1;
+    } := by
+  ec_auto
+  trace_state
+  sorry
+
+-- by side on a relational judgment
+/--
+trace: case h
+R S : ℤ → ℤ → ℤ → Prop
+⊢ ∀ (RnA_c₁ RnB_c₁ c₂ : ℤ), R RnA_c₁ RnB_c₁ c₂ → S (RnA_c₁ + 1) RnB_c₁ (c₂ + 1)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (R S : ℤ → ℤ → ℤ → Prop) :
+    equiv[ R §RnA.c{1} §RnB.c{1} §RnA.c{2} ==> S §RnA.c{1} §RnB.c{1} §RnA.c{2} ] {
+      RnA.c <- $RnA.c + 1;
+    } ~ {
+      RnA.c <- $RnA.c + 1;
+    } := by
+  ec_auto
+  trace_state
+  sorry
+
+-- a place under a binder is printed with the binder's variable
+/--
+error: ec_skip: a state is still used after the reads are generalized
+a state is used other than by a read in normal form in
+  P σ✝ k
+goal:
+  ∀ (σ : ProgramState), (∀ (k : ℤ), P σ k) → Q
+-/
+#guard_msgs in
+example (P : ProgramState → ℤ → Prop) (Q : Prop) :
+    hoareStmt (fun σ => ∀ k : ℤ, P σ k) StmtWithHoles.skip (fun _ => Q) := by
+  ec_skip
+
 /-! ## Strictness -/
 
 -- a state used other than by a read: `ec_skip` fails and names the places (`hoare_skip` leaves

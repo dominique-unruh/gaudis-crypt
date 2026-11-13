@@ -692,7 +692,7 @@ theorem Pr_ext (m : VariableAssignment) :
       rintro ⟨hb, hg⟩
       simp only [Bool.not_eq_true] at hb
       simp only [decide_eq_true_eq, hg, and_self, if_true, hb, Bool.false_or]
-      set S := Finset.image Prod.snd (FMap.fdom m1 ∪ FMap.fdom mi)
+      set S := Finset.image Prod.snd (FMap.fdom G1_m ∪ FMap.fdom mi)
       show _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat
       calc cdistr.expected (fun a => indicatorE (a ∈ S))
           = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
@@ -700,7 +700,7 @@ theorem Pr_ext (m : VariableAssignment) :
         _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
         _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
             rw [mul_one_div]
-            have h1 : S.card ≤ (FMap.fdom m1).card +
+            have h1 : S.card ≤ (FMap.fdom G1_m).card +
                 (FMap.fdom mi).card :=
               Finset.card_image_le.trans (Finset.card_union_le _ _)
             exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
@@ -719,7 +719,7 @@ theorem Pr_ext (m : VariableAssignment) :
       rintro ⟨hb, hg⟩
       simp only [Bool.not_eq_true] at hb
       simp only [decide_eq_true_eq, hg, and_self, if_true, hb, Bool.false_or]
-      set S := Finset.image Prod.snd (FMap.fdom m1 ∪
+      set S := Finset.image Prod.snd (FMap.fdom G1_m ∪
         FMap.fdom mi) ∪ fset1 x
       show _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat
       calc cdistr.expected (fun a => indicatorE (a ∈ S))
@@ -728,7 +728,7 @@ theorem Pr_ext (m : VariableAssignment) :
         _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
         _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
             rw [mul_one_div]
-            have h1 : S.card ≤ (FMap.fdom m1).card +
+            have h1 : S.card ≤ (FMap.fdom G1_m).card +
                 (FMap.fdom mi).card + 1 :=
               (Finset.card_union_le _ _).trans (Nat.add_le_add
                 (Finset.card_image_le.trans (Finset.card_union_le _ _))
