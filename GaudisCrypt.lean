@@ -141,6 +141,8 @@ import GaudisCrypt.Logic.ECLoop
 import GaudisCrypt.Logic.ECLoopTest
 import GaudisCrypt.Logic.ECTrans
 import GaudisCrypt.Logic.ECTransTest
+import GaudisCrypt.Logic.ECConseqHoare
+import GaudisCrypt.Logic.ECConseqHoareTest
 import GaudisCrypt.Logic.ECAlias
 import GaudisCrypt.Logic.ECAliasTest
 import GaudisCrypt.Logic.ECModuleBinders

@@ -201,6 +201,7 @@ the `while` row.
 | pHL `rnd (pred1 v)` / `rnd` (lossless) | `rnd_pred1 v` / `rnd_bound` (on the expectation `phoare_auto` leaves at a sampling) |
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
+| `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` | `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)` (`Logic/ECConseqHoare.lean`): the right program's own Hoare triple, its conditions written with the tag (`size §bs{2} = §n{2} - 1`); goals `pre`, `post`, `hoare`, `judgment` |
 | `conseq H` | `equiv_conseq H` (pRHL only) |
 | `exists* e₁{1}, e₂{2}; elim* => a b` | `equiv_exists* §e₁{1}, §e₂{2}` then `intro a b` (also on procedure judgments, `§x{2}` the parameter); `stmt_exists* e` |
 | `elim * => a b` (after `sp`) | `equiv_elim* => a b` / `hoare_elim* => a`: EC's names, the left side's existentials first |
@@ -503,6 +504,17 @@ Document each in the docstring when it applies.
   in a Hoare goal (`rcondf` side goal): `hoare_call (: True ==> True)`, goals `spec`
   (`hoare_proc; ec_auto`) and the code before.
 * **`(bs, i) <@ M.f(…)` in `transitivity` code**: `bs, i <- call (M.f).procedure (…);`.
+* **A leaf where the strict `auto`/`equiv_skip` fail with "maximum recursion depth"** on a
+  `skip ~ skip` goal (seen with `bs{1} = take n1 bs{2}` next to `={bs}`): don't raise limits;
+  `refine prhlStmt_skip ?_`, `rintro σ₁ σ₂ ⟨…⟩` and build the conjunction with lemmas that work
+  up to `rfl` (`hin.ge`, `congrArg₂ take hsz hbs`, …), since the conditions are not in read
+  normal form there.
+* **`inline M.f; sim` when `M.f` has a loop**: `sim` does not pass the copies of the
+  parameters; `stmt_inline{i} (M.f); stmt_sp; stmt_wp; equiv_while (…)` with the equalities
+  between the caller's variables and the copies (`§xs{1} = §xs0{2} ∧ …`).
+* **Guards after `splitwhile`**: the equality of the two loops' guards that `while` asks is a
+  small arithmetic fact about `decide`s; state it once as a private lemma
+  (`splitwhile_guard_left`, `_right`, `_le` in `Pilot/Sponge.lean`) and close the leaf with it.
 * **`omega` after a loop fails with two atoms that print the same** (the guard's read of a
   local and the invariant's): combine the two hypotheses by a lemma instead
   (`le_antisymm t2 hg`), which works up to `rfl`.

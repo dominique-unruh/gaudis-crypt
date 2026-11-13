@@ -435,3 +435,16 @@ first needs a full rebuild, so they go together):
    call in the module's own procedure names, and only for the procedures the module type's
    `{…}` allows; `equiv_conseq H` closing its implications.
 
+11. From `Pilot/Sponge`, the second half of `HybridIRO` (its GAP 6–13): the strict `auto` on a
+   one-sided loop body whose invariant reads the other memory, and on a `skip ~ skip` goal with
+   `bs{1} = take n1 bs{2}` next to `={bs}` (both run out of recursion depth); the frame of a
+   one-sided loop's exit goal covering what the invariant reads; `transitivity N (…) (…)` on
+   procedures as a tactic (the rule is `prhlProc_trans_ec`); a first-port fact about
+   `X.f.procedure` fitting `equiv[ X.f ~ … ]`; `={bs}` in a condition of `equiv_trans` when
+   the goal's two sides have a `bs` of different types; `sim` through an inlined call that
+   copies its parameters and has a loop; `omega` on a guard's read against the invariant's.
+
+**Added without waiting for the batch** (new names in new files, no existing tactic touched):
+`equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)`, EC's `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)`
+(`Logic/ECConseqHoare.lean`, rule `prhlStmt_and_hoare_right`, test
+`Logic/ECConseqHoareTest.lean`); used once, in `HybridIROEager_f_BlockIRO_f`.
