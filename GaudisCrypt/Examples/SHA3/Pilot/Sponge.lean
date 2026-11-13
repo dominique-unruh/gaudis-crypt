@@ -31,7 +31,7 @@ set_option ec.strict true
 # The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port, in progress
 
 Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the theory `HybridIRO`
-up to `HybridIROExper_Lazy_Eager` (EC l. 256–549); and `Sponge_Raise_BlockSponge_f`
+up to `Lower_HybridIROEager_f` (EC l. 256–900); and `Sponge_Raise_BlockSponge_f`
 (EC l. 1922), which was the second tactic experiment and is described below.  The rest of the
 file follows in EC's order (`notes/SHA3/Mapping.md`).
 
@@ -52,11 +52,10 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   procedure of the module `ERO.RO`, so EC's `inline ERO.RO.get` does not name it: by index.
 * GAP 3: after a call whose result is discarded, the strict `auto` does not read through the
   discarding write: `simp only [Setter.throwaway_set]` first.
-* GAP 4: the abstract call's oracle goals name a procedure through the module type's accessor
-  (`HYBRID_IRO.f HybridIROLazy`), a lemma names the module's own (`HybridIROLazy.f`); they are
-  equal by a rewrite, not by unfolding: `simp only [….asHI, HYBRID_IRO.f.mk_simp]` before
-  `equiv_conseq`.  The rule also asks all of `HYBRID_IRO`'s procedures, where EC's `{HI.f}`
-  restricts `D` to `f`: one more goal, for `init`.
+* GAP 4: the abstract call asks all of `HYBRID_IRO`'s procedures, where EC's `{HI.f}` restricts
+  `D` to `f`: one more goal, for `init`.  (`HybridIROLazy.init`, `.f` are declared as the module
+  type's procedures of `HybridIROLazy`, the form in which a call of an oracle names them; the
+  first port's own procedures are equal to them only by a rewrite.)
 * GAP 5: `equiv_conseq H` leaves its two implications when the goal's conditions are not
   literally `H`'s (EC closes them): `conseq_side`.
 * A statement that names `HIRO(…).f`'s parameters `(xs, n)` as EC does gets a warning: the module
@@ -82,6 +81,7 @@ Deviations, all from the old declarations or the closers:
 namespace GaudisCrypt.SHA3.Pilot.Sponge
 
 open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.PROM GaudisCrypt.SHA3.Common GaudisCrypt.SHA3.Sponge
+open GaudisCrypt.SHA3.Sponge.BIRO
 
 variable [SLCommon.Params] [BlockSponge.Params]
 
@@ -178,6 +178,12 @@ theorem Sponge_is_StdSponge : ∀ (P <: DPRIMITIVE {}),
   obtain ⟨⟨hg, hz, hn, -, -⟩, -⟩ := hI
   exact ⟨hg, by rw [hz, hn]⟩
 
+/-- EC's subtyping: a `FUNCTIONALITY` where a `DFUNCTIONALITY` is expected (the first port's
+view). -/
+noncomputable instance : CoeOut FUNCTIONALITY DFUNCTIONALITY :=
+  ⟨fun F => Indifferentiability.FUNCTIONALITY.view (block × capacity) (List Bool × ℤ)
+    (List Bool) F⟩
+
 /-! ## The theory `HybridIRO` (EC l. 256–1909) -/
 
 namespace HybridIRO
@@ -190,25 +196,23 @@ global_var HybridIROLazy.mp : FMap (List block × ℤ) Bool
 /-- EC's `HybridIROEager.mp`. -/
 global_var HybridIROEager.mp : FMap (List block × ℤ) Bool
 
-noncomputable abbrev HybridIROLazy.init :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.init HybridIROLazy.mp
-noncomputable abbrev HybridIROLazy.fill_in :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.fill_in HybridIROLazy.mp
-noncomputable abbrev HybridIROLazy.f :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.f HybridIROLazy.mp
 /-- EC's `HybridIROLazy`, at its type `HYBRID_IRO`. -/
 noncomputable abbrev HybridIROLazy : HYBRID_IRO :=
   GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI HybridIROLazy.mp
+-- (`init` and `f` as the module type's procedures of `HybridIROLazy`: the form in which a call
+-- of an oracle `HI.f` names them)
+noncomputable abbrev HybridIROLazy.init := HYBRID_IRO.init HybridIROLazy
+noncomputable abbrev HybridIROLazy.f := HYBRID_IRO.f HybridIROLazy
+noncomputable abbrev HybridIROLazy.fill_in :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.fill_in HybridIROLazy.mp
 
-noncomputable abbrev HybridIROEager.init :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.init HybridIROEager.mp
-noncomputable abbrev HybridIROEager.fill_in :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.fill_in HybridIROEager.mp
-noncomputable abbrev HybridIROEager.f :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.f HybridIROEager.mp
 /-- EC's `HybridIROEager`, at its type `HYBRID_IRO`. -/
 noncomputable abbrev HybridIROEager : HYBRID_IRO :=
   GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI HybridIROEager.mp
+noncomputable abbrev HybridIROEager.init := HYBRID_IRO.init HybridIROEager
+noncomputable abbrev HybridIROEager.f := HYBRID_IRO.f HybridIROEager
+noncomputable abbrev HybridIROEager.fill_in :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.fill_in HybridIROEager.mp
 
 /-! EC's `local clone import PROM.FullRO as ERO with type in_t <- block list * int,
 type out_t <- bool, op dout _ <- dbool, type d_in_t <- unit, type d_out_t <- bool`: the clone's
@@ -422,18 +426,12 @@ theorem Exper_HybridIROLazy_LRO (m : VariableAssignment) :
   byequiv; equiv_proc; stmt_inline*; stmt_wp
   -- EC: seq 1 1 : (={glob D} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}); first auto.
   --     call (_ : HybridIROLazy.mp{1} = ERO.RO.m{2}).
-  --     (GAP 4: `equiv_call (_ : I)` wants `I` to start with `={…}`: EC's implicit `={glob D}`
-  --     is written.  The rule asks all of `HYBRID_IRO`'s procedures, EC's `{HI.f}` only `f`:
-  --     one more goal, for `init`.)
-  --     (the rule asks all of `HYBRID_IRO`'s procedures, EC's `{HI.f}` only `f`: one more
-  --     goal, for `init`.  GAP 4: an oracle goal names the procedure through the module type's
-  --     accessor; rewritten to the module's own procedure before `conseq`.)
+  --     (GAP 4: the rule asks all of `HYBRID_IRO`'s procedures, EC's `{HI.f}` only `f`: one
+  --     more goal, for `init`)
   equiv_call (_ : §HybridIROLazy.mp{1} = §ERO.RO.m{2})
-  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI, HYBRID_IRO.init.mk_simp]
-    equiv_conseq HybridIROLazy_HIRO_LRO_init <;> conseq_side
+  · equiv_conseq HybridIROLazy_HIRO_LRO_init <;> conseq_side
   -- EC: conseq HybridIROLazy_HIRO_LRO_f.
-  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI, HYBRID_IRO.f.mk_simp]
-    equiv_conseq HybridIROLazy_HIRO_LRO_f <;> conseq_side
+  · equiv_conseq HybridIROLazy_HIRO_LRO_f <;> conseq_side
   -- EC: auto.
   --     (GAP 14 of `Pilot/Gconcl_list.lean`: `glob D` past the initialization)
   ec_auto
@@ -451,11 +449,9 @@ theorem Exper_RO_HybridIROEager (m : VariableAssignment) :
   -- EC: seq 1 1 : (={glob D} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); first auto.
   --     call (_ : ERO.RO.m{1} = HybridIROEager.mp{2}).
   equiv_call (_ : §ERO.RO.m{1} = §HybridIROEager.mp{2})
-  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI, HYBRID_IRO.init.mk_simp]
-    equiv_conseq HIRO_RO_HybridIROEager_init <;> conseq_side
+  · equiv_conseq HIRO_RO_HybridIROEager_init <;> conseq_side
   -- EC: conseq HIRO_RO_HybridIROEager_f.
-  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI, HYBRID_IRO.f.mk_simp]
-    equiv_conseq HIRO_RO_HybridIROEager_f <;> conseq_side
+  · equiv_conseq HIRO_RO_HybridIROEager_f <;> conseq_side
   -- EC: auto.
   ec_auto
   simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
@@ -488,6 +484,215 @@ theorem HybridIROExper_Lazy_Eager :
   -- EC: by apply (HybridIROExper_Lazy_Eager' D &m).
   intro D _ m
   exact HybridIROExper_Lazy_Eager' D m
+
+/-! ### Raising and lowering hybrid IROs; the lazy invariant (EC l. 553–763)
+
+`RaiseHybridIRO`, `LowerHybridIRO`, `lazy_invar` and its lemmas are the first port's. -/
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (RaiseHybridIRO LowerHybridIRO lazy_invar lazy_invar0
+  lazy_invar_mem_pad2blocks_l2r lazy_invar_mem_pad2blocks_r2l lazy_invar_vb lazy_invar_lookup_eq
+  lazy_invar_upd_mem_dom_iff lazy_invar_upd2_vb lazy_invar_upd_lu_eq)
+
+omit [BlockSponge.Params] in
+/-- EC derives this inline (`have {2}<- := unpadBlocksK xs0{2}; first by rewrite (some_oget
+(unpad_blocks xs0{2}))`): a valid block list is the padding of what it unpads to. -/
+theorem pad2blocks_unpad_blocks (xs : List block) (h : valid_block xs) :
+    pad2blocks (oget (unpad_blocks xs)) = xs := by
+  obtain ⟨y, hy⟩ := Option.ne_none_iff_exists'.mp h
+  have := unpadBlocksK xs
+  rw [hy] at this ⊢
+  exact this
+
+/-- EC's `lemma LowerFun_IRO_HybridIROLazy_f :
+equiv[LowerFun(IRO).f ~ LowerHybridIRO(HybridIROLazy).f :
+={xs, n} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2} ==>
+={res} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2}]`.
+
+EC's script; where EC passes the first assignments by `seq 0 1 … ; first auto`, `sp` takes all of
+them, so the conditionals EC reaches by position (`rcondt{1} 3`, `rcondt{2} 4`, `rcondt{1} 7`)
+are first. -/
+theorem LowerFun_IRO_HybridIROLazy_f :
+    equiv[ LowerFun(IRO.asF).f (x) ~ LowerHybridIRO(HybridIROLazy).f (x) :
+      ={x} ∧ lazy_invar §IRO.mp{1} §HybridIROLazy.mp{2} ==>
+      ={res} ∧ lazy_invar §IRO.mp{1} §HybridIROLazy.mp{2} ] := by
+  -- EC: proc=> /=; inline HybridIROLazy.f.
+  equiv_proc; stmt_inline{2} (HybridIROLazy.f)
+  -- EC: seq 0 1 : (={n} /\ xs{1} = xs0{2} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2}); first auto.
+  --     case (valid_block xs{1}).
+  stmt_sp
+  equiv_case (valid_block §xs{1})
+  -- EC: rcondt{1} 3; first auto. rcondt{2} 4; first auto.
+  --     (after `sp`, the two conditionals are first)
+  · stmt_rcondt{1} 1
+    · intro σ₂; ec_auto
+    stmt_rcondt{2} 1
+    · intro σ₁; ec_auto
+    -- EC: inline*. rcondt{1} 7; first auto.
+    stmt_inline*; stmt_sp
+    stmt_rcondt{1} 1
+    · intro σ₂; ec_auto
+    -- EC: seq 6 3 :
+    --       (={i, n0} /\ bs{1} = bs0{2} /\
+    --        lazy_invar IRO.mp{1} HybridIROLazy.mp{2} /\
+    --        pad2blocks x{1} = xs0{2}).
+    --     auto; progress.
+    --       have {2}<- := unpadBlocksK xs0{2}; first
+    --         by rewrite (some_oget (unpad_blocks xs0{2})).
+    --     wp.
+    --     while
+    --       (={i, n0} /\ bs{1} = bs0{2} /\
+    --        lazy_invar IRO.mp{1} HybridIROLazy.mp{2} /\
+    --        pad2blocks x{1} = xs0{2}).
+    --     (EC's `i`, `n0`, `bs`, `x` on the left are our `i0`, `n1`, `bs`, `x0`)
+    stmt_wp
+    equiv_while (§i0{1} = §i{2} ∧ §n1{1} = §n0{2} ∧ §bs{1} = §bs0{2} ∧
+      lazy_invar §IRO.mp{1} §HybridIROLazy.mp{2} ∧ pad2blocks §x0{1} = §xs0{2})
+    -- EC: sp; auto.
+    --     if.
+    · stmt_sp; stmt_if
+      -- EC: progress;
+      --       [by apply (lazy_invar_mem_pad2blocks_l2r IRO.mp{1}
+      --                  HybridIROLazy.mp{2} x{1} i{2}) |
+      --        by apply (lazy_invar_mem_pad2blocks_r2l IRO.mp{1}
+      --                  HybridIROLazy.mp{2} x{1} i{2})].
+      · ec_prep
+        simp only [Bool.not_not]
+        exact decide_eq_decide.mpr ⟨lazy_invar_mem_pad2blocks_l2r _ _ _ _ ‹_›,
+          lazy_invar_mem_pad2blocks_r2l _ _ _ _ ‹_›⟩
+      -- EC: wp; rnd; auto=> |> &1 &2 inv i_lt_n0 xi_notin_m r _.
+      --     rewrite !get_set_sameE //=; split=> [bs n|].
+      --     + exact/(lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ inv).
+      --     split=> [xs n|bs n].
+      --     + by move=>/(lazy_invar_upd2_vb _ _ _ _ _ _ _ inv).
+      --     by move=>/(lazy_invar_upd_lu_eq _ _ _ _ _ _ _ inv).
+      · ec_auto; ec_prep
+        refine ⟨by rw [FMap.get_set_sameE, FMap.get_set_sameE],
+          fun bs n => lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ ‹_›,
+          fun xs n h => lazy_invar_upd2_vb _ _ _ _ _ _ _ ‹_› h,
+          fun bs n h => lazy_invar_upd_lu_eq _ _ _ _ _ _ _ ‹_› h⟩
+      -- EC: auto; progress [-delta].
+      --     by rewrite (lazy_invar_lookup_eq IRO.mp{1} HybridIROLazy.mp{2} x{1} i{2}).
+      · ec_auto; ec_prep
+        exact ⟨by rw [lazy_invar_lookup_eq _ _ _ _ ‹_› (by simpa using ‹decide _ = !false›)], ‹_›⟩
+    -- EC: auto.
+    ec_auto; ec_prep
+    refine ⟨⟨⟨rfl, ‹_›, pad2blocks_unpad_blocks _ ‹_›⟩, rfl⟩, fun τ₁ τ₂ _ _ hI _ _ => ?_⟩
+    obtain ⟨-, -, hbs, hinv, -⟩ := hI
+    exact ⟨by rw [hbs], hinv⟩
+  -- EC: rcondf{1} 3; first auto. rcondf{2} 4; first auto.
+  --     auto; progress; by rewrite bits2blocks_nil.
+  · stmt_rcondf{1} 1
+    · intro σ₂; ec_auto
+    stmt_rcondf{2} 1
+    · intro σ₁; ec_auto
+    ec_auto; ec_prep
+    exact ⟨bits2blocks_nil.symm, ‹_›⟩
+
+/-- EC's `lemma IRO_RaiseHybridIRO_HybridIROLazy_f :
+equiv[IRO.f ~ RaiseHybridIRO(HybridIROLazy).f :
+={n} /\ x{1} = bs{2} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2} ==>
+={res} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2}]`. -/
+theorem IRO_RaiseHybridIRO_HybridIROLazy_f :
+    equiv[ IRO.f (xn) ~ RaiseHybridIRO(HybridIROLazy).f (x) :
+      §xn{1} = §x{2} ∧ lazy_invar §IRO.mp{1} §HybridIROLazy.mp{2} ==>
+      ={res} ∧ lazy_invar §IRO.mp{1} §HybridIROLazy.mp{2} ] := by
+  -- EC: proc=> /=; inline*.
+  equiv_proc; stmt_inline*; stmt_sp
+  -- EC: rcondt{1} 3; first auto.
+  --     rcondt{2} 5; first auto; progress; apply valid_pad2blocks.
+  --     (after `sp`, the two conditionals are first)
+  stmt_rcondt{1} 1
+  · intro σ₂; ec_auto
+  stmt_rcondt{2} 1
+  · intro σ₁; ec_auto; ec_prep
+    exact valid_pad2blocks _
+  -- EC: seq 2 4 :
+  --       (={i, n} /\ n{1} = n0{2} /\ xs{2} = pad2blocks x{1} /\ bs{1} = bs0{2} /\
+  --        lazy_invar IRO.mp{1} HybridIROLazy.mp{2}); first auto.
+  --     wp.
+  --     while
+  --       (={i, n} /\ n{1} = n0{2} /\ xs{2} = pad2blocks x{1} /\ bs{1} = bs0{2} /\
+  --        lazy_invar IRO.mp{1} HybridIROLazy.mp{2}).
+  stmt_wp
+  equiv_while (={i, n} ∧ §n{1} = §n0{2} ∧ §xs{2} = pad2blocks §(localVarLens "x" (List Bool)){1} ∧
+    §bs{1} = §bs0{2} ∧ lazy_invar §IRO.mp{1} §HybridIROLazy.mp{2})
+  -- EC: wp; sp.
+  --     if.
+  · stmt_sp; stmt_if
+    -- EC: progress;
+    --       [by apply (lazy_invar_mem_pad2blocks_l2r IRO.mp{1}
+    --                  HybridIROLazy.mp{2} x{1} i{2}) |
+    --        by apply (lazy_invar_mem_pad2blocks_r2l IRO.mp{1}
+    --                  HybridIROLazy.mp{2} x{1} i{2})].
+    · ec_prep
+      simp only [Bool.not_not]
+      exact decide_eq_decide.mpr ⟨lazy_invar_mem_pad2blocks_l2r _ _ _ _ ‹_›,
+        lazy_invar_mem_pad2blocks_r2l _ _ _ _ ‹_›⟩
+    -- EC: wp; rnd; auto=> |> &1 &2 inv i_lt_n0 xi_notin_m r _.
+    --     rewrite !get_set_sameE=> //=; split=> [bs n|].
+    --     + exact/(lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ inv).
+    --     split=> [xs n|bs n].
+    --     + by move=>/(lazy_invar_upd2_vb _ _ _ _ _ _ _ inv).
+    --     by move=>/(lazy_invar_upd_lu_eq _ _ _ _ _ _ _ inv).
+    · ec_auto; ec_prep
+      refine ⟨by rw [FMap.get_set_sameE, FMap.get_set_sameE],
+        fun bs n => lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ ‹_›,
+        fun xs n h => lazy_invar_upd2_vb _ _ _ _ _ _ _ ‹_› h,
+        fun bs n h => lazy_invar_upd_lu_eq _ _ _ _ _ _ _ ‹_› h⟩
+    -- EC: auto; progress [-delta];
+    --       by rewrite (lazy_invar_lookup_eq IRO.mp{1} HybridIROLazy.mp{2} x{1} i{2}).
+    · ec_auto; ec_prep
+      exact ⟨by rw [lazy_invar_lookup_eq _ _ _ _ ‹_› (by simpa using ‹decide _ = !false›)], ‹_›⟩
+  -- EC: auto.
+  ec_auto
+
+/-- EC's `lemma Lower_HybridIROEager_f :
+equiv[LowerHybridIRO(HybridIROEager).f ~ HybridIROEager.f :
+={xs, HybridIROEager.mp} /\ n{1} * r = n{2} ==>
+res{1} = bits2blocks res{2} /\ ={HybridIROEager.mp}]`. -/
+theorem Lower_HybridIROEager_f :
+    equiv[ LowerHybridIRO(HybridIROEager).f (x) ~ HybridIROEager.f (xs, n) :
+      (§x{1}).1 = §xs{2} ∧ ={HybridIROEager.mp} ∧ (§x{1}).2 * r = §n{2} ==>
+      §res{1} = bits2blocks §res{2} ∧ ={HybridIROEager.mp} ] := by
+  -- EC: proc=> /=; inline*.
+  equiv_proc; stmt_inline*
+  -- EC: seq 5 3 :
+  --       (={i, HybridIROEager.mp} /\ xs0{1} = xs{2} /\
+  --        bs0{1} = bs{2} /\ n0{1} = n{2} /\ m{1} = n0{1} /\ m{2} = n{2}).
+  --     auto; progress; first 2 by rewrite needed_blocks_prod_r.
+  equiv_seq 5 3 : (={i, HybridIROEager.mp} ∧ §xs0{1} = §xs{2} ∧ §bs0{1} = §bs{2} ∧
+    §n0{1} = §n{2} ∧ §m{1} = §n0{1} ∧ §m{2} = §n{2})
+  · ec_auto; ec_prep
+    rw [needed_blocks_prod_r]
+    exact ⟨rfl, rfl⟩
+  -- EC: if=> //; wp.
+  stmt_if
+  · ec_close
+  rotate_left
+  · ec_auto
+  stmt_wp
+  -- EC: while
+  --       (={i, HybridIROEager.mp} /\ xs0{1} = xs{2} /\
+  --        bs0{1} = bs{2} /\ n0{1} = n{2} /\ m{1} = n0{1} /\
+  --        m{2} = n{2}).
+  --     sp; wp; if=> //; wp; rnd; auto.
+  equiv_while (={i, HybridIROEager.mp} ∧ §xs0{1} = §xs{2} ∧ §bs0{1} = §bs{2} ∧
+    §n0{1} = §n{2} ∧ §m{1} = §n0{1} ∧ §m{2} = §n{2})
+  · stmt_sp; stmt_if
+    · ec_close
+    all_goals ec_auto
+  -- EC: while
+  --       (={i, HybridIROEager.mp} /\ xs0{1} = xs{2} /\
+  --        bs0{1} = bs{2} /\ n0{1} = n{2} /\ m{1} = n0{1} /\
+  --        m{2} = n{2})=> //.
+  --     sp; wp; if=> //; wp; rnd; auto.
+  equiv_while (={i, HybridIROEager.mp} ∧ §xs0{1} = §xs{2} ∧ §bs0{1} = §bs{2} ∧
+    §n0{1} = §n{2} ∧ §m{1} = §n0{1} ∧ §m{2} = §n{2})
+  · stmt_sp; stmt_if
+    · ec_close
+    all_goals ec_auto
+  -- EC: auto.
+  ec_auto
 
 end HybridIRO
 

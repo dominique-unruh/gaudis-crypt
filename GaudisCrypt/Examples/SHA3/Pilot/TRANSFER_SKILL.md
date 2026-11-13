@@ -456,10 +456,13 @@ Document each in the docstring when it applies.
 * **A statement over the first port's modules** names the parameters at the triple
   (`equiv[ M(P).f (x) ~ N(P).f (x) : ={glob P, x} ==> … ]`); an abstract `P` that is called
   needs a declaration even with no restriction: `∀ (P <: DPRIMITIVE {})`.
-* **`conseq L` after an abstract call**: the oracle goal names the procedure through the module
-  type's accessor; rewrite it to the module's own procedure first
-  (`simp only [M.asT, T.f.mk_simp]`), then `equiv_conseq L`, then its two implications
-  (`Pilot/Sponge.lean`, `conseq_side`).
+* **A module with more procedures than its module type** (`HybridIROLazy : HYBRID_IRO` with
+  `fill_in`): declare the type's procedures as the module type's accessors of the module
+  (`abbrev HybridIROLazy.f := HYBRID_IRO.f HybridIROLazy`), not as the module's own procedure.
+  A call of an oracle `HI.f` names it in that form, so EC's `inline HybridIROLazy.f` and
+  `conseq L` after an abstract call fit as written; `equiv_proc` opens it.  After `equiv_conseq L`
+  come its two implications when the conditions are not literally `L`'s (`Pilot/Sponge.lean`,
+  `conseq_side`).
 * **`phoare … = 1` with code behind a loop** (EC: `…; auto; while (true) (n - i); auto`).
   `phoare_auto` passes the trailing assignments and samplings; a sampling leaves
   `d.expected fun _ => 1` as the postcondition, and `phoare_while` wants `1`:

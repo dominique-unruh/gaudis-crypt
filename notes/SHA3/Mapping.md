@@ -918,7 +918,13 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 424–487 | local lemmas | `HybridIROLazy_HIRO_LRO_init`, `HybridIROLazy_fill_in_LRO_get`, `HybridIROLazy_HIRO_LRO_f`, `HIRO_RO_HybridIROEager_init`, `RO_get_HybridIROEager_fill_in`, `RO_sample_HybridIROEager_fill_in`, `HIRO_RO_HybridIROEager_f` | same names in `HybridIRO` (EC's scripts; GAP 2, 3) | done |
 | 511, 522 | local lemmas | `Exper_HybridIROLazy_LRO`, `Exper_RO_HybridIROEager` | same names (EC's `call (_ : I)`, the new form of `equiv_call`; GAP 4, 5, 14) | done |
 | 533, 544 | lemmas | `HybridIROExper_Lazy_Eager'`, `HybridIROExper_Lazy_Eager` | same names (EC's lines; `ERO`'s variables in `D`'s restriction) | done |
-| 553–1909 | the rest of `HybridIRO` | | — | todo |
+| 553, 568 | modules | `RaiseHybridIRO`, `LowerHybridIRO` | the first port's | def |
+| 579–662 | pred, lemmas | `lazy_invar`, `lazy_invar0` … `lazy_invar_upd_lu_eq` | the first port's (plain lemmas) | done |
+| 685 | lemma | `LowerFun_IRO_HybridIROLazy_f` | same name (EC's script; `sp` for `seq 0 1`; inline fact `pad2blocks_unpad_blocks`) | done |
+| 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` | same name (EC's script) | done |
+| 765–871 | preds, lemmas | `eager_invar`, `block_bits_*`, `eager_inv_*` | the first port's (plain lemmas) | done |
+| 877 | lemma | `Lower_HybridIROEager_f` | same name (EC's script) | done |
+| 904–1909 | the rest of `HybridIRO` (`HybridIROEagerTrans` … `HybridIROEager_BlockIRO_f`) | | — | todo |
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
 | 1953–2163 | the final section, `conclu`, `conclusion` | | — | todo |
 
