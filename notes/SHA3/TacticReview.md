@@ -308,3 +308,11 @@ a procedure that writes nothing; EC's `call (: I)` on two different concrete pro
 one-condition form; the frame of a call is the module's, not the procedure's; `hoare_conseq` and
 the Hoare `while` have no frame.  The last three are rule gaps of the kind of step 5.
 
+**Where the port stopped.**  Section `Real` (`equiv_sponge`, EC line 1100) does not start for a
+declaration reason: over the old declarations `P = Perm` is a `SLCommon` primitive seen as a
+`BlockSponge` one through a module-type view, which `inline*` does not open
+(`PRIMITIVE.init … P` stays a call; the old port bridged it with a lemma), and EC's
+`={glob D, glob P}` is one joined region.  Both belong to step 4 (`glob`) and to re-porting
+`Gconcl_list`'s declarations in the pilots' style (one module type, as in EC); neither is a
+matter of a proof step.
+
