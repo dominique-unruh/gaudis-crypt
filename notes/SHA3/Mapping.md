@@ -793,16 +793,17 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
 | 1786 | lemma | `concl` | section Real_Ideal. | `concl` (EC's five lines; `Real_Ideal` applied to `A(D)` with the region `R ⊔ C.c.footprint` written out, `declare module … with glob R`, E14) | done |
 | 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Neg_D_lossless` | done |
 | 1833, 1853 | local lemmas | `useful`, `invmC` | section Real_Ideal_Abs. | the first port's (plain lemmas) | done |
-| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | — (`call (: invm …)` on `D` in `phoare`, GAP 12) | todo |
-| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | — (code after a loop in `phoare`, GAP 13; one of three oracles done in a draft) | todo |
-| 1905, 1924 | lemmas | `neg_D_concl`, `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | — (after `Real_lossless`, `Ideal_lossless`; `concl (Neg_D(D))` with the region `glob D`) | todo |
+| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_lossless` (EC's steps with `call (: true)`: no rule with an invariant, and `Perm.f`/`fi` are lossless in every state here, GAP 12) | done (dev) |
+| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Ideal_lossless` (EC's script; the sampling behind a loop by `phoare_auto` and `simp only [cdistr_expected_one]`, GAP 13; `variant_decr` for EC's `smt()`) | done |
+| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `neg_D_concl` (`concl (Neg_D(D))` with the region of `D`, E14; EC's `Neg_main`/`Neg_A_Pr_minus` steps as one equation from the first port's `Indif_Neg_D`, `Pr_false_eq_one_sub`, GAP 17) | done (dev) |
+| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` (EC's lines) | done |
 | 1946 | module | `Simulator` | | the first port's | def |
 | 2017 | local clone | `IRO2` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` (`global_var`s) | def |
 | 2025, 2081 | local modules | `Simu`, `L` | section Simplify_Simulator. | the first port's `Simu`; `Simplify_Simulator.L` (alias) | def |
 | 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` (EC's script; inline fact `parse_format_of_eq_parse`; the valid query's loops by invariant, GAP 16; "the last query is sampled" by a loop invariant instead of EC's `splitwhile`/`seq` on a Hoare triple, GAP 9) | done |
 | 2155 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` | done |
 | 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_Simulator.Simplify_simulator` (EC's two lines; `RO_LRO_D` at the first port's module `L D`, `LF`, with two bridges from the alias `L`, E5) | done |
-| 2209 | lemma | `Real_Ideal` | | — (after `Inefficient_Real_Ideal`) | todo |
+| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (EC's two lines; `D` with a region, E14) | done |
 
 ## `proof/Sponge.ec`
 

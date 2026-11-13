@@ -449,6 +449,16 @@ Document each in the docstring when it applies.
   `scripts/update_golden.py FILE` refreshes the expected text — its diff is the record of the
   behaviour change.  A tactic change comes with a golden test of the new behaviour.
 
+* **`phoare … = 1` with code behind a loop** (EC: `…; auto; while (true) (n - i); auto`).
+  `phoare_auto` passes the trailing assignments and samplings; a sampling leaves
+  `d.expected fun _ => 1` as the postcondition, and `phoare_while` wants `1`:
+  `phoare_auto; simp only [cdistr_expected_one]; phoare_while True ((§n - §i).toNat)`
+  (`Gconcl_list.Ideal_lossless`).  The body's variant step is one lemma (`variant_decr`).
+* **Splicing a finished lemma into a file**: put it before the next declaration's
+  `set_option`/comment/docstring header, not after the last blank line before `theorem` — a
+  docstring may contain a blank line, and block comments nest, so a block pasted inside one
+  disappears without an error.
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in

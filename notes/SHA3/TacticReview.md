@@ -373,9 +373,21 @@ lines; three new gaps, 14–16: `glob D` past initializations after `skip`, EC's
 lemma; EC's proof that the last query is already sampled (`splitwhile`, two `rcond`s and `seq` on
 a Hoare triple) is a loop invariant here, since there is no `seq` on a Hoare triple (GAP 9).
 `Simplify_simulator` is EC's two lines, with two bridges from the alias `L` to the first port's
-module `L D`, which `RO_LRO_D` takes (E5).  With this, what is left of `Gconcl_list` is
-`Real_lossless`, `Ideal_lossless`, and the three lemmas after them (`neg_D_concl`,
-`Inefficient_Real_Ideal`, `Real_Ideal`).
+module `L D`, which `RO_LRO_D` takes (E5).
+
+**`Gconcl_list` complete (2026-11-13).**  The last five lemmas, none needing a new tactic:
+* `Ideal_lossless`: GAP 13 was not a missing step.  EC's `auto` passes the sampling behind the
+  loop; `phoare_auto` does too and leaves `cdistr.expected fun _ => 1` as the postcondition,
+  which `simp only [cdistr_expected_one]` turns back into `1` before `phoare_while`.
+* `Real_lossless`: hand-closed (GAP 12 stays).  EC keeps `invm Perm.m Perm.mi` through the call
+  of `D`, because EC's permutation samples losslessly only under it; here `Perm.f`, `Perm.fi`
+  are lossless in every state, so the call is EC's `call (: true)`.
+* `neg_D_concl`: `concl` applied to `Neg_D(D)` with the region of `D` (the second use of the
+  region form).  EC's theory `AdvAbsVal` is not ported (GAP 17): its two steps are one equation
+  here, from two lemmas of the first port.
+* `Inefficient_Real_Ideal`, `Real_Ideal`: EC's lines.
+All of section `Real_Ideal_Abs` and the last section declare `D` with a region, since
+`SHA3Indiff` applies `Real_Ideal` to `LowerDist(Dist)`.
 
 **Step 4, tried another way (2026-11-13): no syntactic `glob`; a region where `glob F(A)` is
 needed.**  Dominique's concern: EasyCrypt's `glob` system may be inconsistent, and taking it over closely
@@ -412,8 +424,10 @@ first needs a full rebuild, so they go together):
 3. `equiv_conseq` without a specification, EC's `conseq=> />` (GAP 15).
 4. `skip`: `glob D` past writes outside `D`, as `sp` does (GAP 14).
 5. `seq` on a Hoare triple (GAP 9); `splitwhile` reading the conditions' variables (GAP 10).
-6. `phoare_call` with an invariant on an abstract module (GAP 12); a `phoare` step for code
-   after a loop (GAP 13).
+6. `phoare_call` with an invariant on an abstract module (GAP 12; `Real_lossless` is
+   hand-closed without it).  (GAP 13 needed no step: `phoare_auto` and one rewrite.)
+9. EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A`, `Neg_A_Pr`, `Neg_A_Pr_minus`): a small library
+   file; needs `proc *` and `Pr[mu_not]` (GAP 17).
 7. `smt_close`'s unknown free variable in `ec_instances` (GAP 2).
 8. `sim` over differently named locals (GAP 16); pair states equal by components (GAP 8).
 

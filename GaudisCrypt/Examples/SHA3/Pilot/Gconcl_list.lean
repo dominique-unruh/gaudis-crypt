@@ -65,9 +65,10 @@ Translation:
   `Flatten.moduleStep?` for the first port's proofs): `simp only [P_view]`, then `inline*`.
 * GAP 12: `phoare_call` on an abstract module has the rule for lossless oracles (EC's
   `call (: true)`), not the one with an invariant (`call (: invm Perm.m Perm.mi)`,
-  `Real_lossless`).
-* GAP 13: in a `phoare … = 1` goal the tactics have no step for code after a loop (EC's `auto`
-  passes samplings of lossless distributions and conditionals behind it; `Ideal_lossless`).
+  `Real_lossless`).  Hand-closed: `Perm.f`, `Perm.fi` are lossless in every state here.
+* GAP 13: in a `phoare … = 1` goal, EC's `auto` passes a sampling of a lossless distribution
+  behind a loop.  `phoare_auto` passes it too, and leaves its expectation of `1` in the
+  postcondition: `simp only [cdistr_expected_one]` before `phoare_while` (`Ideal_lossless`).
 * GAP 14: after `auto`'s `skip`, `glob D` read past initializations outside `D` is not
   rewritten (`sp` does it): `simp (disch := fp_disjoint) only [touched_set_of_le_compl]`.
 * GAP 15: EC's `conseq` without a specification (`conseq=> />`: the postcondition without what
@@ -75,6 +76,9 @@ Translation:
   written out.
 * GAP 16: inlining names the two sides' locals differently (`i`/`i0`), and `sim` does not match
   them: the loop by its invariant.
+* GAP 17: EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A_Pr_minus`) is not ported: `neg_D_concl`
+  states its two steps as one equation, from the first port's `Indif_Neg_D` and
+  `Pr_false_eq_one_sub`.
 * After `sp`, a goal prints as the plain `prhlStmt` term until the next tactic (the conditions
   `x = e` it adds are not in read form); display only.
 * EC's `List` lemmas the scripts cite (`take0`, `size_take`, `nth_take`, `size_cat`, `last_nseq`,
@@ -3608,35 +3612,301 @@ end Real_Ideal
 
 /-! ## Section `Real_Ideal_Abs`
 
-`Real_lossless` (EC l. 1858) calls `D` under the invariant `invm Perm.m Perm.mi` in a
-`phoare … = 1` goal: `phoare_call` has the rule for lossless oracles only (GAP 12).
-`Ideal_lossless` (EC l. 1887) has loops followed by sampling code, which EC's `auto` passes
-(`rnd` with a lossless distribution); the `phoare` tactics have no step for code after a loop
-(GAP 13).  Both are left to the batch of rule fixes. -/
+EC's section, complete.  Three deviations, each at its lemma: `Real_lossless` calls `D` with
+lossless oracles where EC keeps the invariant `invm Perm.m Perm.mi` (GAP 12); in
+`Ideal_lossless` the sampling behind a loop is passed by `phoare_auto` and one rewrite (GAP 13);
+`neg_D_concl` states EC's two `AdvAbsVal` steps as one equation (GAP 17).  The section's `D` has
+a region for `glob D` (exception E14): `concl` is applied to `Neg_D(D)` here, and
+`Inefficient_Real_Ideal` to a distinguisher built from a declared one in `SHA3Indiff`. -/
 
 section Real_Ideal_Abs
 
 open GaudisCrypt.SHA3.Gconcl_list.Real_Ideal_Abs (Neg_D)
 
+-- (the same restriction as section `Real_Ideal`'s, whose `concl` is applied to `Neg_D(D)`; and
+-- a region for `glob D`, exception E14: `Inefficient_Real_Ideal` is applied to a distinguisher
+-- built from a declared one in `SHA3Indiff`)
 declare module D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Redo, -SLCommon.F.RO,
-  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m}
+  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
 
--- EC's `declare axiom D_lossless`
-variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-D}), ∀ (P0 <: DPRIMITIVE {-D}),
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob Neg_D(D)`: `glob D` (`Neg_D` has no variables). -/
+instance instECGlobNegD (D : DISTINGUISHER) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob D R] : Module.ECGlob (Neg_D D) R :=
+  ⟨h.finite.mono (Real_Ideal_Abs.fvP_Neg_D D), (Real_Ideal_Abs.fvP_Neg_D D).trans h.le, h.base⟩
+
+-- EC's `declare axiom D_lossless` (`glob D` as the region `R`)
+variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-R}), ∀ (P0 <: DPRIMITIVE {-R}),
   islossless P0.f → islossless P0.fi → islossless F0.f → islossless D(F0, P0).distinguish)
 
 include D_lossless in
 /-- EC's `local lemma Neg_D_lossless (F <: DFUNCTIONALITY{-Neg_D(D)})
 (P <: DPRIMITIVE{-Neg_D(D)}) : islossless P.f => islossless P.fi => islossless F.f =>
-islossless Neg_D(D, F, P).distinguish`; `{-Neg_D(D)}` is `{-D}`. -/
-theorem Neg_D_lossless : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+islossless Neg_D(D, F, P).distinguish`; `{-Neg_D(D)}` is `{-R}`. -/
+theorem Neg_D_lossless : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
     islossless P.f → islossless P.fi → islossless F.f →
       islossless Neg_D(D, F, P).distinguish := by
   intro F _ P _ H H0 H1
   -- EC: by progress;proc;inline*;call(D_lossless F P H H0 H1);auto.
-  --     (EC's `inline*`: nothing to open here)
   phoare_proc
   phoare_call (D_lossless F P H H0 H1); phoare_auto
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: the distinguisher's call over three oracles, their restriction checks
+include D_lossless in
+/-- EC's `local lemma Real_lossless :
+islossless RealIndif(Sponge, P, DRestr(Neg_D(D))).main`.
+
+Deviation (GAP 12): EC calls `D` under the invariant `invm Perm.m Perm.mi`, under which the
+permutation's sampling is lossless (`useful`).  `phoare_call` on an abstract module has the rule
+for lossless oracles only, and here `Perm.f`, `Perm.fi` are lossless in every state (the first
+port's `P_f_ll`, `P_fi_ll`: a finite map missing a key misses a value).  So the call is EC's
+`call (: true)`, the oracles' proofs keep EC's steps without the invariant, and the calls of the
+permutation are not inlined. -/
+theorem Real_lossless : islossless RealIndif(Sponge, Perm, DRestr(Neg_D(D))).main := by
+  have p_ll : islossless Perm.f :=
+    EC.PRP.RP.f_ll dD_ll (dprod_fu BitWord.dunifin_fu BitWord.dunifin_fu)
+  have pi_ll : islossless Perm.fi :=
+    EC.PRP.RP.fi_ll dD_ll (dprod_fu BitWord.dunifin_fu BitWord.dunifin_fu)
+  --     (the permutation as `Sponge` calls it, through the first port's `PRIMITIVE.view`)
+  have pv_ll : islossless (GaudisCrypt.SHA3.Indifferentiability.DPRIMITIVE.f SLCommon.state
+      (List block × ℤ) (List block) (GaudisCrypt.SHA3.Indifferentiability.PRIMITIVE.view
+        SLCommon.state (List block × ℤ) (List block) Perm)) := by
+    rw [GaudisCrypt.SHA3.Indifferentiability.PRIMITIVE.view_f]; exact P_f_ll
+  -- EC: proc;inline*;auto;call(: invm Perm.m Perm.mi);2..:auto.
+  --     + exact D_lossless.
+  phoare_proc; phoare_inline*; stmt_wp
+  phoare_call (@D_lossless _ ?_ _ ?_ ?_ ?_ ?_)
+  · phoare_auto
+  -- EC: + proc;inline*;sp;if;auto;sp;if;auto;progress.
+  --       - by have:=useful _ _ _ H H1.
+  --       - smt(invm_set dexcepted1E).
+  · phoare_proc; stmt_sp; stmt_if
+    · phoare_auto; phoare_call p_ll; phoare_auto
+    · phoare_auto
+  -- EC: + proc;inline*;sp;if;auto;sp;if;auto;progress.
+  --       - have:=H;rewrite invmC=>h;have/#:=useful _ _ _ h H1.
+  --       - move:H;rewrite invmC=>H;rewrite invmC;smt(invm_set dexcepted1E domE rngE).
+  · phoare_proc; stmt_sp; stmt_if
+    · phoare_auto; phoare_call pi_ll; phoare_auto
+    · phoare_auto
+  -- EC: + proc;inline*;sp;if;auto;sp;if;auto.
+  · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+    · stmt_sp; stmt_if
+      -- EC: while(invm Perm.m Perm.mi)(n-i);auto.
+      --     - sp;if;auto;2:smt();sp;if;auto;2:smt();progress.
+      --       * by have:=useful _ _ _ H H2.
+      --       * smt(invm_set dexcepted1E).
+      --       smt().
+      · stmt_wp
+        phoare_while True ((§n - §i).toNat)
+        · intro z; stmt_sp; stmt_if
+          · phoare_call pv_ll; phoare_auto; smt_close
+          · phoare_auto; smt_close
+        -- EC: conseq(:_==> invm Perm.m Perm.mi);1:smt().
+        --     while(invm Perm.m Perm.mi)(size xs);auto.
+        --     - sp;if;auto;progress.
+        --       * by have:=useful _ _ _ H H1.
+        --       * smt(invm_set dexcepted1E).
+        --       * smt(size_behead).
+        --     smt(size_ge0 size_eq0).
+        · phoare_while True ((size §xs).toNat)
+          · intro z; stmt_wp; phoare_call pv_ll; phoare_auto
+            rintro σ xs sa sc ⟨-, hne, hz⟩
+            have hlt : (size (behead xs)).toNat < z := by
+              cases xs with
+              | nil => simp at hne
+              | cons a l => subst hz; simp [size, behead]
+            simp [hlt]
+          · phoare_auto
+            smt_close
+      · phoare_auto
+    -- EC: smt(emptyE).
+    · phoare_auto
+
+omit [SLCommon.Params] [BlockSponge.Params] [Gconcl_list.Params] in
+/-- EC's `smt()` after each `while (true) (n - i)`: an iteration decreases the variant. -/
+theorem variant_decr {i n : ℤ} {z : ℕ} (hi : decide (i < n) = true) (hz : (n - i).toNat = z) :
+    (n - (i + 1)).toNat < z := by
+  simp only [decide_eq_true_eq] at hi
+  omega
+
+/-- EC's `DCapacity.dunifin_ll`, as the expectation of `1`. -/
+theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
+  (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: the distinguisher's call over three oracles with their loops
+include D_lossless in
+/-- EC's `local lemma Ideal_lossless :
+islossless IdealIndif(BIRO.IRO, SimLast(S), DRestr(Neg_D(D))).main`. -/
+theorem Ideal_lossless :
+    islossless IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(Neg_D(D))).main := by
+  -- EC: proc;inline*;auto;call(D_lossless (FC(BIRO.IRO)) (PC(SimLast(S, BIRO.IRO))) _ _ _);auto.
+  phoare_proc; phoare_inline*; stmt_wp
+  phoare_call (@D_lossless _ ?_ _ ?_ ?_ ?_ ?_)
+  · phoare_auto
+  rotate_left 2
+  -- EC: proc;inline*;sp;if;auto;sp;if;auto;while(true)(n-i);auto;2:smt().
+  --     by sp;if;auto;smt(DBlock.dunifin_ll).
+  · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+    · stmt_wp; stmt_sp; stmt_if
+      · phoare_while True ((§n - §i).toNat)
+        · intro z; stmt_sp; stmt_if
+          · phoare_auto
+            rintro i n x1 n0 x0 mp ⟨⟨⟨hi, hz⟩, -⟩, -⟩
+            simp [variant_decr hi hz]
+          · phoare_auto
+            rintro i n x1 n0 x0 mp ⟨⟨⟨hi, hz⟩, -⟩, -⟩
+            exact indicatorE_of (variant_decr hi hz)
+        · phoare_auto; smt_close
+      · phoare_auto
+    · phoare_auto
+  -- EC: + proc;inline*;sp;if;auto;sp;if;auto;sp;if;auto;
+  --         2:smt(DBlock.dunifin_ll DCapacity.dunifin_ll).
+  --       sp;if;auto;sp;if;auto;2,4:smt(DBlock.dunifin_ll DCapacity.dunifin_ll).
+  --       * while(true)(n-i);auto;2:smt(DBlock.dunifin_ll DCapacity.dunifin_ll).
+  --         by sp;if;auto;smt(DBlock.dunifin_ll).
+  --       while(true)(n0-i0);auto;2:smt(DBlock.dunifin_ll DCapacity.dunifin_ll).
+  --       by sp;if;auto;smt(DBlock.dunifin_ll).
+  · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+    · stmt_wp; stmt_sp; stmt_if
+      · stmt_wp; stmt_if
+        · stmt_sp; stmt_if
+          --     (GAP 13: EC's `auto` passes the code after the loop, with its sampling; here
+          --     `phoare_auto` does, and leaves the sampling's expectation of `1`, rewritten to
+          --     `1` before the loop)
+          · stmt_sp; stmt_if
+            · phoare_auto
+              simp only [cdistr_expected_one]
+              phoare_while True ((§n - §i).toNat)
+              · intro z; stmt_sp; stmt_if
+                · phoare_auto
+                  rintro i n x3 n0 x2 mp ⟨⟨⟨hi, hz⟩, -⟩, -⟩
+                  simp [variant_decr hi hz]
+                · phoare_auto
+                  rintro i n x3 n0 x2 mp ⟨⟨⟨hi, hz⟩, -⟩, -⟩
+                  exact indicatorE_of (variant_decr hi hz)
+              · phoare_auto; smt_close
+            · phoare_auto
+              intros
+              simp only [cdistr_expected_one]
+          · stmt_sp; stmt_if
+            · phoare_auto
+              simp only [cdistr_expected_one]
+              phoare_while True ((§n1 - §i0).toNat)
+              · intro z; stmt_sp; stmt_if
+                · phoare_auto
+                  rintro i n x3 n0 x2 mp ⟨⟨⟨hi, hz⟩, -⟩, -⟩
+                  simp [variant_decr hi hz]
+                · phoare_auto
+                  rintro i n x3 n0 x2 mp ⟨⟨⟨hi, hz⟩, -⟩, -⟩
+                  exact indicatorE_of (variant_decr hi hz)
+              · phoare_auto; smt_close
+            · phoare_auto
+              intros
+              simp only [cdistr_expected_one]
+        · phoare_auto
+          intros
+          simp only [cdistr_expected_one, bdistr_expected_one]
+      · phoare_auto
+    · phoare_auto
+  -- EC: + by proc;inline*;sp;if;auto;sp;if;auto;smt(DBlock.dunifin_ll DCapacity.dunifin_ll).
+  · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+    · stmt_wp; stmt_sp; stmt_if
+      · phoare_auto
+        intros
+        simp only [cdistr_expected_one, bdistr_expected_one]
+      · phoare_auto
+    · phoare_auto
+
+set_option maxHeartbeats 4000000 in
+-- EC's restriction checks by instance search and `fp_disjoint` (`Neg_D(D)` against the
+-- thirty-five variables of `concl`'s declaration)
+set_option synthInstance.maxHeartbeats 400000 in
+set_option synthInstance.maxSize 1024 in
+include D_lossless in
+/-- EC's `local lemma neg_D_concl &m :
+Pr [ IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res ] <=
+Pr [ RealIndif(Sponge,P,DRestr(D)).main() @ &m : res ] +
+(max_size ^ 2 - max_size)%r / 2%r / (2^r)%r / (2^c)%r + max_size%r * ((2*max_size)%r / (2^c)%r) +
+max_size%r * ((2*max_size)%r / (2^c)%r)`.
+
+Deviation (GAP 17): EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A_Pr_minus`) is not ported.  EC
+moves both games to `Neg_main` of the game on `Neg_D(D)` (two `byequiv … sim`) and applies
+`Neg_A_Pr_minus` with the game's losslessness; together the two steps say that the game on `D`
+answers `true` with one minus the probability of the game on `Neg_D(D)`.  That is stated here
+(`eI'`, `eR'`), from the first port's `Indif_Neg_D` (the game on `Neg_D(D)` answers the negation)
+and `Pr_false_eq_one_sub` (EC's `Pr[mu_not]` for a lossless procedure).  `concl` is applied to
+`Neg_D(D)` with the region of `D` (`glob Neg_D(D)` is `glob D`). -/
+theorem neg_D_concl (m : VariableAssignment) :
+    Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] ≤
+      Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] +
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 / ((2 ^ r.toNat : ℤ) : ℝ) /
+          ((2 ^ c.toNat : ℤ) : ℝ) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: have->:Pr[IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res] =
+  --       Pr[Neg_main(IdealIndif(BIRO.IRO, SimLast(S), DRestr(Neg_D(D)))).main() @ &m : res].
+  --     + by byequiv=>//=;proc;inline*;auto;conseq(:_==> b0{1} = b2{2});progress;sim.
+  --     have h2 := Neg_A_Pr_minus (IdealIndif(BIRO.IRO, SimLast(S), DRestr(Neg_D(D)))) &m
+  --       Ideal_lossless.
+  have eI := Procedure.Pr_eq_of_prhlProc (Real_Ideal_Abs.Indif_Neg_D BIRO.IRO.asF
+    (Module.app (SimLast S) (GaudisCrypt.SHA3.Indifferentiability.FUNCTIONALITY.view SLCommon.state
+      (List block × ℤ) (List block) BIRO.IRO.asF)) D)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = false)
+    (fun r₁ _ r₂ _ h => by subst h; cases r₂ <;> simp) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have lI := Real_Ideal_Abs.Pr_false_eq_one_sub (Ideal_lossless D D_lossless) m
+  have eI' : Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] =
+      1 - Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(Neg_D(D))).main () @ &m : §res ] :=
+    (congrArg NNReal.toReal eI).trans lI
+  -- EC: have->:Pr [ RealIndif(Sponge,P,DRestr(D)).main() @ &m : res ] =
+  --       Pr [ Neg_main(RealIndif(Sponge,P,DRestr(Neg_D(D)))).main() @ &m : res ].
+  --     + by byequiv=>//=;proc;inline*;auto;conseq(:_==> b0{1} = b2{2});progress;sim.
+  --     have h1 := Neg_A_Pr_minus (RealIndif(Sponge,P,DRestr(Neg_D(D)))) &m Real_lossless.
+  have eR := Procedure.Pr_eq_of_prhlProc (Real_Ideal_Abs.Indif_Neg_D (Module.app Sponge
+    (GaudisCrypt.SHA3.Indifferentiability.PRIMITIVE.view SLCommon.state (List block × ℤ)
+      (List block) P)) P D)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = false)
+    (fun r₁ _ r₂ _ h => by subst h; cases r₂ <;> simp) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have lR := Real_Ideal_Abs.Pr_false_eq_one_sub (Real_lossless D D_lossless) m
+  have eR' : Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] =
+      1 - Pr[ RealIndif(Sponge, Perm, DRestr(Neg_D(D))).main () @ &m : §res ] :=
+    (congrArg NNReal.toReal eR).trans lR
+  -- EC: have/#:=concl (Neg_D(D)) _ &m;progress.
+  --     by proc;call(D_lossless F0 P0 H H0 H1);auto.
+  have hc := @concl _ _ _ (Neg_D D) ⟨by fp_finite, by fp_disjoint⟩ _ _ _
+    (Neg_D_lossless D D_lossless) m
+  rw [eI', eR']
+  linarith
+
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`D` against the modules of `concl`)
+set_option synthInstance.maxSize 1024 in
+include D_lossless in
+/-- EC's `lemma Inefficient_Real_Ideal &m :
+`|Pr [ RealIndif(Sponge,Perm,DRestr(D)).main() @ &m : res ] -
+Pr [ IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res ]| <=
+(max_size ^ 2 - max_size)%r / 2%r / (2^r)%r / (2^c)%r + max_size%r * ((2*max_size)%r / (2^c)%r) +
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem Inefficient_Real_Ideal (m : VariableAssignment) :
+    |Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] -
+      Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ]| ≤
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 / ((2 ^ r.toNat : ℤ) : ℝ) /
+          ((2 ^ c.toNat : ℤ) : ℝ) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: have := concl D D_lossless &m.
+  have h1 := concl D D_lossless m
+  -- EC: have := neg_D_concl &m.
+  have h2 := neg_D_concl D D_lossless m
+  -- EC: pose p1 := …; pose p2 := …; rewrite-5!(RField.addrA); pose p3 := …; smt().
+  rw [abs_le]
+  constructor <;> linarith
 
 end Real_Ideal_Abs
 
@@ -4053,5 +4323,43 @@ theorem Simplify_simulator : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO
     (fun _ => BitWord.dunifin_ll) IRO2.RO.m (LF D) (by ec_module) (by fp_disjoint))
 
 end Simplify_Simulator
+
+/-! ## Section `Real_Ideal` (EC's last) -/
+
+section Real_Ideal
+
+declare module D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Redo, -SLCommon.F.RO,
+  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m, -Simulator,
+  -Simplify_Simulator.IRO2.RO.m, -Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
+
+-- EC's `declare axiom D_lossless` (`glob D` as the region `R`)
+variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-R}), ∀ (P0 <: DPRIMITIVE {-R}),
+  islossless P0.f → islossless P0.fi → islossless F0.f → islossless D(F0, P0).distinguish)
+
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`D` against the modules of the two lemmas)
+set_option synthInstance.maxSize 1024 in
+include D_lossless in
+/-- EC's `lemma Real_Ideal &m : `|Pr [ RealIndif(Sponge,Perm,DRestr(D)).main() @ &m : res ] -
+Pr [ IdealIndif(BIRO.IRO, Simulator, DRestr(D)).main() @ &m : res ]| <=
+(max_size ^ 2 - max_size)%r / 2%r / (2^r)%r / (2^c)%r + max_size%r * ((2*max_size)%r / (2^c)%r) +
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem Real_Ideal (m : VariableAssignment) :
+    |Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] -
+      Pr[ IdealIndif(BIRO.IRO.asF, Simulator, DRestr(D)).main () @ &m : §res ]| ≤
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 / ((2 ^ r.toNat : ℤ) : ℝ) /
+          ((2 ^ c.toNat : ℤ) : ℝ) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: rewrite(Simplify_simulator D D_lossless &m).
+  rw [Simplify_Simulator.Simplify_simulator D m]
+  -- EC: exact/(Inefficient_Real_Ideal D D_lossless &m).
+  exact Inefficient_Real_Ideal D D_lossless m
+
+end Real_Ideal
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
