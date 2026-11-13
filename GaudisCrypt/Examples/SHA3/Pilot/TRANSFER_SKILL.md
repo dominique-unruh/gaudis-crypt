@@ -449,6 +449,17 @@ Document each in the docstring when it applies.
   `scripts/update_golden.py FILE` refreshes the expected text — its diff is the record of the
   behaviour change.  A tactic change comes with a golden test of the new behaviour.
 
+* **`call (_ : I)` on an abstract module, `I` without a `={…}` part** is `equiv_call (_ : I)`
+  (2026-11-13; before, only `={…}` and `={…} ∧ I` were taken): `glob D` is kept without being
+  named, the oracle goals are `={arg} ∧ I ==> ={res} ∧ I`.  Writing `={glob D} ∧ I` instead
+  gives the form in which the oracles must keep `glob D` themselves — not EC's.
+* **A statement over the first port's modules** names the parameters at the triple
+  (`equiv[ M(P).f (x) ~ N(P).f (x) : ={glob P, x} ==> … ]`); an abstract `P` that is called
+  needs a declaration even with no restriction: `∀ (P <: DPRIMITIVE {})`.
+* **`conseq L` after an abstract call**: the oracle goal names the procedure through the module
+  type's accessor; rewrite it to the module's own procedure first
+  (`simp only [M.asT, T.f.mk_simp]`), then `equiv_conseq L`, then its two implications
+  (`Pilot/Sponge.lean`, `conseq_side`).
 * **`phoare … = 1` with code behind a loop** (EC: `…; auto; while (true) (n - i); auto`).
   `phoare_auto` passes the trailing assignments and samplings; a sampling leaves
   `d.expected fun _ => 1` as the postcondition, and `phoare_while` wants `1`:

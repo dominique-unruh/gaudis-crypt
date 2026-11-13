@@ -426,8 +426,12 @@ first needs a full rebuild, so they go together):
 5. `seq` on a Hoare triple (GAP 9); `splitwhile` reading the conditions' variables (GAP 10).
 6. `phoare_call` with an invariant on an abstract module (GAP 12; `Real_lossless` is
    hand-closed without it).  (GAP 13 needed no step: `phoare_auto` and one rewrite.)
-9. EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A`, `Neg_A_Pr`, `Neg_A_Pr_minus`): a small library
-   file; needs `proc *` and `Pr[mu_not]` (GAP 17).
 7. `smt_close`'s unknown free variable in `ec_instances` (GAP 2).
 8. `sim` over differently named locals (GAP 16); pair states equal by components (GAP 8).
+9. EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A`, `Neg_A_Pr`, `Neg_A_Pr_minus`): a small library
+   file; needs `proc *` and `Pr[mu_not]` (GAP 17).
+10. From `Pilot/Sponge` (its GAP 2–5): EC's path for a callee inside a library procedure;
+   reads through a discarded call result in the strict `auto`; the oracle goals of an abstract
+   call in the module's own procedure names, and only for the procedures the module type's
+   `{…}` allows; `equiv_conseq H` closing its implications.
 

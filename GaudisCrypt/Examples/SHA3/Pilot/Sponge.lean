@@ -19,6 +19,10 @@ import GaudisCrypt.Logic.ECProgress
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Lib.EC.ListLemmas
+import GaudisCrypt.Logic.PrTactics
+import GaudisCrypt.Logic.ECWhile
+import GaudisCrypt.Logic.ModuleFootprint
+import GaudisCrypt.Syntax.PrSyntax
 
 -- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
 set_option ec.strict true
@@ -26,9 +30,37 @@ set_option ec.strict true
 /-!
 # The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port, in progress
 
-Ported so far: `Sponge_is_StdSponge` (EC l. 99), on the strict tactics, and
-`Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic experiment and is
-described below.  The rest of the file follows in EC's order (`notes/SHA3/Mapping.md`).
+Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the theory `HybridIRO`
+up to `HybridIROExper_Lazy_Eager` (EC l. 256–549); and `Sponge_Raise_BlockSponge_f`
+(EC l. 1922), which was the second tactic experiment and is described below.  The rest of the
+file follows in EC's order (`notes/SHA3/Mapping.md`).
+
+Translation:
+* the modules are the first port's (`Examples/SHA3/Sponge.lean`); a procedure takes its
+  parameters as one tuple there, so a statement names them at the triple
+  (`StdSponge(P).f (x) ~ …`, `HybridIROLazy.f (xs, n) ~ …`);
+* the theory `HybridIRO` is a namespace; its module variables `HybridIROLazy.mp`,
+  `HybridIROEager.mp` and those of the local clone `ERO` are `global_var`s, and the first port's
+  modules (which take them as lens parameters) are applied at them;
+* a local clone's variables are fresh for a declared module in EC; here the restriction names
+  them (`-ERO.RO.m, -ERO.FRO.m`).
+
+Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
+* GAP 1: `Perm.f` behind the first port's `PRIMITIVE.view`s is not opened by `equiv_proc`
+  (GAP 11 of `Pilot/Gconcl_list.lean`): `sim_perm_f`.
+* GAP 2: inside the library's `RO.sample` the callee is the library's `RO.get` itself, not the
+  procedure of the module `ERO.RO`, so EC's `inline ERO.RO.get` does not name it: by index.
+* GAP 3: after a call whose result is discarded, the strict `auto` does not read through the
+  discarding write: `simp only [Setter.throwaway_set]` first.
+* GAP 4: the abstract call's oracle goals name a procedure through the module type's accessor
+  (`HYBRID_IRO.f HybridIROLazy`), a lemma names the module's own (`HybridIROLazy.f`); they are
+  equal by a rewrite, not by unfolding: `simp only [….asHI, HYBRID_IRO.f.mk_simp]` before
+  `equiv_conseq`.  The rule also asks all of `HYBRID_IRO`'s procedures, where EC's `{HI.f}`
+  restricts `D` to `f`: one more goal, for `init`.
+* GAP 5: `equiv_conseq H` leaves its two implications when the goal's conditions are not
+  literally `H`'s (EC closes them): `conseq_side`.
+* A statement that names `HIRO(…).f`'s parameters `(xs, n)` as EC does gets a warning: the module
+  type `HYBRID_IRO` declares them `(x, n)`.
 
 ## `Sponge_Raise_BlockSponge_f` in EC's form — the second tactic experiment
 
@@ -49,7 +81,7 @@ Deviations, all from the old declarations or the closers:
 
 namespace GaudisCrypt.SHA3.Pilot.Sponge
 
-open GaudisCrypt GaudisCrypt.EC GaudisCrypt.SHA3.Common GaudisCrypt.SHA3.Sponge
+open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.PROM GaudisCrypt.SHA3.Common GaudisCrypt.SHA3.Sponge
 
 variable [SLCommon.Params] [BlockSponge.Params]
 
@@ -145,6 +177,319 @@ theorem Sponge_is_StdSponge : ∀ (P <: DPRIMITIVE {}),
     fun τ₁ τ₂ _ _ hI _ _ => ?_⟩
   obtain ⟨⟨hg, hz, hn, -, -⟩, -⟩ := hI
   exact ⟨hg, by rw [hz, hn]⟩
+
+/-! ## The theory `HybridIRO` (EC l. 256–1909) -/
+
+namespace HybridIRO
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (HYBRID_IRO HYBRID_IRO_DIST HybridIROExper HIRO EROExper
+  RODist)
+
+/-- EC's `HybridIROLazy.mp`. -/
+global_var HybridIROLazy.mp : FMap (List block × ℤ) Bool
+/-- EC's `HybridIROEager.mp`. -/
+global_var HybridIROEager.mp : FMap (List block × ℤ) Bool
+
+noncomputable abbrev HybridIROLazy.init :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.init HybridIROLazy.mp
+noncomputable abbrev HybridIROLazy.fill_in :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.fill_in HybridIROLazy.mp
+noncomputable abbrev HybridIROLazy.f :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.f HybridIROLazy.mp
+/-- EC's `HybridIROLazy`, at its type `HYBRID_IRO`. -/
+noncomputable abbrev HybridIROLazy : HYBRID_IRO :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI HybridIROLazy.mp
+
+noncomputable abbrev HybridIROEager.init :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.init HybridIROEager.mp
+noncomputable abbrev HybridIROEager.fill_in :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.fill_in HybridIROEager.mp
+noncomputable abbrev HybridIROEager.f :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.f HybridIROEager.mp
+/-- EC's `HybridIROEager`, at its type `HYBRID_IRO`. -/
+noncomputable abbrev HybridIROEager : HYBRID_IRO :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI HybridIROEager.mp
+
+/-! EC's `local clone import PROM.FullRO as ERO with type in_t <- block list * int,
+type out_t <- bool, op dout _ <- dbool, type d_in_t <- unit, type d_out_t <- bool`: the clone's
+module variables are `global_var`s (the first port's are lens parameters). -/
+
+namespace ERO
+export GaudisCrypt.SHA3.Sponge.HybridIRO.ERO (dout RO_T RO_Distinguisher)
+/-- The clone's module variable `ERO.RO.m`. -/
+global_var RO.m : FMap (List block × ℤ) Bool
+/-- The clone's module variable `ERO.FRO.m`. -/
+global_var FRO.m : FMap (List block × ℤ) (Bool × flag)
+noncomputable abbrev RO := PROM.FullRO.RO.asRO (List block × ℤ) Bool dout RO.m
+noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) Bool dout RO.m
+end ERO
+
+set_option hygiene false in
+/-- The two implications `equiv_conseq H` leaves when the goal's conditions are not literally
+`H`'s (EC's `conseq H` closes them itself): equal arguments give equal parameters; the rest by
+simplification.  (GAP 5.) -/
+local macro "conseq_side" : tactic => `(tactic| first
+  | (rintro a₁ g₁ a₂ g₂ ⟨rfl, h⟩; intros; exact ⟨⟨rfl, rfl⟩, h⟩)
+  | (intros; simp_all; done))
+
+section
+
+-- (the local clone `ERO`'s variables are fresh for `D` in EC; here `D`'s restriction names them)
+declare module D <: HYBRID_IRO_DIST {-HybridIROEager, -HybridIROLazy, -ERO.RO.m, -ERO.FRO.m}
+
+/-- EC's `local lemma LRO_RO (D <: ERO.RO_Distinguisher{-ERO.RO, -ERO.FRO}) &m :
+Pr[EROExper(LRO, D).main() @ &m : res] = Pr[EROExper(ERO.RO, D).main() @ &m : res]`. -/
+theorem LRO_RO : ∀ (D <: ERO.RO_Distinguisher {-ERO.RO.m, -ERO.FRO.m}),
+    ∀ m : VariableAssignment,
+    Pr[ EROExper(ERO.LRO, D).main () @ &m : §res ] =
+      Pr[ EROExper(ERO.RO, D).main () @ &m : §res ] := by
+  intro D _ m
+  -- EC: byequiv=> //; proc.
+  byequiv; equiv_proc
+  -- EC: seq 1 1 : (={glob D, ERO.RO.m}); first sim.
+  equiv_seq 1 1 : (={glob D, ERO.RO.m})
+  · sim
+  -- EC: by symmetry; call (FullEager.RO_LRO_D D _); auto; rewrite dbool_ll.
+  equiv_sym
+  equiv_call (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) Bool Unit Bool ERO.dout ERO.FRO.m
+    (fun _ => dbool_ll) ERO.RO.m D (by ec_module) (by fp_disjoint))
+  ec_auto
+
+/-- EC's `local lemma HybridIROLazy_HIRO_LRO_init : equiv[HybridIROLazy.init ~ HIRO(LRO).init :
+true ==> HybridIROLazy.mp{1} = ERO.RO.m{2}]`. -/
+theorem HybridIROLazy_HIRO_LRO_init :
+    equiv[ HybridIROLazy.init ~ HIRO(ERO.LRO).init :
+      True ==> §HybridIROLazy.mp{1} = §ERO.RO.m{2} ] := by
+  -- EC: proc; inline*; auto.
+  equiv_proc; stmt_inline*; ec_auto
+
+/-- EC's `local lemma HybridIROLazy_fill_in_LRO_get : equiv[HybridIROLazy.fill_in ~ LRO.get :
+(xs, i){1} = x{2} /\ HybridIROLazy.mp{1} = ERO.RO.m{2} ==>
+={res} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}]`. -/
+theorem HybridIROLazy_fill_in_LRO_get :
+    equiv[ HybridIROLazy.fill_in (xs, i) ~ ERO.LRO.get (x) :
+      (§xs{1}, §i{1}) = §x{2} ∧ §HybridIROLazy.mp{1} = §ERO.RO.m{2} ==>
+      ={res} ∧ §HybridIROLazy.mp{1} = §ERO.RO.m{2} ] := by
+  -- EC: proc=> /=.
+  --     case ((dom HybridIROLazy.mp{1}) (xs{1}, i{1})).
+  equiv_proc
+  equiv_case (FMap.dom §HybridIROLazy.mp{1} (§xs{1}, §i{1}))
+  -- EC: rcondf{1} 1; first auto. rcondf{2} 2; first auto.
+  --     rnd{2}; auto; progress; apply dbool_ll.
+  · stmt_rcondf{1} 1
+    · intro σ₂; ec_auto
+    stmt_rcondf{2} 2
+    · intro σ₁; ec_auto
+    equiv_rnd{2}; ec_auto; ec_progress
+    exact (is_lossless_iff_expected _).mp dbool_ll
+  -- EC: rcondt{1} 1; first auto. rcondt{2} 2; first auto.
+  --     wp; rnd; auto.
+  · stmt_rcondt{1} 1
+    · intro σ₂; ec_auto
+    stmt_rcondt{2} 2
+    · intro σ₁; ec_auto
+    stmt_wp; equiv_rnd; ec_auto
+
+/-- EC's `local lemma HybridIROLazy_HIRO_LRO_f : equiv[HybridIROLazy.f ~ HIRO(LRO).f :
+={xs, n} /\ HybridIROLazy.mp{1} = ERO.RO.m{2} ==> ={res} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}]`. -/
+theorem HybridIROLazy_HIRO_LRO_f :
+    equiv[ HybridIROLazy.f (xs, n) ~ HIRO(ERO.LRO).f (xs, n) :
+      ={xs, n} ∧ §HybridIROLazy.mp{1} = §ERO.RO.m{2} ==>
+      ={res} ∧ §HybridIROLazy.mp{1} = §ERO.RO.m{2} ] := by
+  -- EC: proc; inline LRO.sample; sp=> /=.
+  equiv_proc; stmt_inline{2} (ERO.LRO.sample); stmt_sp
+  -- EC: if=> //.
+  stmt_if
+  · ec_close
+  rotate_left
+  · ec_auto
+  -- EC: while{2} (true) (m{2} - i{2}).
+  --     progress; auto; progress; smt().
+  equiv_while{2} (True) ((§m{2} - §i{2}).toNat)
+  · while_ll_phoare
+    intro σ₁
+    ec_auto
+  · intro σ₁ z
+    ec_auto
+  -- EC: while (={xs, n, i, bs} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}).
+  --     wp; call HybridIROLazy_fill_in_LRO_get; auto.
+  equiv_while (={xs, n, i, bs} ∧ §HybridIROLazy.mp{1} = §ERO.RO.m{2})
+  · stmt_wp; equiv_call HybridIROLazy_fill_in_LRO_get; ec_auto
+  -- EC: auto; progress; smt().
+  ec_auto
+
+/-- EC's `local lemma HIRO_RO_HybridIROEager_init : equiv[HIRO(ERO.RO).init ~ HybridIROEager.init :
+true ==> ={res} /\ ERO.RO.m{1} = HybridIROEager.mp{2}]`. -/
+theorem HIRO_RO_HybridIROEager_init :
+    equiv[ HIRO(ERO.RO).init ~ HybridIROEager.init :
+      True ==> ={res} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2} ] := by
+  -- EC: proc; inline*; auto.
+  equiv_proc; stmt_inline*; ec_auto
+
+/-- EC's `local lemma RO_get_HybridIROEager_fill_in : equiv[ERO.RO.get ~ HybridIROEager.fill_in :
+x{1} = (xs, i){2} /\ ERO.RO.m{1} = HybridIROEager.mp{2} ==>
+={res} /\ ERO.RO.m{1} = HybridIROEager.mp{2}]`. -/
+theorem RO_get_HybridIROEager_fill_in :
+    equiv[ ERO.RO.get (x) ~ HybridIROEager.fill_in (xs, i) :
+      §x{1} = (§xs{2}, §i{2}) ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2} ==>
+      ={res} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2} ] := by
+  -- EC: proc=> /=.
+  --     case (dom HybridIROEager.mp{2} (xs{2}, i{2})).
+  equiv_proc
+  equiv_case (FMap.dom §HybridIROEager.mp{2} (§xs{2}, §i{2}))
+  -- EC: rcondf{1} 2; first auto. rcondf{2} 1; first auto.
+  --     rnd{1}; auto; progress; apply dbool_ll.
+  · stmt_rcondf{1} 2
+    · intro σ₂; ec_auto
+    stmt_rcondf{2} 1
+    · intro σ₁; ec_auto
+    equiv_rnd{1}; ec_auto; ec_progress
+    exact (is_lossless_iff_expected _).mp dbool_ll
+  -- EC: rcondt{1} 2; first auto. rcondt{2} 1; first auto.
+  --     wp; rnd; auto.
+  · stmt_rcondt{1} 2
+    · intro σ₂; ec_auto
+    stmt_rcondt{2} 1
+    · intro σ₁; ec_auto
+    stmt_wp; equiv_rnd; ec_auto
+
+/-- EC's `local lemma RO_sample_HybridIROEager_fill_in :
+equiv[ERO.RO.sample ~ HybridIROEager.fill_in :
+x{1} = (xs, i){2} /\ ERO.RO.m{1} = HybridIROEager.mp{2} ==>
+ERO.RO.m{1} = HybridIROEager.mp{2}]`. -/
+theorem RO_sample_HybridIROEager_fill_in :
+    equiv[ ERO.RO.sample (x) ~ HybridIROEager.fill_in (xs, i) :
+      §x{1} = (§xs{2}, §i{2}) ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2} ==>
+      §ERO.RO.m{1} = §HybridIROEager.mp{2} ] := by
+  -- EC: proc=> /=; inline ERO.RO.get; sp.
+  --     case (dom HybridIROEager.mp{2} (xs{2}, i{2})).
+  --     (GAP 2: inside the library's `RO.sample` the callee is the library's `RO.get` itself,
+  --     not `ERO.RO`'s procedure, so EC's path does not name it: inlined by index)
+  equiv_proc; stmt_inline{1} 0; stmt_sp
+  equiv_case (FMap.dom §HybridIROEager.mp{2} (§xs{2}, §i{2}))
+  -- EC: rcondf{1} 2; first auto. rcondf{2} 1; first auto.
+  --     rnd{1}; auto; progress; apply dbool_ll.
+  · stmt_rcondf{1} 2
+    · intro σ₂; ec_auto
+    stmt_rcondf{2} 1
+    · intro σ₁; ec_auto
+    equiv_rnd{1}; ec_auto; ec_progress
+    exact (is_lossless_iff_expected _).mp dbool_ll
+  -- EC: rcondt{1} 2; first auto. rcondt{2} 1; first auto.
+  --     wp; rnd; auto.
+  · stmt_rcondt{1} 2
+    · intro σ₂; ec_auto
+    stmt_rcondt{2} 1
+    · intro σ₁; ec_auto
+    stmt_wp; equiv_rnd; ec_auto
+
+/-- EC's `local lemma HIRO_RO_HybridIROEager_f : equiv[HIRO(ERO.RO).f ~ HybridIROEager.f :
+={xs, n} /\ ERO.RO.m{1} = HybridIROEager.mp{2} ==>
+={res} /\ ERO.RO.m{1} = HybridIROEager.mp{2}]`. -/
+theorem HIRO_RO_HybridIROEager_f :
+    equiv[ HIRO(ERO.RO).f (xs, n) ~ HybridIROEager.f (xs, n) :
+      ={xs, n} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2} ==>
+      ={res} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2} ] := by
+  -- EC: proc; first sp=> /=.
+  --     if=> //.
+  equiv_proc; stmt_sp
+  stmt_if
+  · ec_close
+  rotate_left
+  · ec_auto
+  -- EC: while (={i, m, xs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}).
+  --     wp; call RO_sample_HybridIROEager_fill_in; auto.
+  equiv_while (={i, m, xs} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2})
+  --     (GAP 3: both calls discard their results, and the strict `auto` does not read through
+  --     the discarding write: `Setter.throwaway_set` first)
+  · stmt_wp; equiv_call RO_sample_HybridIROEager_fill_in
+    simp only [Setter.throwaway_set]
+    ec_auto
+  -- EC: while (={i, n, xs, bs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}).
+  --     wp; call RO_get_HybridIROEager_fill_in; auto.
+  equiv_while (={i, n, xs, bs} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2})
+  · stmt_wp; equiv_call RO_get_HybridIROEager_fill_in; ec_auto
+  -- EC: auto.
+  ec_auto
+
+/-- EC's `local lemma Exper_HybridIROLazy_LRO &m :
+Pr[HybridIROExper(HybridIROLazy, D).main() @ &m : res] =
+Pr[EROExper(LRO, RODist).main() @ &m : res]`. -/
+theorem Exper_HybridIROLazy_LRO (m : VariableAssignment) :
+    Pr[ HybridIROExper(HybridIROLazy, D).main () @ &m : §res ] =
+      Pr[ EROExper(ERO.LRO, RODist(D)).main () @ &m : §res ] := by
+  -- EC: byequiv=> //; proc; inline*; wp.
+  byequiv; equiv_proc; stmt_inline*; stmt_wp
+  -- EC: seq 1 1 : (={glob D} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}); first auto.
+  --     call (_ : HybridIROLazy.mp{1} = ERO.RO.m{2}).
+  --     (GAP 4: `equiv_call (_ : I)` wants `I` to start with `={…}`: EC's implicit `={glob D}`
+  --     is written.  The rule asks all of `HYBRID_IRO`'s procedures, EC's `{HI.f}` only `f`:
+  --     one more goal, for `init`.)
+  --     (the rule asks all of `HYBRID_IRO`'s procedures, EC's `{HI.f}` only `f`: one more
+  --     goal, for `init`.  GAP 4: an oracle goal names the procedure through the module type's
+  --     accessor; rewritten to the module's own procedure before `conseq`.)
+  equiv_call (_ : §HybridIROLazy.mp{1} = §ERO.RO.m{2})
+  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI, HYBRID_IRO.init.mk_simp]
+    equiv_conseq HybridIROLazy_HIRO_LRO_init <;> conseq_side
+  -- EC: conseq HybridIROLazy_HIRO_LRO_f.
+  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI, HYBRID_IRO.f.mk_simp]
+    equiv_conseq HybridIROLazy_HIRO_LRO_f <;> conseq_side
+  -- EC: auto.
+  --     (GAP 14 of `Pilot/Gconcl_list.lean`: `glob D` past the initialization)
+  ec_auto
+  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
+  ec_close
+
+/-- EC's `local lemma Exper_RO_HybridIROEager &m :
+Pr[EROExper(ERO.RO, RODist).main() @ &m : res] =
+Pr[HybridIROExper(HybridIROEager, D).main() @ &m : res]`. -/
+theorem Exper_RO_HybridIROEager (m : VariableAssignment) :
+    Pr[ EROExper(ERO.RO, RODist(D)).main () @ &m : §res ] =
+      Pr[ HybridIROExper(HybridIROEager, D).main () @ &m : §res ] := by
+  -- EC: byequiv=> //; proc; inline*; wp.
+  byequiv; equiv_proc; stmt_inline*; stmt_wp
+  -- EC: seq 1 1 : (={glob D} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); first auto.
+  --     call (_ : ERO.RO.m{1} = HybridIROEager.mp{2}).
+  equiv_call (_ : §ERO.RO.m{1} = §HybridIROEager.mp{2})
+  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI, HYBRID_IRO.init.mk_simp]
+    equiv_conseq HIRO_RO_HybridIROEager_init <;> conseq_side
+  -- EC: conseq HIRO_RO_HybridIROEager_f.
+  · simp only [GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI, HYBRID_IRO.f.mk_simp]
+    equiv_conseq HIRO_RO_HybridIROEager_f <;> conseq_side
+  -- EC: auto.
+  ec_auto
+  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
+  ec_close
+
+-- EC reads `RODist`'s globals off its code (for `LRO_RO`'s restriction)
+attribute [local fp_bound] GaudisCrypt.SHA3.Sponge.HybridIRO.fvP_RODist_le
+
+/-- EC's `lemma HybridIROExper_Lazy_Eager' &m :
+Pr[HybridIROExper(HybridIROLazy, D).main() @ &m : res] =
+Pr[HybridIROExper(HybridIROEager, D).main() @ &m : res]`. -/
+theorem HybridIROExper_Lazy_Eager' (m : VariableAssignment) :
+    Pr[ HybridIROExper(HybridIROLazy, D).main () @ &m : §res ] =
+      Pr[ HybridIROExper(HybridIROEager, D).main () @ &m : §res ] := by
+  -- EC: by rewrite (Exper_HybridIROLazy_LRO &m) (LRO_RO RODist &m) (Exper_RO_HybridIROEager &m).
+  rw [Exper_HybridIROLazy_LRO D m, @LRO_RO _ _ (RODist D) ⟨by fp_finite, by fp_disjoint⟩ m,
+    Exper_RO_HybridIROEager D m]
+
+end
+
+/-- EC's `lemma HybridIROExper_Lazy_Eager (D <: HYBRID_IRO_DIST{-HybridIROEager, -HybridIROLazy})
+&m : Pr[HybridIROExper(HybridIROLazy, D).main() @ &m : res] =
+Pr[HybridIROExper(HybridIROEager, D).main() @ &m : res]`; the local clone `ERO`'s variables in
+`D`'s restriction (fresh in EC). -/
+theorem HybridIROExper_Lazy_Eager :
+    ∀ (D <: HYBRID_IRO_DIST {-HybridIROEager, -HybridIROLazy, -ERO.RO.m, -ERO.FRO.m}),
+    ∀ m : VariableAssignment,
+    Pr[ HybridIROExper(HybridIROLazy, D).main () @ &m : §res ] =
+      Pr[ HybridIROExper(HybridIROEager, D).main () @ &m : §res ] := by
+  -- EC: by apply (HybridIROExper_Lazy_Eager' D &m).
+  intro D _ m
+  exact HybridIROExper_Lazy_Eager' D m
+
+end HybridIRO
 
 /-! ## `Sponge_Raise_BlockSponge_f` (EC l. 1922), the second tactic experiment -/
 

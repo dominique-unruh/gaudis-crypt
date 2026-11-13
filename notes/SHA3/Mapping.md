@@ -910,7 +910,14 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 |---:|---|---|---|---|
 | 30, 58, 85 | modules, lemma | `StdSponge`, `Sponge`, `loop_cond` | the first port's | def |
 | 99 | equiv | `Sponge_is_StdSponge` | `Sponge_is_StdSponge` (EC's script on the strict tactics; `(bs, n)` is the one parameter `x`, so `seq 5 5` is `equiv_seq 6 6`; inline fact `size_cat_block`; `size_block`) | done |
-| 131–545 | modules, theory `HybridIRO` up to `HybridIROExper_Lazy_Eager` | | — | todo |
+| 131–158 | modules | `LowerFun`, `RaiseFun`, `LowerDist`, `RaiseSim` | the first port's | def |
+| 258–360 | module types, modules | `HYBRID_IRO`, `HYBRID_IRO_DIST`, `HybridIROExper`, `HybridIROLazy`, `HybridIROEager` | the first port's, applied at the `global_var`s `HybridIRO.HybridIROLazy.mp`, `HybridIRO.HybridIROEager.mp` | def |
+| 371 | local clone | `ERO` | `HybridIRO.ERO` (`global_var`s `RO.m`, `FRO.m`) | def |
+| 378, 398, 503 | local modules | `EROExper`, `HIRO`, `RODist` | the first port's | def |
+| 387 | local lemma | `LRO_RO` | `HybridIRO.LRO_RO` (EC's script) | done |
+| 424–487 | local lemmas | `HybridIROLazy_HIRO_LRO_init`, `HybridIROLazy_fill_in_LRO_get`, `HybridIROLazy_HIRO_LRO_f`, `HIRO_RO_HybridIROEager_init`, `RO_get_HybridIROEager_fill_in`, `RO_sample_HybridIROEager_fill_in`, `HIRO_RO_HybridIROEager_f` | same names in `HybridIRO` (EC's scripts; GAP 2, 3) | done |
+| 511, 522 | local lemmas | `Exper_HybridIROLazy_LRO`, `Exper_RO_HybridIROEager` | same names (EC's `call (_ : I)`, the new form of `equiv_call`; GAP 4, 5, 14) | done |
+| 533, 544 | lemmas | `HybridIROExper_Lazy_Eager'`, `HybridIROExper_Lazy_Eager` | same names (EC's lines; `ERO`'s variables in `D`'s restriction) | done |
 | 553–1909 | the rest of `HybridIRO` | | — | todo |
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
 | 1953–2163 | the final section, `conclu`, `conclusion` | | — | todo |

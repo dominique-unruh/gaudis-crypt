@@ -543,6 +543,63 @@ example : equiv[ Game(Inc, A).main ~ Game(Inc, A).main :
     exact A_ll
   all_goals sorry
 
+-- `call (_ : I)`, `I` without a `={…}` part: `glob A` is kept without being named
+/--
+trace: case oracle
+A : ADV
+inst✝² : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
+R✝ : Footprint VariableAssignment
+inst✝¹ : Module.ECGlob A R✝
+inst✝ : R✝.Restricted (cCount.footprint ⊔ cFlag.footprint)
+A_ll : ∀ (O : Orc) [Module.Declared O R✝], O.get.procedure.IsLossless → (Module.app A O).procedure.IsLossless
+R : ℤ → ℤ → Prop
+⊢ prhlProc (fun a₁ g₁ a₂ g₂ ↦ a₁ = a₂ ∧ cCount.get g₁ = cCount.get g₂) Inc.get.procedure Inc2.get.procedure
+    fun r₁ g₁ r₂ g₂ ↦ r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂
+
+case pre
+A : ADV
+inst✝² : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
+R✝ : Footprint VariableAssignment
+inst✝¹ : Module.ECGlob A R✝
+inst✝ : R✝.Restricted (cCount.footprint ⊔ cFlag.footprint)
+A_ll : ∀ (O : Orc) [Module.Declared O R✝], O.get.procedure.IsLossless → (Module.app A O).procedure.IsLossless
+R : ℤ → ℤ → Prop
+⊢ prhlStmt
+    (fun σ₁ σ₂ ↦
+      (FVP.fvP A).touched_getter.get σ₁.globals = (FVP.fvP A).touched_getter.get σ₂.globals ∧
+        cCount.get σ₁.globals = cCount.get σ₂.globals)
+    (GaudiProg[
+        cFlag <- true;
+  ])
+    (GaudiProg[
+        cFlag <- true;
+  ])
+    fun σ₁ σ₂ ↦
+    (() = () ∧
+        (FVP.fvP A).touched_getter.get σ₁.globals = (FVP.fvP A).touched_getter.get σ₂.globals ∧
+          cCount.get σ₁.globals = cCount.get σ₂.globals) ∧
+      ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+        r₁ = r₂ ∧
+            (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ cCount.get g₁ = cCount.get g₂ →
+          R ((localVarLens "r" ℤ).get ((liftLens (localVarLens "r" ℤ)).set r₁ (ProgramState.globalL.set g₁ σ₁)))
+            ((localVarLens "r" ℤ).get ((liftLens (localVarLens "r" ℤ)).set r₂ (ProgramState.globalL.set g₂ σ₂)))
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example (R : ℤ → ℤ → Prop) :
+    equiv[ Game(Inc, A).main ~ Game(Inc2, A).main : ={glob A, cCount} ==> R §res{1} §res{2} ] := by
+  equiv_proc
+  equiv_call (_ : §cCount{1} = §cCount{2})
+  trace_state
+  all_goals sorry
+
 -- the restrictions against the region, as EC checks them: a concrete module (its variables are
 -- in `R`'s restriction), a module built from one declared against `R`
 example : Module.Declared Inc R := ⟨by fp_finite, by fp_disjoint⟩

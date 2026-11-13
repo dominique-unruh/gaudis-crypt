@@ -702,4 +702,19 @@ elab_rules (kind := equivCallInv) : tactic
     unless ← lastCallsDeclared do throwUnsupportedSyntax
     equivCallInvAndCore (← `(={ $xs,* }))
 
+/-- **EC's `call (_ : I)`** on an abstract procedure `D(O₁) ~ D(O₂)` (`D` declared), `I` without
+a `={…}` part: the invariant form (`equivCallInvAnd`) with no equalities.  `glob D` is kept
+without being named, and the oracles' goals are EC's `={arg} ∧ I ==> ={res} ∧ I`.  The condition
+is read off `equiv_call`'s general form (its argument `(_ : I)`, which no other rule takes); a
+condition with a `={…}` part, and a call that is not of a declared module, are left to the
+other forms. -/
+elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
+  | `(tactic| equiv_call $h:term) => do
+    let `(term| (_ : $I)) := h | throwUnsupportedSyntax
+    match I with
+    | `(={ $_,* } ∧ $_) | `(={ $_,* }) => throwUnsupportedSyntax
+    | _ => pure ()
+    unless ← lastCallsDeclared do throwUnsupportedSyntax
+    equivCallInvAndCore I
+
 end GaudisCrypt
