@@ -24,7 +24,9 @@ left of it is logic.  `ec_prep` is that part alone, in `auto_prep`'s order:
 * introduce everything: a value under the name of its binder (`x`, `RO_m`, `x₁`: the names the
   strict `skip` gave, usable in the proof), a hypothesis without a name;
 * take the hypotheses apart (`∧`, `∃`, `∨`), use an implication whose premise is a hypothesis
-  (`mp_hyps`), substitute the equations of variables (a named one stays, `subst_named`);
+  (`mp_hyps`), substitute the equations of variables (a named one stays, `subst_named`), a tuple
+  of variables by components (`(p, n) = e` as `p = e.1`, `n = e.2`, `split_pair_eqs`: what EC's
+  `sp` leaves for `(p, n) <- e`; `auto_prep` does not have this step);
 * the tests back to propositions (`decide … = true`), indicators of events, pair equations;
 * take apart and substitute what that made.
 
@@ -59,7 +61,45 @@ def valuesFirst (tac : String) (g : MVarId) : MetaM MVarId := g.withContext do
       if dom.isConstOf ``ProgramState then ReadNorm.generalizeStrict tac g else return g
   | _ => return g
 
+/-- `e` is a variable or a tuple of variables. -/
+partial def varTuple (e : Lean.Expr) : Bool :=
+  e.isFVar || (e.isAppOfArity ``Prod.mk 4 && varTuple (e.getArg! 2) && varTuple (e.getArg! 3))
+
+/-- One hypothesis `(x, y) = e` or `e = (x, y)` — a tuple of variables and a term that is not
+written as a pair — replaced by the two component equations, `x = e.1` and `y = e.2`.  `none` if
+there is no such hypothesis. -/
+def splitPairEq (g : MVarId) : MetaM (Option MVarId) := g.withContext do
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let some (_, a, b) := (← instantiateMVars d.type).eq? | continue
+    let isPair (e : Lean.Expr) : Bool := e.isAppOfArity ``Prod.mk 4
+    let (l₁, r₁, l₂, r₂) ←
+      if isPair a && varTuple a && !isPair b then
+        pure (a.getArg! 2, ← mkAppM ``Prod.fst #[b], a.getArg! 3, ← mkAppM ``Prod.snd #[b])
+      else if isPair b && varTuple b && !isPair a then
+        pure (← mkAppM ``Prod.fst #[a], b.getArg! 2, ← mkAppM ``Prod.snd #[a], b.getArg! 3)
+      else continue
+    let T ← whnf (← inferType a)
+    let lvls := T.getAppFn.constLevels!
+    let proj (c : Name) : Lean.Expr := mkAppN (mkConst c lvls) #[T.getArg! 0, T.getArg! 1]
+    let g ← g.assert d.userName (← mkEq l₂ r₂) (← mkCongrArg (proj ``Prod.snd) d.toExpr)
+    let g ← g.assert d.userName (← mkEq l₁ r₁) (← mkCongrArg (proj ``Prod.fst) d.toExpr)
+    let (_, g) ← g.introNP 2
+    return some (← g.clear d.fvarId)
+  return none
+
 end GaudisCrypt.ECProgress
+
+open Lean Elab Tactic in
+/-- EC's `sp` over `(x, y) <- e` leaves `(x, y) = e`: every such hypothesis (a tuple of variables
+equal to a term not written as a pair) becomes the component equations `x = e.1`, `y = e.2`,
+which the substitution then uses. -/
+elab "split_pair_eqs" : tactic => do
+  let mut g ← getMainGoal
+  for _ in [0:64] do
+    let some g' ← GaudisCrypt.ECProgress.splitPairEq g | break
+    g := g'
+  replaceMainGoal [g]
 
 open Lean Elab Tactic in
 /-- **The closer's first phase**: a goal about one or two program states, `∀ σ, P`, in read normal
@@ -79,6 +119,7 @@ macro "ec_prep" : tactic => `(tactic| (
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
   all_goals try mp_hyps
   all_goals try casesm* _ ∧ _
+  all_goals try split_pair_eqs
   all_goals try subst_named
   all_goals try subst_vars
   all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',

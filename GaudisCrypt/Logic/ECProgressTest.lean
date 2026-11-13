@@ -105,6 +105,28 @@ example (x y : Lens ℤ VariableAssignment) (σ τ : VariableAssignment) :
   trace_state
   sorry
 
+-- tuples of variables (EC's `sp` over `(p, n) <- e`): by components, then substituted
+/--
+trace: P Q : ℤ → Prop
+R : ℤ → ℤ → Prop
+e : ℤ × ℤ
+a✝ : R e.1 e.2
+⊢ R e.1 e.2
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (R : ℤ → ℤ → Prop) (e : ℤ × ℤ) :
+    ∀ p n p' n' : ℤ, (p, n) = e → e = (p', n') → R p n → R p' n' := by
+  ec_prep
+  trace_state
+  sorry
+
+#guard_msgs in
+example (R : ℤ → ℤ → Prop) (e : ℤ × ℤ) :
+    ∀ p n p' n' : ℤ, (p, n) = e → e = (p', n') → R p n → R p' n' := by
+  ec_close
+
 /-! ## `ec_values`: the states first -/
 
 -- a rule's side goal about two states (the guards of a two-sided `if`): the reads are values

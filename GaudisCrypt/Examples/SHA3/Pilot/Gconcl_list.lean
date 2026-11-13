@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl_list
+import GaudisCrypt.Logic.ECProgress
 
 -- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
 set_option ec.strict true
@@ -32,6 +33,20 @@ Translation:
   context's, and `omega` then sees two atoms: name it instead.
 * EC's `smt` selects its lemmas (`domE`, `mem_set`, `valid_spec`, the definition of `<=`) itself:
   our `smt_close` lists them (deviation, not a gap).
+* GAP 3: `glob M` of a concrete module in the `={…}` of `equiv_while`'s invariant stays a region
+  (`FVP.fvP IF`), where EC reads the module's variables: the variables are written out.
+* GAP 4: `equiv_conseq`'s frame takes a call of a procedure that writes nothing (`F.LRO.sample`,
+  EC's `proc sample(x) = {}`) as writing its module's variables, and loses `F.RO.m` on that side:
+  EC's following `inline*` is done first.
+* GAP 5: EC's `call (: I)` on two different concrete procedures (`S(IF').f ~ S(Valid2).f`) has no
+  one-condition form: `equiv_call (_ : ={arg, …} ==> ={res, …})` with the invariant's variables,
+  then `equiv_proc` (EC's form opens the callees).  `equiv_call (_ : ={glob IF})` on the same
+  concrete callee falls back to the frameless rule (no footprint bound for `IF`'s `init`):
+  `={F.RO.m}`.
+
+From `Ideal_equiv_valid` on, the proofs are written on the strict tactics (`ec_auto`, `ec_close`,
+`ec_progress`, `ec_prep`: `Logic/ECAutoStrict.lean`, `Logic/ECProgress.lean`); `ideal_equiv` is
+on the older ones.
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.Gconcl_list
@@ -358,5 +373,141 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
   --   by move=>x;rewrite get_setE/=mem_set-mem_fdom fdom0 in_fset0//==>->.
   equiv_auto; auto_progress
   smt_close [FMap.get_setE, FMap.mem_set, FMap.mem_empty]
+
+/-- EC's `local module (L (D : DISTINGUISHER) : F.RO_Distinguisher) (F : F.RO)`:
+`proc distinguish = SLCommon.IdealIndif(IF'(F), S, A(D)).main` (an alias, so that `proc` opens
+it; the old port's `L` is a `def`). -/
+noncomputable abbrev L (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
+  SLCommon.IdealIndif (IF' F) S (A D)
+
+/-- EC's `local module (L2 (D : DISTINGUISHER) : F.RO_Distinguisher) (F : F.RO)`:
+`proc distinguish = SLCommon.IdealIndif(Valid2(F), S, A(D)).main`. -/
+noncomputable abbrev L2 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
+  SLCommon.IdealIndif (Valid2 F) S (A D)
+
+-- the oracles' three judgments, each through the inlined simulator and squeezing loop
+set_option maxHeartbeats 4000000 in
+/-- EC's `local equiv Ideal_equiv_valid (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S}) :
+L(D,F.LRO).distinguish ~ L2(D,F.LRO).distinguish : ={glob D} ==> ={glob D, res}`.
+
+Deviations: EC's `call (: I)` on two different concrete procedures is `equiv_call (_ : ={arg, …}
+==> ={res, …})` followed by `equiv_proc` (EC's form opens the callees itself); GAPs 3 and 4 of
+the file header. -/
+theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
+    equiv[ L(D, SLCommon.F.LRO).distinguish ~ L2(D, SLCommon.F.LRO).distinguish :
+      ={glob D} ==> ={glob D, res} ] := by
+  intro D _
+  -- EC: proc;inline*;sp;wp.
+  equiv_proc; stmt_inline*; stmt_sp; stmt_wp
+  -- EC: call(: ={glob S, glob C, glob F.RO});auto.
+  equiv_call (_ : ={glob S, glob C, glob SLCommon.F.RO.asRO})
+  on_goals 4 => ec_auto
+  -- EC: + proc;sp;if;auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto
+    -- EC: call(: ={glob S,glob F.RO});auto.
+    equiv_call (_ : ={arg, S.m, S.mi, S.paths, SLCommon.F.RO.m} ==>
+      ={res, S.m, S.mi, S.paths, SLCommon.F.RO.m})
+    on_goals 2 => ec_auto
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
+    -- EC: sp;if;auto;if;auto;sp.
+    --     (EC's first `sp`: nothing to do here)
+    stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    --     (EC's `auto` on the branch: nothing to do here)
+    stmt_sp
+    -- EC: call(: ={glob F.RO});2:auto;2:smt().
+    equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+    on_goals 2 => (ec_auto; ec_close)
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
+    -- EC: inline F.LRO.sample;call(: ={glob IF});auto;progress.
+    stmt_inline (SLCommon.F.LRO.sample)
+    equiv_call (_ : ={SLCommon.F.RO.m})
+    ec_auto
+    -- EC: by while{1}(true)(n{1}-i{1});auto;smt().
+    equiv_while{1} (True) ((§n{1} - §i{1}).toNat)
+    · while_ll_phoare
+      intro σ₂
+      ec_auto
+    · intro σ₂ k
+      ec_auto
+    ec_auto
+  -- EC: + by proc;sim.
+  · equiv_proc; sim
+  -- EC: proc;sp;if;auto;sp;call(: ={glob IF,glob S});auto.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's `auto` on the branch: nothing to do here)
+  stmt_sp
+  equiv_call (_ : ={arg, SLCommon.F.RO.m, S.m, S.mi, S.paths} ==>
+    ={res, SLCommon.F.RO.m, S.m, S.mi, S.paths})
+  on_goals 2 => (ec_auto; ec_close)
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  -- EC: sp;if;auto.
+  stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's `auto` on the branch: nothing to do here)
+  -- EC: while(={glob S,glob IF,lres,i,n,p,b}).
+  --     (GAP 3: `glob S`, `glob IF` in `while`'s `={…}` stay regions: their variables)
+  equiv_while (={S.m, S.mi, S.paths, SLCommon.F.RO.m, lres, i, n, p, b})
+  -- EC: + sp;if;auto.
+  · stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => (ec_auto; ec_close)
+    --     (EC's `auto` on the branch: nothing to do here)
+    -- EC: call(: ={glob IF});auto.
+    equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+    on_goals 2 => (ec_auto; ec_close)
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
+    -- EC: call(: ={glob IF});auto.
+    equiv_call (_ : ={SLCommon.F.RO.m})
+    ec_auto
+    -- EC: conseq(:_==> true);auto.
+    --     (GAP 4: EC's `inline*` of the next line first — `conseq`'s frame does not see that
+    --     `F.LRO.sample` writes nothing, and loses `F.RO.m` on the left)
+    stmt_inline*
+    equiv_conseq (: _ ==> True)
+    case post => ec_close
+    -- EC: by inline*;while{1}(true)(n{1}-i{1});auto;smt().
+    equiv_while{1} (True) ((§n{1} - §i{1}).toNat)
+    · while_ll_phoare
+      intro σ₂
+      ec_auto
+    · intro σ₂ k
+      ec_auto
+    ec_auto
+  -- EC: call(: ={glob IF});auto.
+  equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+  on_goals 2 => ec_auto
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  -- EC: call(: ={glob IF});auto.
+  equiv_call (_ : ={SLCommon.F.RO.m})
+  ec_auto
+  -- EC: conseq(:_==> true);auto.
+  --     (GAP 4: EC's `inline*` of the next line first)
+  stmt_inline*
+  equiv_conseq (: _ ==> True)
+  case post => ec_close
+  -- EC: by inline*;while{1}(true)(n{1}-i{1});auto;smt().
+  equiv_while{1} (True) ((§n{1} - §i{1}).toNat)
+  · while_ll_phoare
+    intro σ₂
+    ec_auto
+  · intro σ₂ k
+    ec_auto
+  ec_auto
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
