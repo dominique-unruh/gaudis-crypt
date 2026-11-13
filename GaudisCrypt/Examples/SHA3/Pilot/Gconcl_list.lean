@@ -1763,4 +1763,108 @@ theorem equiv_L4_ideal :
   --     (EC's `progress` on the loop's entry)
   ec_auto
 
+-- ten `byequiv`s over the section's games
+set_option maxHeartbeats 4000000 in
+/-- EC's `lemma equiv_ideal (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S, -F.FRO, -F2.RO,
+-F2.FRO, -BIRO.IRO, -BIRO2.IRO}) &m: Pr[SLCommon.IdealIndif(IF,S,SLCommon.DRestr(A(D))).main()
+@ &m : res] = Pr[IdealIndif(BIRO.IRO,SimLast(S),DRestr(D)).main() @ &m : res]`.
+
+Deviations: the four lazy/eager steps (EC: `byequiv; proc; sp; inline*; sp; wp;
+call (F.FullEager.RO_LRO_D (D2(D)) _)`, and the same with `D3`, `D5`, `D6`) are the old port's
+`L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO` — the wrappers `D2`…`D6` of the old
+declarations (exception E5) are not EC's aliases, and the old lemmas bridge them; their
+restriction hypotheses are read off `D`'s declaration.  EC's sequence of rewrites is one chain of
+equations at the end.  `-F.FRO`, `-F2.FRO` are written as their variables. -/
+theorem equiv_ideal :
+    ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -SLCommon.F.FRO.m, -F2.RO, -F2.FRO.m,
+      -BIRO.IRO, -BIRO2.IRO}), ∀ m : VariableAssignment,
+    Pr[ SLCommon.IdealIndif(IF, S, SLCommon.DRestr(A(D))).main () @ &m : §res ] =
+      Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] := by
+  intro D _ m
+  --     (the section's restriction in the old port's form, for its lazy/eager steps)
+  have hDr : DRestrictions_Ideal D :=
+    (Module.Declared.le_compl D).trans (Footprint.compl_antimono (by first | fp_le | gcol_fp))
+  have hDf : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint)ᶜ :=
+    (Module.Declared.le_compl D).trans (Footprint.compl_antimono (by first | fp_le | gcol_fp))
+  have hDr2 : DRestrictions_Ideal2 D :=
+    ⟨hDr, (Module.Declared.le_compl D).trans
+      (Footprint.compl_antimono (by first | fp_le | gcol_fp))⟩
+  have hDf2 : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint ⊔ (F2.FRO.m).footprint)ᶜ :=
+    (Module.Declared.le_compl D).trans (Footprint.compl_antimono (by first | fp_le | gcol_fp))
+  -- EC: have->:Pr[SLCommon.IdealIndif(IF, S, SLCommon.DRestr(A(D))).main() @ &m : res]
+  --       = Pr[SLCommon.IdealIndif(IF, S, A(D)).main() @ &m : res].
+  --     + by byequiv(ideal_equiv D)=>//=.
+  have e1 : Pr[ SLCommon.IdealIndif(IF, S, SLCommon.DRestr(A(D))).main () @ &m : §res ] =
+      Pr[ SLCommon.IdealIndif(IF, S, A(D)).main () @ &m : §res ] := by
+    byequiv (ideal_equiv D)
+  -- EC: have<-:Pr[L2(D,F.RO).distinguish() @ &m : res] =
+  --       Pr[SLCommon.IdealIndif(IF,S,A(D)).main() @ &m : res].
+  --     + by byequiv(ideal_equiv2 D).
+  have e2 : Pr[ L2(D, SLCommon.F.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ SLCommon.IdealIndif(IF, S, A(D)).main () @ &m : §res ] := by
+    byequiv (ideal_equiv2 D)
+  -- EC: have->:Pr[L2(D, F.RO).distinguish() @ &m : res] =
+  --       Pr[L2(D,F.LRO).distinguish() @ &m : res].
+  --     + byequiv=>//=;proc;sp;inline*;sp;wp.
+  --       call(F.FullEager.RO_LRO_D (D2(D)) _);auto.
+  --       by move=> _; exact/dunifin_ll.
+  --     (the old port's `L2_RO_LRO`, which is this step: deviation)
+  have e3 : Pr[ L2(D, SLCommon.F.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ L2(D, SLCommon.F.LRO).distinguish () @ &m : §res ] := by
+    byequiv (L2_RO_LRO D (by ec_module) hDr hDf)
+  -- EC: have->:Pr[IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res] =
+  --       Pr[L4(D,F.LRO,F2.LRO).distinguish() @ &m : res].
+  --     + by rewrite eq_sym;byequiv(equiv_L4_ideal D)=>//=.
+  have e4 : Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] =
+      Pr[ L4(D, SLCommon.F.LRO, F2.LRO).distinguish () @ &m : §res ] := by
+    symm
+    byequiv (equiv_L4_ideal D)
+  -- EC: have<-:Pr[L4(D, F.RO, F2.RO).distinguish() @ &m : res] =
+  --       Pr[L4(D,F.LRO,F2.LRO).distinguish() @ &m : res].
+  --     + have->:Pr[L4(D, F.RO, F2.RO).distinguish() @ &m : res] =
+  --         Pr[L4(D,F.LRO, F2.RO).distinguish() @ &m : res].
+  --       - byequiv=>//=;proc;sp;inline*;sp;wp.
+  --         call(F.FullEager.RO_LRO_D (D5(D)) _); auto.
+  --         by move=> _; exact/dunifin_ll.
+  --       byequiv=>//=;proc;sp;inline*;sp;wp.
+  --       call(F2.FullEager.RO_LRO_D (D6(D)) _); auto.
+  --       by move=> _; exact/dunifin_ll.
+  --     (the old port's `L4_F_RO_LRO`, `L4_F2_RO_LRO`: deviation)
+  have e5 : Pr[ L4(D, SLCommon.F.RO.asRO, F2.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ L4(D, SLCommon.F.LRO, F2.LRO).distinguish () @ &m : §res ] := by
+    have e5a : Pr[ L4(D, SLCommon.F.RO.asRO, F2.RO.asRO).distinguish () @ &m : §res ] =
+        Pr[ L4(D, SLCommon.F.LRO, F2.RO.asRO).distinguish () @ &m : §res ] := by
+      byequiv (L4_F_RO_LRO D (by ec_module) hDr2 hDf2)
+    refine e5a.trans ?_
+    byequiv (L4_F2_RO_LRO D (by ec_module) hDr2 hDf2)
+  -- EC: have<-:Pr[L3(D, F.RO).distinguish() @ &m : res] =
+  --       Pr[L4(D, F.RO, F2.RO).distinguish() @ &m : res].
+  --     + by byequiv(equiv_L3_L4 D)=>//=.
+  have e6 : Pr[ L3(D, SLCommon.F.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ L4(D, SLCommon.F.RO.asRO, F2.RO.asRO).distinguish () @ &m : §res ] := by
+    byequiv (equiv_L3_L4 D)
+  -- EC: have<-:Pr[L(D, F.RO).distinguish() @ &m : res] =
+  --       Pr[L3(D, F.RO).distinguish() @ &m : res].
+  --     + by byequiv(Ideal_equiv3 D).
+  have e7 : Pr[ L(D, SLCommon.F.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ L3(D, SLCommon.F.RO.asRO).distinguish () @ &m : §res ] := by
+    byequiv (Ideal_equiv3 D)
+  -- EC: have->:Pr[L(D, F.RO).distinguish() @ &m : res] =
+  --       Pr[L(D,F.LRO).distinguish() @ &m : res].
+  --     + byequiv=>//=;proc;sp;inline*;sp;wp.
+  --       call(F.FullEager.RO_LRO_D (D3(D)) _); auto.
+  --       by move=> _; exact/dunifin_ll.
+  --     (the old port's `L_RO_LRO`: deviation)
+  have e8 : Pr[ L(D, SLCommon.F.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ L(D, SLCommon.F.LRO).distinguish () @ &m : §res ] := by
+    byequiv (L_RO_LRO D (by ec_module) hDr hDf)
+  -- EC: rewrite eq_sym.
+  --     by byequiv(Ideal_equiv_valid D).
+  have e9 : Pr[ L(D, SLCommon.F.LRO).distinguish () @ &m : §res ] =
+      Pr[ L2(D, SLCommon.F.LRO).distinguish () @ &m : §res ] := by
+    byequiv (Ideal_equiv_valid D)
+  --     (EC's rewrites, in their order, as one chain)
+  exact e1.trans (e2.symm.trans (e3.trans (e9.symm.trans (e8.symm.trans
+    (e7.trans (e6.trans (e5.trans e4.symm)))))))
+
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
