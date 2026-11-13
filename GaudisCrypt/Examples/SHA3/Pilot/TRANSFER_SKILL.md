@@ -613,6 +613,27 @@ Document each in the docstring when it applies.
   variable takes the module's name with it: `RO_m`, `RO_m₁` (before: a number, `m1`).  A local
   variable keeps its name (numbered only if that is taken too).
 
+* **Writing a proof on the strict tactics (2026-11-14, `Pilot/Gconcl_list` from
+  `Ideal_equiv_valid` on)**:
+  - EC's `auto` on a judgment is `ec_auto`; where EC's `auto` closes the goal and `ec_auto` leaves
+    an implication, `ec_auto; ec_close`.  While developing write `ec_auto <;> ec_close` and remove
+    what the linter reports as never executed.
+  - EC's `call (: I)` on two *different* concrete procedures (`S(IF').f ~ S(Valid2).f`):
+    `equiv_call (_ : ={arg, x…} ∧ I ==> ={res, x…} ∧ I)` with the invariant's variables, then
+    `equiv_proc` (EC's form opens the callees).  On a declared callee with only `glob`s,
+    `equiv_call (_ : ={glob S, glob C, glob F.RO.asRO})` gives EC's goals.
+  - After `ec_progress` the values have their names and the hypotheses none: a hand step takes a
+    hypothesis by type, `‹inv_L_L3 _ _ _›`, `‹valid _ = true›`, `‹¬ FMap.dom m₁ _›` (name the
+    value in the pattern when two hypotheses have the same shape).
+  - Nested final memories (`∀ τ₁ τ₂` of `while`/`conseq`) become values too; their names are
+    qualified further (`SLCommon_F_RO_m₁` next to `F_RO_m₁`).
+  - The side goal of a one-sided `rcond` keeps the other side's memory in the context:
+    `ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars`, then the hand step.
+  - A fact EC's `smt` uses everywhere (`parse_valid` for our `valid`): one `have` at the top of
+    the proof; the closers then find it.
+  - Probing: one lemma in an uncommitted scratch file next to the pilot, compiled alone with the
+    lakefile's options (seconds, not the file's minutes), `trace_state` at the open leaves.
+
 ## 9. Checklist before calling a lemma done
 
 - [ ] Statement in surface syntax, EC's hypotheses only, EC's name; docstring quotes EC's
