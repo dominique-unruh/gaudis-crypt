@@ -789,7 +789,14 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
 | 1437, 1463 | local lemmas | `lemma4`, `lemma_3` | section Real. | the first port's (plain lemmas) | done |
 | 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` (the facts EC proves inline at each use are `INV_Real_known_step`, `squeeze_known`, `take_format_full`, `nth_format_pad`, `take_format_pred`; one bridge line for `Sponge(Perm)`, GAP 11) | done |
 | 1748 | lemma | `pr_real` | section Real. | `pr_real` | done |
-| 1761– | section | `Real_Ideal`, `Real_Ideal_Abs`, `Simplify_Simulator` | | — | todo |
+| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` | done |
+| 1786 | lemma | `concl` | section Real_Ideal. | — (applies `Gconcl.Real_Ideal` to `A(D)`: EC's `glob` of a composed module, step 4) | todo |
+| 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Neg_D_lossless` | done |
+| 1833, 1853 | local lemmas | `useful`, `invmC` | section Real_Ideal_Abs. | the first port's (plain lemmas) | done |
+| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | — (`call (: invm …)` on `D` in `phoare`, GAP 12) | todo |
+| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | — (code after a loop in `phoare`, GAP 13; one of three oracles done in a draft) | todo |
+| 1905, 1924 | lemmas | `neg_D_concl`, `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | — (after `concl`) | todo |
+| 1946– | module, section | `Simulator`, `Simplify_Simulator`, final `Real_Ideal` | | — | todo |
 
 ## `proof/Sponge.ec`
 

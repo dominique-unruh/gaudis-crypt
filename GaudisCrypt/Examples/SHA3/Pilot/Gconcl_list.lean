@@ -63,6 +63,11 @@ Translation:
 * GAP 11: `inline*` does not open a call of `Perm` behind the first port's `PRIMITIVE.view`
   (`RealIndif(Sponge, Perm, D)` applies `Sponge` to that view; a compatibility choice of
   `Flatten.moduleStep?` for the first port's proofs): `simp only [P_view]`, then `inline*`.
+* GAP 12: `phoare_call` on an abstract module has the rule for lossless oracles (EC's
+  `call (: true)`), not the one with an invariant (`call (: invm Perm.m Perm.mi)`,
+  `Real_lossless`).
+* GAP 13: in a `phoare … = 1` goal the tactics have no step for code after a loop (EC's `auto`
+  passes samplings of lossless distributions and conditionals behind it; `Ideal_lossless`).
 * After `sp`, a goal prints as the plain `prhlStmt` term until the next tactic (the conditions
   `x = e` it adds are not in read form); display only.
 * EC's `List` lemmas the scripts cite (`take0`, `size_take`, `nth_take`, `size_cat`, `last_nseq`,
@@ -3483,5 +3488,98 @@ theorem pr_real : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Red
   byequiv (equiv_sponge D)
   ec_progress
   exact ⟨fun h => ⟨h.1, ‹_ ≤ max_size›⟩, fun h => ⟨h.1, le_trans ‹_› ‹_ ≤ max_size›⟩⟩
+
+/-! ## Section `Real_Ideal`
+
+`concl` (EC l. 1786) applies `Gconcl.Real_Ideal` to the composed distinguisher `A(D)`, with
+`A_lossless` for its `D_ll`.  The pilots' `Real_Ideal` is stated for a declared module `D`, its
+`D_ll` over oracles restricted against `glob D`; for `A(D)` that restriction is against
+`glob (A(D))`, and only an upper bound of the footprint of an application is known (EC reads
+`glob A(D) = glob D ∪ {C.c}` off the code).  This is step 4 of `notes/SHA3/TacticReview.md`
+(EC's syntactic `glob`): `concl` waits for it, and with it `neg_D_concl`,
+`Inefficient_Real_Ideal` and the final `Real_Ideal`. -/
+
+section Real_Ideal
+
+declare module D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Redo, -SLCommon.F.RO,
+  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m}
+
+-- EC's `declare axiom D_lossless`
+variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-D}), ∀ (P0 <: DPRIMITIVE {-D}),
+  islossless P0.f → islossless P0.fi → islossless F0.f → islossless D(F0, P0).distinguish)
+
+include D_lossless in
+/-- EC's `lemma A_lossless (F <: SLCommon.DFUNCTIONALITY{-A(D)})
+(P0 <: SLCommon.DPRIMITIVE{-A(D)}) : islossless P0.f => islossless P0.fi => islossless F.f =>
+islossless A(D, F, P0).distinguish`; `{-A(D)}` is `{-D, -C}`, its globals. -/
+theorem A_lossless : ∀ (F <: SLCommon.DFUNCTIONALITY {-D, -C}),
+    ∀ (P0 <: SLCommon.DPRIMITIVE {-D, -C}),
+    islossless P0.f → islossless P0.fi → islossless F.f →
+      islossless A(D, F, P0).distinguish := by
+  intro F _ P0 _ H H0 H1
+  -- EC: progress;proc;inline*;sp;wp.
+  phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+  -- EC: call(:true);auto.
+  --     + exact D_lossless.
+  phoare_call (@D_lossless _ ?_ _ ?_ ?_ ?_ ?_)
+  · phoare_auto
+  -- EC: + proc;inline*;sp;if;auto;call H;auto.
+  · phoare_proc; stmt_sp; stmt_if
+    · phoare_auto; phoare_call H; phoare_auto
+    · phoare_auto
+  -- EC: + proc;inline*;sp;if;auto;call H0;auto.
+  · phoare_proc; stmt_sp; stmt_if
+    · phoare_auto; phoare_call H0; phoare_auto
+    · phoare_auto
+  -- EC: proc;inline*;sp;if;auto;sp;if;auto.
+  · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+    · stmt_sp; stmt_if
+      -- EC: while(true)(n-i);auto.
+      --     + by sp;if;auto;1:call H1;auto;smt().
+      --     call H1;auto;smt().
+      · stmt_wp
+        phoare_while True ((§n - §i).toNat)
+        · intro z; stmt_sp; stmt_if
+          · phoare_call H1; phoare_auto; smt_close
+          · phoare_auto; smt_close
+        · phoare_call H1; phoare_auto
+      · phoare_auto
+    · phoare_auto
+
+end Real_Ideal
+
+/-! ## Section `Real_Ideal_Abs`
+
+`Real_lossless` (EC l. 1858) calls `D` under the invariant `invm Perm.m Perm.mi` in a
+`phoare … = 1` goal: `phoare_call` has the rule for lossless oracles only (GAP 12).
+`Ideal_lossless` (EC l. 1887) has loops followed by sampling code, which EC's `auto` passes
+(`rnd` with a lossless distribution); the `phoare` tactics have no step for code after a loop
+(GAP 13).  Both are left to the batch of rule fixes. -/
+
+section Real_Ideal_Abs
+
+open GaudisCrypt.SHA3.Gconcl_list.Real_Ideal_Abs (Neg_D)
+
+declare module D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -SLCommon.Redo, -SLCommon.F.RO,
+  -SLCommon.F.FRO.m, -S, -BIRO.IRO, -BIRO2.IRO, -F2.RO, -F2.FRO.m}
+
+-- EC's `declare axiom D_lossless`
+variable (D_lossless : ∀ (F0 <: DFUNCTIONALITY {-D}), ∀ (P0 <: DPRIMITIVE {-D}),
+  islossless P0.f → islossless P0.fi → islossless F0.f → islossless D(F0, P0).distinguish)
+
+include D_lossless in
+/-- EC's `local lemma Neg_D_lossless (F <: DFUNCTIONALITY{-Neg_D(D)})
+(P <: DPRIMITIVE{-Neg_D(D)}) : islossless P.f => islossless P.fi => islossless F.f =>
+islossless Neg_D(D, F, P).distinguish`; `{-Neg_D(D)}` is `{-D}`. -/
+theorem Neg_D_lossless : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+    islossless P.f → islossless P.fi → islossless F.f →
+      islossless Neg_D(D, F, P).distinguish := by
+  intro F _ P _ H H0 H1
+  -- EC: by progress;proc;inline*;call(D_lossless F P H H0 H1);auto.
+  --     (EC's `inline*`: nothing to open here)
+  phoare_proc
+  phoare_call (D_lossless F P H H0 H1); phoare_auto
+
+end Real_Ideal_Abs
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list

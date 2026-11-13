@@ -347,3 +347,27 @@ type closed, for the first port's proofs), so the proof has one bridge line,
 test; it touches `Logic/Inline.lean` (a rebuild of everything), so it waits for a batch with
 GAP 9 (`ec_prep` on split-loop guards) and the Hoare `seq`.
 
+**Sections `Real_Ideal`, `Real_Ideal_Abs` (2026-11-13): what waits, and for what.**
+`A_lossless` and `Neg_D_lossless` are done (EC's scripts, `phoare` tactics).  The rest waits for
+three things, none of them a proof step:
+
+* `concl` applies `Gconcl.Real_Ideal` to `A(D)`.  The pilots state `Real_Ideal` (and all it rests
+  on, down to `ConcreteF`) for `declare module D`, with `D_ll` over oracles `{-D}`.  For the
+  composed `A(D)`, EC's `{-A(D)}` is `glob D ∪ {C.c}`, read off the code; here `fvP (A D)` is
+  only bounded above by that, so an oracle outside `glob (A D)` is not known to be outside
+  `glob D`, and `A_lossless` cannot be given as the `D_ll` of `A(D)`.  The `ConcreteF` pilot met
+  the same thing once (`Switching.Conclusion` over `Module.ECGlob`).  Doing it here means stating
+  the chain `Real_Concrete` … `Real_Ideal` over `Module.ECGlob` instead of `declare module`, in
+  five pilot files: this *is* step 4 (EC's syntactic `glob`), and is not started without a
+  decision.  `neg_D_concl`, `Inefficient_Real_Ideal` and the final `Real_Ideal` follow `concl`
+  (`concl (Neg_D(D))` is the same situation).
+* `Real_lossless`: EC's `call (: invm Perm.m Perm.mi)` on the abstract `D` in a `phoare … = 1`
+  goal.  `phoare_call` has the rule for lossless oracles only.  (The first port avoided the
+  invariant: `Perm.f` is lossless unconditionally; that is not EC's script.)
+* `Ideal_lossless`: loops followed by sampling code in `phoare … = 1`; EC's `auto` passes the
+  code after the loop, our `phoare` tactics have no such step.  One of its three oracles is done
+  in a draft (not in the file).
+
+Independent of all three, and next: the module `Simulator` and section `Simplify_Simulator`
+(EC l. 1946–2195, two equivalences).
+
