@@ -33,7 +33,7 @@ set_option ec.strict true
 # The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port, in progress
 
 Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the theory `HybridIRO`
-up to `HybridIROEagerTrans_BlockSpongeTrans_next_block` (EC l. 256–1505; l. 1188–1305, the
+up to `HybridIROEagerTrans_BlockSpongeTrans_loop` (EC l. 256–1612; l. 1188–1305, the
 modules `BlockSpongeTrans`, `BlockGen` and `BlockGen_loop_direct` with its `bypr` proof, are the
 first port's, E12); and `Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic
 experiment and is described below.  The rest of the file follows in EC's order
@@ -74,6 +74,12 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   judgment syntax names `X.f`'s procedure (`BlockGen_loop_direct`, restated by a rewrite).
 * GAP 10: after a loop, the guard's read of a local and the invariant's read of it can be
   different atoms for `omega` (equal by `rfl`): `le_antisymm` on the two hypotheses instead.
+* GAP 11: `={bs}` in a condition of `equiv_trans` is not resolved when the two sides of the
+  goal have a `bs` of different types, although the middle program's is the left one's:
+  `§(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2}`.
+* `call (_ : ={HybridIROEager.mp})` on the concrete `fill_in` needs its footprint, which EC reads
+  off the code: `fvP_HybridIROEager_fill_in`, `fvP_BIRO_IRO_fill_in` (`@[fp_bound]`).  The
+  callee's goal (EC: `if=> //; wp; rnd; auto`) is then closed by the tactic.
 * EC's `alias{2} 1 with w` is not needed: the sampled block is the inlined callee's local `r`
   (two locals `bs`, `r` of different types on the two sides are read as
   `§(localVarLens "bs" (List Bool)){1}`).
@@ -1345,6 +1351,314 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : ℤ) :
     rw [hmp]; exact ei
   -- EC: apply HybridIROEagerTrans_next_block_split.
   --     (the second judgment is `next_block_split_BlockSpongeTrans` above)
+
+/-! ### `HybridIROEagerTrans.loop` and `BlockSpongeTrans.loop` (EC l. 1507–1612) -/
+
+omit [BlockSponge.Params] in
+/-- `HybridIROEager.fill_in` touches `HybridIROEager.mp`.  Not an EC lemma (EC reads a concrete
+module's globals off its code, for `call (_ : ={HybridIROEager.mp})`). -/
+@[fp_bound] theorem fvP_HybridIROEager_fill_in :
+    FVP.fvP HybridIROEager.fill_in ≤ HybridIROEager.mp.footprint := by
+  fp_module HybridIROEager.mp
+
+omit [BlockSponge.Params] in
+/-- `BlockSponge.BIRO.IRO.fill_in` touches `BlockSponge.BIRO.IRO.mp`.  Not an EC lemma (as
+`fvP_HybridIROEager_fill_in`). -/
+@[fp_bound] theorem fvP_BIRO_IRO_fill_in :
+    FVP.fvP BlockSponge.BIRO.IRO.fill_in ≤ BlockSponge.BIRO.IRO.mp.footprint := by
+  fp_module BlockSponge.BIRO.IRO.mp
+
+omit [BlockSponge.Params] in
+/-- The guard that EC's `splitwhile{1} 3 : (i < (n - 1) * r)` leaves on the first loop, at
+`n = n' + 1`. -/
+private theorem splitwhile_guard (i n : ℤ) :
+    (decide (i < (n + 1) * r) && decide (i < (n + 1 - 1) * r)) = decide (i < n * r) := by
+  have hr := gt0_r
+  rw [add_sub_cancel_right]
+  by_cases h : i < n * r
+  · have h1 : i < (n + 1) * r := by rw [add_mul, one_mul]; omega
+    simp [h, h1]
+  · simp [h]
+
+set_option maxHeartbeats 8000000 in
+-- one declaration: an induction, four `transitivity` steps and four loops
+/-- EC's `lemma HybridIROEagerTrans_BlockSpongeTrans_loop (n' : int)` (EC l. 1507).
+
+EC's script.  `elim n'` is `induction n', ge0_n' using Int.le_induction`, after `proc` as in EC,
+so the hypothesis is about the two bodies and `conseq IH` fits.  A middle memory (EC's
+`exists HybridIROEager.mp{1} n' xs{2}`) is one side's memory with `n` set, and `simp_reads`
+reads through it.  The callee goals of `call (_ : ={HybridIROEager.mp})` and
+`call (_ : ={BlockSponge.BIRO.IRO.mp})` (EC: `if=> //; wp; rnd; auto`) are closed by the
+tactic; EC's `smt`s on the split loop's guard are `splitwhile_guard`. -/
+theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
+    equiv[ HybridIROEagerTrans.loop (n, xs) ~ BlockSpongeTrans.loop (n, xs) :
+      ={xs, n} ∧ n' = §n{1} ∧ 0 ≤ n' ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+      (§res{1}).1 = n' * r ∧ (§res{2}).1 = n' ∧ size (§res{2}).2 = n' ∧
+        (§res{1}).2 = blocks2bits (§res{2}).2 ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ] := by
+  -- EC: case (0 <= n'); last first=> [not_ge0_n' | ge0_n'].
+  by_cases ge0_n' : 0 ≤ n'
+  swap
+  -- EC: proc=> /=; exfalso.
+  · equiv_proc; equiv_exfalso
+    exact fun _ _ h => ge0_n' h.2.2.1
+  -- EC: proc=> /=.
+  --     move: ge0_n'; elim n'=> [| n' ge0_n' IH].
+  equiv_proc
+  induction n', ge0_n' using Int.leInduction with
+  -- EC: sp. rcondf{1} 1; auto. rcondf{2} 1; auto.
+  | base =>
+    stmt_sp
+    stmt_rcondf{1} 1
+    · intro σ₂; ec_auto
+      intro xs n mp i bs h
+      obtain ⟨⟨⟨⟨⟨-, rfl, -⟩, rfl⟩, -⟩, -⟩, -⟩ := h
+      simp
+    stmt_rcondf{2} 1
+    · intro σ₁; ec_auto
+    ec_auto
+    rintro xs₁ n₁ mp₁ i₁ bs₁ xs₂ n₂ mp₂ i₂ bs₂ ⟨⟨⟨⟨⟨⟨-, -⟩, -, ei⟩, rfl⟩, rfl⟩, rfl⟩, rfl⟩
+    exact ⟨(zero_mul _).symm, rfl, by simp [size], by simp [blocks2bits], ei⟩
+  | succ n' ge0_n' IH =>
+    -- EC: splitwhile{1} 3 : (i < (n - 1) * r); splitwhile{2} 3 : (i < n - 1).
+    stmt_splitwhile{1} 3 : §i < (§n - 1) * r
+    stmt_splitwhile{2} 3 : §i < §n - 1
+    -- EC: seq 3 3 :
+    --       (={xs, n} /\ n{1} = n' + 1 /\ i{1} = n' * r /\ i{2} = n' /\
+    --        size bs{2} = n' /\ bs{1} = blocks2bits bs{2} /\
+    --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1}).
+    equiv_seq 3 3 : (={xs, n} ∧ §n{1} = n' + 1 ∧ §i{1} = n' * r ∧ §i{2} = n' ∧
+      size §(localVarLens "bs" (List block)){2} = n' ∧
+      §(localVarLens "bs" (List Bool)){1} = blocks2bits §(localVarLens "bs" (List block)){2} ∧
+      eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1})
+    -- EC: conseq
+    --       (_ :
+    --        ={xs, n} /\ n' + 1 = n{1} /\
+    --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+    --        i{1} = n' * r /\ i{2} = n' /\ size bs{2} = n' /\
+    --        bs{1} = blocks2bits bs{2} /\
+    --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})=> //.
+    · equiv_conseq (: ={xs, n} ∧ n' + 1 = §n{1} ∧
+          eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+          §i{1} = n' * r ∧ §i{2} = n' ∧ size §(localVarLens "bs" (List block)){2} = n' ∧
+          §(localVarLens "bs" (List Bool)){1} =
+            blocks2bits §(localVarLens "bs" (List block)){2} ∧
+          eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1})
+      case pre => ec_close
+      case post => ec_close
+      -- EC: transitivity{1}
+      --       { i <- 0; bs <- [];
+      --         while (i < n * r) {
+      --           b <@ HybridIROEager.fill_in(xs, i);
+      --           bs <- rcons bs b;
+      --           i <- i + 1;
+      --         }
+      --       }
+      --       (={xs, HybridIROEager.mp} /\ n{1} = n' + 1 /\ n{2} = n' ==>
+      --        ={bs, i, HybridIROEager.mp})
+      --       (={xs} /\ n{1} = n' /\ n{2} = n' + 1 /\
+      --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+      --        i{1} = n' * r /\ i{2} = n' /\ size bs{2} = n' /\
+      --        bs{1} = blocks2bits bs{2} /\
+      --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})=> //.
+      equiv_trans{1} {
+          i <- 0; bs <- [];
+          while (decide ($i < $n * r)) {
+            b <- call (HybridIROEager.fill_in).procedure ($xs, $i);
+            bs <- rcons $bs $b;
+            i <- $i + 1;
+          } }
+        (={xs, HybridIROEager.mp} ∧ §n{1} = n' + 1 ∧ §n{2} = n' ==>
+          §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2} ∧
+          ={i, HybridIROEager.mp})
+        (={xs} ∧ §n{1} = n' ∧ §n{2} = n' + 1 ∧
+          eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+          §i{1} = n' * r ∧ §i{2} = n' ∧ size §(localVarLens "bs" (List block)){2} = n' ∧
+          §(localVarLens "bs" (List Bool)){1} =
+            blocks2bits §(localVarLens "bs" (List block)){2} ∧
+          eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1})
+      -- EC: progress; exists HybridIROEager.mp{1} n' xs{2}=> //.
+      · rintro σ₁ σ₂ ⟨⟨hxs, hn⟩, hn', ei⟩
+        refine ⟨(localVarLens "n" ℤ).set n' σ₁, ?_⟩
+        simp_reads
+        exact ⟨hn'.symm, hxs, hn.symm.trans hn'.symm, ei⟩
+      · intro τ₁ τ τ₂ ⟨h1, h2, h3⟩ ⟨k1, k2, k3, k4, k5⟩
+        exact ⟨h2.trans k1, k2, k3, h1.trans k4, h3 ▸ k5⟩
+      -- EC: while (={xs, i, bs, HybridIROEager.mp} /\ n{1} = n' + 1 /\ n{2} = n').
+      --     wp. call (_ : ={HybridIROEager.mp}). if=> //; wp; rnd; auto.
+      --     skip; progress; smt(ge0_r).
+      --     auto; smt().
+      · clear IH
+        equiv_while (={xs, i, bs, HybridIROEager.mp} ∧ §n{1} = n' + 1 ∧ §n{2} = n')
+        · stmt_wp
+          equiv_call (_ : ={HybridIROEager.mp})
+          ec_auto
+          rintro xs₁ i₁ bs₁ mp₁ n₁ xs₂ i₂ bs₂ mp₂ n₂ ⟨⟨⟨rfl, rfl, rfl, rfl⟩, rfl, rfl⟩, -⟩
+          refine ⟨⟨rfl, rfl⟩, ?_⟩
+          rintro r₁ g₁ r₂ g₂ ⟨rfl, hmp⟩
+          exact ⟨⟨⟨rfl, rfl, rfl, hmp⟩, rfl, rfl⟩, splitwhile_guard _ _⟩
+        ec_auto
+        rintro xs₁ mp₁ n₁ xs₂ mp₂ n₂ ⟨⟨rfl, rfl⟩, rfl, rfl⟩
+        refine ⟨⟨⟨⟨rfl, rfl⟩, rfl, rfl⟩, ?_⟩,
+          fun τ₁ τ₂ ⟨⟨_, hi, hbs, hmp⟩, _, _⟩ _ _ => ⟨hbs, hi, hmp⟩⟩
+        exact splitwhile_guard _ _
+      -- EC: transitivity{2}
+      --       { i <- 0; bs <- [];
+      --         while (i < n) {
+      --           b <@ BlockSponge.BIRO.IRO.fill_in(xs, i);
+      --           bs <- rcons bs b;
+      --           i <- i + 1;
+      --         }
+      --       }
+      --       (={xs, n} /\ n{1} = n' /\
+      --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+      --        i{1} = n' * r /\ i{2} = n' /\ size bs{2} = n' /\
+      --        bs{1} = blocks2bits bs{2} /\
+      --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})
+      --       (={xs,BlockSponge.BIRO.IRO.mp} /\ n{1} = n' /\ n{2} = n' + 1 ==>
+      --        ={i, bs, BlockSponge.BIRO.IRO.mp})=> //.
+      · equiv_trans{2} {
+            i <- 0; bs <- [];
+            while (decide ($i < $n)) {
+              b <- call (BlockSponge.BIRO.IRO.fill_in).procedure ($xs, $i);
+              bs <- rcons $bs $b;
+              i <- $i + 1;
+            } }
+          (={xs, n} ∧ §n{1} = n' ∧
+            eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+            §i{1} = n' * r ∧ §i{2} = n' ∧ size §(localVarLens "bs" (List block)){2} = n' ∧
+            §(localVarLens "bs" (List Bool)){1} =
+              blocks2bits §(localVarLens "bs" (List block)){2} ∧
+            eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1})
+          (={xs, BlockSponge.BIRO.IRO.mp} ∧ §n{1} = n' ∧ §n{2} = n' + 1 ==>
+            §(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ∧
+            ={i, BlockSponge.BIRO.IRO.mp})
+        -- EC: progress; exists BlockSponge.BIRO.IRO.mp{2} n{1} xs{2}=> //.
+        · rintro σ₁ σ₂ ⟨hxs, hn, hn', ei⟩
+          refine ⟨(localVarLens "n" ℤ).set n' σ₂, ?_⟩
+          simp_reads
+          exact ⟨⟨⟨hxs, hn⟩, hn, ei⟩, hn'⟩
+        · intro τ₁ τ τ₂ ⟨k1, k2, k3, k4, k5⟩ ⟨h1, h2, h3⟩
+          exact ⟨k1, k2.symm.trans h2 |>.symm, h1 ▸ k3, h1 ▸ k4, h3 ▸ k5⟩
+        -- EC: conseq IH=> //.
+        · equiv_conseq IH
+          · ec_close
+          · ec_close
+        -- EC: while
+        --       (={xs, bs, i, BlockSponge.BIRO.IRO.mp} /\ n{1} = n' /\ n{2} = n' + 1).
+        --     wp. call (_ : ={BlockSponge.BIRO.IRO.mp}). if=> //; wp; rnd; auto.
+        --     auto; smt().
+        --     auto; smt().
+        · clear IH
+          equiv_while (={xs, i, BlockSponge.BIRO.IRO.mp} ∧
+            §(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ∧
+            §n{1} = n' ∧ §n{2} = n' + 1)
+          · stmt_wp
+            equiv_call (_ : ={BlockSponge.BIRO.IRO.mp})
+            ec_auto
+          ec_auto
+    clear IH
+    -- EC: unroll{2} 1. rcondt{2} 1; first auto; progress; smt().
+    stmt_unroll{2} 1
+    stmt_rcondt{2} 1
+    · intro σ₁; ec_auto
+    -- EC: rcondf{2} 4. auto. call (_ : true). if=> //. auto.
+    stmt_rcondf{2} 4
+    · intro σ₁
+      stmt_wp
+      hoare_call (: True ==> True)
+      · hoare_proc; ec_auto
+      · ec_auto
+    -- EC: transitivity{1}
+    --       { (bs, i) <@ HybridIROEagerTrans.next_block(xs, i, (n' + 1) * r, bs); }
+    --       (={xs, i, bs, HybridIROEager.mp} /\ n{1} = n' + 1 ==>
+    --        ={i, bs, HybridIROEager.mp})
+    --       (={xs} /\ i{1} = n' * r /\ i{2} = n' /\
+    --        size bs{2} = n' /\ bs{1} = blocks2bits bs{2} /\
+    --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+    --        i{1} = (n' + 1) * r /\ i{2} = n' + 1 /\ size bs{2} = n' + 1 /\
+    --        bs{1} = blocks2bits bs{2} /\
+    --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})=> //.
+    equiv_trans{1} {
+        bs, i <- call (HybridIROEagerTrans.next_block).procedure ($xs, $i, (n' + 1) * r, $bs); }
+      (={xs, i, HybridIROEager.mp} ∧
+        §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2} ∧
+        §n{1} = n' + 1 ==>
+        ={i, HybridIROEager.mp} ∧
+        §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2})
+      (={xs} ∧ §i{1} = n' * r ∧ §i{2} = n' ∧ size §(localVarLens "bs" (List block)){2} = n' ∧
+        §(localVarLens "bs" (List Bool)){1} = blocks2bits §(localVarLens "bs" (List block)){2} ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+        §i{1} = (n' + 1) * r ∧ §i{2} = n' + 1 ∧
+        size §(localVarLens "bs" (List block)){2} = n' + 1 ∧
+        §(localVarLens "bs" (List Bool)){1} = blocks2bits §(localVarLens "bs" (List block)){2} ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1})
+    -- EC: progress;
+    --       exists HybridIROEager.mp{1} (blocks2bits bs{2}) (size bs{2} * r) xs{2}=> //.
+    · rintro σ₁ σ₂ ⟨⟨hxs, hn⟩, hn1, hi1, hi2, hsz, hbs, ei⟩
+      exact ⟨σ₁, ⟨⟨rfl, rfl, rfl⟩, rfl, hn1⟩, hxs, hi1, hi2, hsz, hbs, ei⟩
+    · rintro τ₁ τ τ₂ ⟨⟨h1, h2⟩, h3⟩ ⟨k1, k2, k3, k4, k5⟩
+      exact ⟨h1.trans k1, k2, k3, h3.trans k4, h2 ▸ k5⟩
+    -- EC: inline HybridIROEagerTrans.next_block; sp; wp.
+    --     while
+    --       (xs{1} = xs0{2} /\ i{1} = i0{2} /\ n{1} = n' + 1 /\
+    --        m{2} = (n' + 1) * r /\ bs{1} = bs0{2} /\
+    --        ={HybridIROEager.mp}).
+    --     wp. call (_ : ={HybridIROEager.mp}). if=> //; wp; rnd; auto.
+    --     auto. auto.
+    · stmt_inline{2} (HybridIROEagerTrans.next_block); stmt_sp; stmt_wp
+      equiv_while (§xs{1} = §xs0{2} ∧ §i{1} = §i0{2} ∧ §n{1} = n' + 1 ∧ §m{2} = (n' + 1) * r ∧
+        §(localVarLens "bs" (List Bool)){1} = §bs0{2} ∧ ={HybridIROEager.mp})
+      · stmt_wp
+        equiv_call (_ : ={HybridIROEager.mp})
+        ec_auto
+      ec_auto
+    -- EC: transitivity{2}
+    --       { (bs, i) <@ BlockSpongeTrans.next_block(xs, i, bs); }
+    --       (={xs} /\ i{1} = n' * r /\ i{2} = n' /\
+    --       size bs{2} = n' /\ bs{1} = blocks2bits bs{2} /\
+    --       eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+    --       i{1} = (n' + 1) * r /\ i{2} = n' + 1 /\ size bs{2} = n' + 1 /\
+    --       bs{1} = blocks2bits bs{2} /\
+    --       eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})
+    --       (={xs, bs, i, BlockSponge.BIRO.IRO.mp} ==>
+    --        ={xs, bs, i, BlockSponge.BIRO.IRO.mp})=> //.
+    · equiv_trans{2} {
+          bs, i <- call (BlockSpongeTrans.next_block).procedure ($xs, $i, $bs); }
+        (={xs} ∧ §i{1} = n' * r ∧ §i{2} = n' ∧ size §(localVarLens "bs" (List block)){2} = n' ∧
+          §(localVarLens "bs" (List Bool)){1} =
+            blocks2bits §(localVarLens "bs" (List block)){2} ∧
+          eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+          §i{1} = (n' + 1) * r ∧ §i{2} = n' + 1 ∧
+          size §(localVarLens "bs" (List block)){2} = n' + 1 ∧
+          §(localVarLens "bs" (List Bool)){1} =
+            blocks2bits §(localVarLens "bs" (List block)){2} ∧
+          eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1})
+        (={xs, i, BlockSponge.BIRO.IRO.mp} ∧
+          §(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ==>
+          ={xs, i, BlockSponge.BIRO.IRO.mp} ∧
+          §(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2})
+      -- EC: progress; exists BlockSponge.BIRO.IRO.mp{2} bs{2} (size bs{2}) xs{2}=> //.
+      · rintro σ₁ σ₂ ⟨hxs, hi1, hi2, hsz, hbs, ei⟩
+        exact ⟨σ₂, ⟨hxs, hi1, hi2, hsz, hbs, ei⟩, ⟨rfl, rfl, rfl⟩, rfl⟩
+      · rintro τ₁ τ τ₂ ⟨k1, k2, k3, k4, k5⟩ ⟨⟨-, h2, h3⟩, h4⟩
+        exact ⟨k1, h2 ▸ k2, h4 ▸ k3, h4 ▸ k4, h3 ▸ k5⟩
+      -- EC: call (HybridIROEagerTrans_BlockSpongeTrans_next_block n').
+      --     skip; progress; smt().
+      · equiv_call (HybridIROEagerTrans_BlockSpongeTrans_next_block n')
+        ec_auto
+        rintro xs₁ i₁ bs₁ mp₁ xs₂ i₂ bs₂ mp₂ ⟨rfl, rfl, rfl, hsz, rfl, ei⟩
+        refine ⟨⟨rfl, ge0_n', rfl, rfl, by ring, rfl, hsz, ei⟩, ?_⟩
+        rintro r₁ g₁ r₂ g₂ ⟨h1, h2, h3, h4, h5⟩
+        exact ⟨by rw [h2, h3], h3, h4, h1, h5⟩
+      -- EC: inline BlockSpongeTrans.next_block.
+      --     wp; sp. call (_ : ={BlockSponge.BIRO.IRO.mp}). if=> //; wp; rnd; skip; smt().
+      --     auto.
+      · stmt_inline{1} (BlockSpongeTrans.next_block)
+        stmt_wp; stmt_sp
+        equiv_call (_ : ={BlockSponge.BIRO.IRO.mp})
+        ec_auto
 
 end HybridIRO
 

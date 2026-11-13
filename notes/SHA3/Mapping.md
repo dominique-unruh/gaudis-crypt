@@ -930,7 +930,8 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1188–1250 | modules, lemmas | `BlockSpongeTrans`, `Prog`, `PrLoopSnoc_sample`, `iter_mul_one_half_pos`, `BlockGen` | the first port's | def |
 | 1269 | lemma | `BlockGen_loop_direct` | `BlockGen_loop_direct_ec`: the first port's proof (EC: `bypr`, E12), restated in EC's form (GAP 9) | done |
 | 1307 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_next_block` | same name: EC's `transitivity` as the rule `prhlProc_trans_ec` (GAP 8); its second judgment is `next_block_split_BlockSpongeTrans` (EC's script, l. 1332–1505; the leaves by hand; GAP 6, 7, 10; inline facts `mkblockK`, `ofblockK`, `take_r_ofblock`, `nth_change_dfl`) | done |
-| 1507–1909 | the rest of `HybridIRO` (`HybridIROEagerTrans_BlockSpongeTrans_loop`, `HybridIROEager_f_BlockIRO_f`, `HybridIROEager_BlockIRO_f`) | | — | todo |
+| 1507 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_loop` | same name (EC's script: `elim n'` as `induction … using Int.leInduction` after `proc`, `splitwhile`, `unroll`, four `transitivity{i}` steps, `conseq IH`; middle memories by `simp_reads`; `@[fp_bound]` lemmas for the two `fill_in`s; GAP 11) | done |
+| 1614–1909 | the rest of `HybridIRO` (`HybridIROEager_f_BlockIRO_f`, `HybridIROEager_BlockIRO_f`) | | — | todo |
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
 | 1953–2163 | the final section, `conclu`, `conclusion` | | — | todo |
 

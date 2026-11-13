@@ -489,6 +489,20 @@ Document each in the docstring when it applies.
   tied to the initial one.  Add the missing fact to the preceding `conseq`'s postcondition
   (marked as a gap) rather than changing the invariant: with an invariant that reads the other
   memory the strict `auto` on the loop body runs out of recursion depth (`stmt_wp; hoare_skip`).
+* **`elim n'` on a procedure judgment** (`move: ge0_n'; elim n'=> [| n' ge0_n' IH]` after
+  `proc`): `equiv_proc` first, then `induction n', ge0_n' using Int.leInduction with | base => …
+  | succ n' ge0_n' IH => …`.  `IH` is about the two bodies, so EC's `conseq IH=> //` is
+  `equiv_conseq IH` with `ec_close` on its two implications
+  (`Pilot/Sponge.lean`, `HybridIROEagerTrans_BlockSpongeTrans_loop`).
+* **The middle memory of `transitivity{i}`** (EC: `progress; exists M.mp{1} n' xs{2}=> //`):
+  when it is one side's memory, `exact ⟨σ₁, …⟩`; when a variable differs,
+  `refine ⟨(localVarLens "n" ℤ).set n' σ₁, ?_⟩; simp_reads; exact ⟨…⟩`.
+* **`call (_ : ={M.x})` on a concrete procedure** uses the rule with EC's frame, which needs the
+  callee's footprint: state it once, `@[fp_bound] theorem fvP_M_f : FVP.fvP M.f ≤ M.x.footprint
+  := by fp_module M.x`.  The callee's own goal is then closed by the tactic.  `call (_ : true)`
+  in a Hoare goal (`rcondf` side goal): `hoare_call (: True ==> True)`, goals `spec`
+  (`hoare_proc; ec_auto`) and the code before.
+* **`(bs, i) <@ M.f(…)` in `transitivity` code**: `bs, i <- call (M.f).procedure (…);`.
 * **`omega` after a loop fails with two atoms that print the same** (the guard's read of a
   local and the invariant's): combine the two hypotheses by a lemma instead
   (`le_antisymm t2 hg`), which works up to `rfl`.
