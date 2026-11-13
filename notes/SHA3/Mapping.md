@@ -761,6 +761,31 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
 | 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (+ `Gext0Fresh D`, E13; from `Simplify_simulator`, `Inefficient_Real_Ideal`) | exc |
 
+### EC-fidelity pilot (`notes/SHA3/Refactor.md`)
+
+EC's judgments in EC's scripts, over the old port's declarations.  Section `Ideal` is complete
+(2026-11-14); `ideal_equiv` is on the older tactics, the rest on the strict ones (`ec_auto`,
+`ec_close`, `ec_progress`, `ec_prep`).  The local modules `L`, `L2`, `L3`, `L4` are aliases
+(`abbrev`) in the pilot's namespace, so that `proc` opens them.  Gap list in the file's header.
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.Gconcl_list`.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` | done |
+| 315 | local module | `L` | section Ideal. | `L` (alias) | def |
+| 330 | local module | `L2` | section Ideal. | `L2` (alias) | def |
+| 334 | local equiv | `Ideal_equiv_valid` | section Ideal. | `Ideal_equiv_valid` | done |
+| 365 | local equiv | `ideal_equiv2` | section Ideal. | `ideal_equiv2` | done |
+| 421 | local module | `L3` | section Ideal. | `L3` (alias) | def |
+| 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` (EC's `smt`s with `lemma1`–`lemma3`, `incl_dom` by hand) | done |
+| 661 | local module | `L4` | section Ideal. | `L4` (alias) | def |
+| 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` (local macros `l3l4_round`, `l3l4_i_lt_n` for the loop side goals EC repeats) | done |
+| 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (EC's `lemma5`, `lemma5bis`; the invariant's readings stated once at the top) | done |
+| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the four lazy/eager steps are the old port's `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | exc |
+| 971– | section | `Real`, `Real_Ideal`, `Real_Ideal_Abs`, `Simplify_Simulator` | | — | todo |
+
 ## `proof/Sponge.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Sponge`.

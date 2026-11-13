@@ -259,3 +259,52 @@ the old tactics and move only when edited.  New proofs use the strict tactics.
 What stays open in step 3: deleting the old skip variants and `auto_prep` (their users are the
 first-port files and the pilot proofs written before 2026-11-13).
 
+### The port on the strict tactics (2026-11-14): `Pilot/Gconcl_list`, section `Ideal`
+
+Six lemmas of `Gconcl_list.ec` (lines 334–964: `Ideal_equiv_valid`, `ideal_equiv2`,
+`Ideal_equiv3`, `equiv_L3_L4`, `equiv_L4_ideal`, `equiv_ideal`), about 440 lines of EC script,
+written on the new tactics only.  The numbers, against the one lemma of the file written before
+(`ideal_equiv`, on the old tactics):
+
+| | `ideal_equiv` (old tactics) | the six new lemmas |
+|---|---:|---:|
+| `-- EC:` blocks | 39 | 203 |
+| `equiv_auto` / `hoare_auto` | 55 | 0 |
+| `ec_auto` | — | 210 |
+| `auto_close` / `auto_progress` | 27 | 0 |
+| `ec_close` / `ec_progress` | — | 112 |
+| `auto_prep` + `rename_i` | 3 + 6 | 0 |
+| `ec_prep` (before a hand step) | — | 37 |
+| `smt_close` | 21 | 12 |
+| tactic fallbacks (strict mode) | 0 | 0 |
+| `sorry` | 0 | 0 |
+
+What this shows:
+
+* **No positional proof**: not one `rename_i`.  A hand step names values (`x₂`, `F_RO_m₂`) and
+  takes hypotheses by type (`‹inv_L_L3 _ _ _›`).
+* **Every position of EC's script is EC's** (`rcond`, `wp n m`, `rnd{1}`, `seq`, `splitwhile`,
+  about 90 position-taking steps), after one fix (`stmt_splitwhile`, below).
+* **Hand steps are EC's `smt` calls**: where EC writes `smt(lemma1 parse_valid …)` the port
+  applies those lemmas by hand, a line or two each.  `smt_close` was tried once per kind of goal
+  and kept where it worked (12); with `parseK`-like hints it fails on an unknown free variable
+  (`ec_instances`, known).
+
+Changes to shared tactics made on the way, each with a golden test and none to make one proof
+pass that the tactic's specification did not already promise:
+
+| Change | Why | Test |
+|---|---|---|
+| `equiv_call (_ : ={glob M₁, …})`, only `glob`s, declared callee | had no rule (an error) | `ECCallsTest` |
+| `ec_prep`: `(x, y) = e` ↦ `x = e.1`, `y = e.2` | what EC's `sp` leaves for `(x, y) <- e` | `ECProgressTest` |
+| closer: states bound further in become values | `while`/`conseq` final memories were introduced as states | `ECProgressTest` |
+| closer: reads of a memory in the context become values | the other side's memory in a one-sided `rcond` side goal | `ECProgressTest` |
+| value names: module further out on a clash | `F.RO.m` and `F2.RO.m` were `RO_m`, `RO_m1` | `ReadNormTest` |
+| `stmt_splitwhile` re-associates | the two loops were one block: positions after it off by one | `ECLoopTest` |
+
+Gaps found and not fixed (worked around in the proof, listed in the pilot's header as GAP 3–7):
+`glob M` of a concrete module in a `while` invariant stays a region; `equiv_conseq`'s frame over
+a procedure that writes nothing; EC's `call (: I)` on two different concrete procedures has no
+one-condition form; the frame of a call is the module's, not the procedure's; `hoare_conseq` and
+the Hoare `while` have no frame.  The last three are rule gaps of the kind of step 5.
+
