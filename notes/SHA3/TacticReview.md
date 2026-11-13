@@ -308,11 +308,31 @@ a procedure that writes nothing; EC's `call (: I)` on two different concrete pro
 one-condition form; the frame of a call is the module's, not the procedure's; `hoare_conseq` and
 the Hoare `while` have no frame.  The last three are rule gaps of the kind of step 5.
 
-**Where the port stopped.**  Section `Real` (`equiv_sponge`, EC line 1100) does not start for a
-declaration reason: over the old declarations `P = Perm` is a `SLCommon` primitive seen as a
-`BlockSponge` one through a module-type view, which `inline*` does not open
-(`PRIMITIVE.init … P` stays a call; the old port bridged it with a lemma), and EC's
-`={glob D, glob P}` is one joined region.  Both belong to step 4 (`glob`) and to re-porting
-`Gconcl_list`'s declarations in the pilots' style (one module type, as in EC); neither is a
-matter of a proof step.
+**Section `Real` (2026-11-13).**  The port did not need new declarations to go on: what stopped
+`equiv_sponge` was the first port's alias `P` (`abbrev P : BlockSponge.PRIMITIVE := Perm`), which
+`inline*` does not open.  EC's `module P = Perm` is an alias EC itself unfolds, so the statement
+is written with `Perm`, with one `module_subtype` for `SqueezelessSponge(Perm)`, and
+`glob P` as `Perm.m, Perm.mi` (GAP 3, as for `IF`).  Step 4 (`glob`) would turn the two maps
+back into `glob P`; nothing else of section `Real` waits for it.
+
+`equiv_sponge` (EC lines 1100–1434, 335 lines) is done on the strict tactics: 45 `-- EC:` blocks,
+28 `ec_auto`, 29 `ec_close`/`ec_progress`, 6 `ec_prep`, 3 `smt_close`, no `rename_i`, no fallback,
+no `sorry`.  EC's script has some 110 leaf goals closed by `smt(…)` or by hand; after
+`ec_progress` 75 are left here, all by hand with EC's lemmas.  What is new in it:
+
+* EC proves the same five facts on `Redo.prefixes.[take (i+1) p <- v]` in both branches of the
+  permutation's test (by `smt` and by hand, about 50 lines), and the fact "this prefix of
+  `format p (i+1)` is known" at each of eight `rcond`s.  Here each is a lemma stated once before
+  the theorem (`absorb_*`, `squeeze_known_*`), and the leaves are one `exact` each.  This is the
+  one place where the Lean proof is not EC's line for line; EC's lines are kept as comments.
+* `Lib/EC/ListLemmas.lean`: EC's `List` lemmas the script cites (`take0`, `take_le0`,
+  `take_oversize`, `size_take`, `nth_take`, `size_cat`, `size_nseq`, `nth_nseq`, `take_cat`,
+  `last_cat`, `last_nseq`, `nth_last`, …), with EC's names and statements.  They were missing, or
+  in first-port files under other names (`size_take'`, `nth_take_of_lt`).
+* Gaps (pilot header, GAP 8–10): two states known equal by components only after `sp` over a
+  pair assignment; the guard of a split loop `(a && b) = true` left as it is by the closer (third
+  lemma where this costs a `simp only … at *; omega`: a candidate for `ec_prep`'s set, with a
+  golden test); no `seq` on a Hoare triple; `splitwhile`'s condition does not see a variable
+  that is only in the conditions; a goal prints as the plain term right after `sp`.
+* No shared tactic was changed for this lemma.
 

@@ -1,6 +1,7 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl_list
 import GaudisCrypt.Logic.ECProgress
+import GaudisCrypt.Lib.EC.ListLemmas
 
 -- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
 set_option ec.strict true
@@ -49,6 +50,20 @@ Translation:
 * GAP 7: `hoare_conseq (: _ ==> Q)` and the Hoare `while` have no frame: their side goals know
   nothing of what the code keeps (EC's `conseq` quantifies over the modified variables only), so
   a fact about unmodified variables (`(p, n) = parse x`) is carried in `Q` and in the invariant.
+
+* GAP 8: after `sp` over `sa, sc <- (sa +^ b, sc); x <- (sa, sc)` on both sides, the two `x` are
+  known equal by their components only (`x{1}.1 = …`, `x{2}.1 = …`), and the closer does not put
+  them together: the guard `x{1} \in Perm.m <=> x{2} \in Perm.m` and the goals after it start
+  with `have hx : x₁ = x₂ := Prod.ext …`.
+* GAP 9: the closer leaves the guard of a split loop, `(a && b) = true` or `= false`, as it is
+  (also `decide p = !false`): `simp only [Bool.and_eq_true, …] at *; omega`.  No `seq` on a Hoare
+  triple: in the `rcond` side goals our `auto` takes the code after the loop first.
+* GAP 10: `splitwhile`'s condition reads the variables of the code left only: `p`, which is in
+  the conditions alone, is written with its lens.
+* After `sp`, a goal prints as the plain `prhlStmt` term until the next tactic (the conditions
+  `x = e` it adds are not in read form); display only.
+* EC's `List` lemmas the scripts cite (`take0`, `size_take`, `nth_take`, `size_cat`, `last_nseq`,
+  …) were missing or in the first port's files under other names: `Lib/EC/ListLemmas.lean`.
 
 From `Ideal_equiv_valid` on, the proofs are written on the strict tactics (`ec_auto`, `ec_close`,
 `ec_progress`, `ec_prep`: `Logic/ECAutoStrict.lean`, `Logic/ECProgress.lean`); `ideal_equiv` is
@@ -1866,5 +1881,976 @@ theorem equiv_ideal :
   --     (EC's rewrites, in their order, as one chain)
   exact e1.trans (e2.symm.trans (e3.trans (e9.symm.trans (e8.symm.trans
     (e7.trans (e6.trans (e5.trans e4.symm)))))))
+
+/-! ## Section `Real` -/
+
+/-- `Perm` where `SLCommon`'s `DPRIMITIVE` is expected (`SqueezelessSponge(Perm)`): EC's
+subtyping.  EC's `module P = Perm` is not declared: the old port's alias `P` is a `BlockSponge`
+primitive that `inline*` does not open, and EC's scripts are the same with `Perm` for `P`. -/
+module_subtype (EC.PRP.StrongPRP.PRP (block × capacity)) <: SLCommon.DPRIMITIVE
+
+/-! The absorbing loop of `equiv_sponge` extends `Redo.prefixes` by `take (i + 1) p`, a prefix
+it does not know.  EC proves the invariant's facts on the extended map inline, in both branches
+of the permutation's test (`smt(mem_set get_setE domE take_take size_take …)` and by hand); here
+each is stated once. -/
+
+section AbsorbStep
+
+open SLCommon.Prefix (all_prefixes take_take)
+
+variable {P pref : FMap (List block) SLCommon.state} {bl : List block} {i : ℤ}
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- A key of the extended map is in `pref`, or a prefix of `p`. -/
+theorem absorb_dom
+    (hdom : ∀ l, FMap.dom P l → FMap.dom pref l ∨ ∃ j, 0 < j ∧ j ≤ i ∧ l = take j bl)
+    (hi : 0 ≤ i) (v : SLCommon.state) (l : List block)
+    (hl : FMap.dom (FMap.set P (take (i + 1) bl) v) l) :
+    FMap.dom pref l ∨ ∃ j, 0 < j ∧ j ≤ i + 1 ∧ l = take j bl := by
+  rcases (FMap.mem_set _ _ _ _).mp hl with h | rfl
+  · rcases hdom l h with h | ⟨j, hj, hj', rfl⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨j, hj, by omega, rfl⟩
+  · exact Or.inr ⟨i + 1, by omega, le_rfl, rfl⟩
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- The extended map agrees with `pref` on `pref`'s keys. -/
+theorem absorb_get (hpl : ∀ l, FMap.dom pref l → pref.get l = P.get l)
+    (hnd : ¬ FMap.dom P (take (i + 1) bl)) (v : SLCommon.state) (l : List block)
+    (hl : FMap.dom pref l) : pref.get l = (FMap.set P (take (i + 1) bl) v).get l := by
+  have hl' : FMap.dom P l := by rw [FMap.domE, ← hpl l hl, ← FMap.domE]; exact hl
+  rw [FMap.get_set_neqE P (take (i + 1) bl) l v (fun h => hnd (h ▸ hl'))]
+  exact hpl l hl
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- The extended map does not know the next prefix. -/
+theorem absorb_fresh (hall : all_prefixes P) (hnd : ¬ FMap.dom P (take (i + 1) bl))
+    (hi : 0 ≤ i) (hlt : i + 1 < size bl) (v : SLCommon.state) :
+    ¬ FMap.dom (FMap.set P (take (i + 1) bl) v) (take (i + 1 + 1) bl) := by
+  intro hd
+  rcases (FMap.mem_set _ _ _ _).mp hd with h | h
+  · have := hall _ h (i + 1)
+    rw [take_take, min_eq_left (show i + 1 ≤ i + 1 + 1 by omega)] at this
+    exact hnd this
+  · have := congrArg size h
+    rw [size_take (i + 1 + 1) bl (by omega), size_take (i + 1) bl (by omega)] at this
+    split_ifs at this <;> omega
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- The extended map is closed under prefixes. -/
+theorem absorb_all_prefixes (hall : all_prefixes P) (hd : FMap.dom P (take i bl))
+    (v : SLCommon.state) :
+    all_prefixes (FMap.set P (take (i + 1) bl) v) := by
+  intro bs hbs k
+  rw [FMap.mem_set]
+  rcases (FMap.mem_set _ _ _ _).mp hbs with h | h
+  · exact Or.inl (hall _ h k)
+  · rw [h, take_take]
+    by_cases hk : k ≤ i
+    · left
+      rw [min_eq_left (show k ≤ i + 1 by omega)]
+      have := hall _ hd k
+      rwa [take_take, min_eq_left hk] at this
+    · right
+      rw [min_eq_right (show i + 1 ≤ k by omega)]
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- The extended map records the permutation's steps along `p`, up to `i + 1`: `m'` is the
+permutation's map after the step (`m` with, possibly, one more entry), `v` its value at the
+state recorded for `take i p` xored with the next block. -/
+theorem absorb_step {m m' : FMap SLCommon.state SLCommon.state} {sa : block} {sc : capacity}
+    (hall : all_prefixes P) (hnd : ¬ FMap.dom P (take (i + 1) bl))
+    (hget : P.get (take i bl) = some (sa, sc))
+    (hstep : ∀ j, 0 ≤ j ∧ j < i → ∃ b c, P.get (take j bl) = some (b, c) ∧
+      m.get (b +^ nth default bl j, c) = P.get (take (j + 1) bl))
+    (hm : ∀ x, FMap.dom m x → m'.get x = m.get x) (v : SLCommon.state)
+    (hv : m'.get (sa +^ nth default bl i, sc) = some v) (j : ℤ) (hj : 0 ≤ j ∧ j < i + 1) :
+    ∃ b c, (FMap.set P (take (i + 1) bl) v).get (take j bl) = some (b, c) ∧
+      m'.get (b +^ nth default bl j, c) =
+        (FMap.set P (take (i + 1) bl) v).get (take (j + 1) bl) := by
+  have hd : FMap.dom P (take i bl) := (FMap.domE _ _).mpr (by rw [hget]; simp)
+  have hdt : ∀ k, k ≤ i → FMap.dom P (take k bl) := fun k hk => by
+    have := hall _ hd k
+    rwa [take_take, min_eq_left hk] at this
+  have hne : ∀ l, FMap.dom P l → l ≠ take (i + 1) bl := fun l hl h => hnd (h ▸ hl)
+  by_cases hji : j = i
+  · subst hji
+    exact ⟨sa, sc, by rw [FMap.get_set_neqE _ _ _ _ (hne _ hd)]; exact hget,
+      by rw [FMap.get_set_sameE]; exact hv⟩
+  · obtain ⟨b, c, hb, hmb⟩ := hstep j ⟨hj.1, by omega⟩
+    have hd1 := hdt (j + 1) (by omega)
+    refine ⟨b, c, by rw [FMap.get_set_neqE _ _ _ _ (hne _ (hdt j (by omega)))]; exact hb, ?_⟩
+    rw [FMap.get_set_neqE _ _ _ _ (hne _ hd1),
+      hm _ (by rw [FMap.domE, hmb, ← FMap.domE]; exact hd1)]
+    exact hmb
+
+end AbsorbStep
+
+/-! The squeezing loop of `equiv_sponge` runs the squeezeless sponge on `format p (i + 1)` when
+`format p i` is a known prefix: all its blocks but the last are known.  EC proves this at each
+`rcond` and in each loop (`have->: take (i1 + 1) (format bl (i + 1)) = take (i1 + 1) (format bl i);
+smt(all_prefixes_of_INV_real)`, `smt(take_format size_cat size_nseq …)`); here once for the blocks
+of `p` and once for the padding. -/
+
+section SqueezeStep
+
+variable {P : FMap (List block) SLCommon.state} {bl : List block} {i i1 : ℤ}
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- EC's `size_cat`, `size_nseq` on `format`. -/
+theorem size_format (bl : List block) (j : ℤ) : size (format bl j) = size bl + max 0 (j - 1) := by
+  simp only [format, size_cat, size_nseq]
+
+omit [BlockSponge.Params] [Gconcl_list.Params] in
+/-- EC's `smt(take_cat take_le0 cats0)`: within `p`, a prefix of `format p j` is one of `p`. -/
+theorem take_format_le (bl : List block) (j k : ℤ) (hk : k ≤ size bl) :
+    take k (format bl j) = take k bl := by
+  rw [format, take_cat]
+  split_ifs with h
+  · rfl
+  · rw [show k - size bl = 0 by omega, take0, cats0, take_oversize k bl (by omega)]
+
+/-- A prefix of `format p (i + 1)` within `p` is known. -/
+theorem squeeze_known_head {c1 c2 : ℤ} {m mi : FMap SLCommon.state SLCommon.state}
+    (hinv : INV_Real c1 c2 m mi P) (hd : FMap.dom P (format bl i)) (hlt : i1 < size bl) :
+    FMap.dom P (take (i1 + 1) (format bl (i + 1))) := by
+  rw [take_format_le bl (i + 1) (i1 + 1) (by omega), ← take_format_le bl i (i1 + 1) (by omega)]
+  exact all_prefixes_of_INV_real _ _ _ _ _ hinv _ hd _
+
+/-- A prefix of `format p (i + 1)` past `p`, but for the last block, is known. -/
+theorem squeeze_known_tail {c1 c2 : ℤ} {m mi : FMap SLCommon.state SLCommon.state}
+    (hinv : INV_Real c1 c2 m mi P) (hd : FMap.dom P (format bl i)) (hlo : size bl ≤ i1)
+    (hlt : i1 < size (format bl (i + 1)) - 1) :
+    FMap.dom P (take (i1 + 1) (format bl (i + 1))) := by
+  have hs := size_format bl (i + 1)
+  rw [take_format_succ bl i (i1 + 1) (by omega) (by rw [size_format]; omega)]
+  exact all_prefixes_of_INV_real _ _ _ _ _ hinv _ hd _
+
+end SqueezeStep
+
+set_option hygiene false in
+/-- EC's `smt(size_cat size_nseq)` on the guards of `equiv_sponge`'s split loops: the sizes of
+the formats and the guards' conjunctions as linear facts, then `omega`.  (GAP 9: the closer
+leaves a split loop's guard `a && b` as it is.) -/
+local macro "sponge_guard" : tactic => `(tactic| (
+  simp only [size_format, Bool.and_eq_true, Bool.and_eq_false_iff, decide_eq_true_eq,
+    decide_eq_false_iff_not] at *
+  omega))
+
+set_option hygiene false in
+/-- EC's `auto` and `while(i < n);auto;2:smt(). by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;
+auto.`, the side goal of each `rcond` on the last round of `equiv_sponge`'s squeezing loop: the
+loop keeps `i < n` (through the squeezeless sponge's inlined loop).  (No hygiene: `§i`, `§n` are
+the program's variables.) -/
+local macro "sponge_round" : tactic => `(tactic| (
+  intro σ
+  (try stmt_wp)
+  hoare_while (§i < §n)
+  · stmt_sp; stmt_if
+    · ec_auto; stmt_sp; hoare_while (§i < §n)
+      · ec_auto <;> ec_close
+      · ec_close
+      · ec_auto <;> ec_close
+    · ec_auto <;> ec_close
+  · ec_close
+  · ec_auto <;> ec_close))
+
+set_option hygiene false in
+/-- EC's `by auto; while(i1 < size p1);auto;1:if;2:(sp;if);auto;smt(size_cat size_nseq size_ge0)`
+and its variant through `seq 1 : (i1 = size p1 - 1)`, the side goals of the `rcond`s on the last
+block of `format p (i + 1)` in `equiv_sponge`'s squeezing loop: the split loop keeps
+`i1 < size p1`, and `p1` is not empty.  (No `seq` on a Hoare triple, GAP 9: our `auto` takes the
+last round first.  No hygiene: `§i1`, `§p1` are the program's variables.) -/
+local macro "sponge_last" : tactic => `(tactic| (
+  intro σ
+  (try ec_auto)
+  hoare_while (§i1 < size §p1)
+  · ec_auto; ec_progress
+    all_goals
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+      omega
+  · first
+    | ec_close
+    | (ec_prep
+       have h : size p1 ≤ i1 + 1 := by
+         simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
+         omega
+       split_ifs <;> simp [h])
+  · ec_auto; ec_prep
+    simp only [format, size_cat, size_nseq]
+    refine lt_of_lt_of_le ?_ (le_add_of_nonneg_left (size_ge0 _))
+    omega))
+
+-- the functionality's oracle: the squeezeless sponge's inlined loop three times (EC's 300 lines)
+set_option maxHeartbeats 16000000 in
+/-- EC's `local lemma equiv_sponge (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
+equiv [ GReal(A(D)).main ~ NIndif(Squeeze(SqueezelessSponge(P)),P,DRestr(D)).main :
+={glob D} ==> ={res, glob D, glob P, C.c} /\ SLCommon.C.c{1} <= C.c{2} <= max_size]`.
+
+Deviations: EC's `P` (`module P = Perm`) is written `Perm`, and `glob P` its two maps (GAP 3);
+the facts EC proves inline in the two branches of the permutation's test and at each `rcond` are
+the lemmas above (`absorb_*`, `squeeze_known_*`); GAPs 8 to 10 of the file header. -/
+theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCommon.C}),
+    equiv[ SLCommon.GReal(A(D)).main ~
+      NIndif(Squeeze(SLCommon.SqueezelessSponge(Perm)), Perm, DRestr(D)).main :
+      ={glob D} ==> ={res, glob D, Perm.m, Perm.mi, C.c} ∧ §SLCommon.C.c{1} ≤ §C.c{2} ∧
+        §C.c{2} ≤ max_size ] := by
+  intro D _
+  -- EC: proc;inline*;sp;wp.
+  equiv_proc; stmt_inline*; stmt_sp; stmt_wp
+  -- EC: call(: ={Redo.prefixes, glob P, C.c} /\ C.c{1} <= max_size /\
+  --       INV_Real SLCommon.C.c{1} C.c{2} Perm.m{1} Perm.mi{1} Redo.prefixes{1});auto;last first.
+  equiv_call (_ : ={SLCommon.Redo.prefixes, Perm.m, Perm.mi, C.c} ∧ §C.c{1} ≤ max_size ∧
+    INV_Real §SLCommon.C.c{1} §C.c{2} §Perm.m{1} §Perm.mi{1} §SLCommon.Redo.prefixes{1})
+  rotate_right
+  -- EC: + progress.
+  --       + exact max_ge0.
+  --       + by split=>//=;1:split;smt(mem_empty in_fset0 mem_set get_setE).
+  --       by case:H2=>//=.
+  · ec_auto; ec_progress
+    · exact SLCommon.max_ge0
+    --     (the old port's `INV_Real_init`)
+    · exact INV_Real_init
+    · obtain ⟨h, -, -⟩ := ‹INV_Real _ _ _ _ _›
+      exact h
+  -- EC: + by proc;inline*;auto;sp;if;auto;sp;if;auto;
+  --         smt(INV_Real_addm_mi INV_Real_incr supp_dexcepted).
+  · equiv_proc; stmt_inline*; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto; stmt_sp; stmt_if
+    · ec_close
+    all_goals ec_auto
+    all_goals ec_progress
+    · exact INV_Real_incr _ _ _ _ _ (INV_Real_addm_mi _ _ _ _ _ _ _ ‹INV_Real _ _ _ _ _› ‹¬ _›
+        (not_of_mem_support_dexcepted ‹_›))
+    · exact INV_Real_incr _ _ _ _ _ ‹_›
+  -- EC: + proc;inline*;auto;sp;if;auto;sp;if;auto;progress.
+  · equiv_proc; stmt_inline*; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto; stmt_sp; stmt_if
+    · ec_close
+    all_goals ec_auto
+    all_goals ec_progress
+    --     + apply INV_Real_incr=>//=.
+    --       apply INV_Real_addm_mi=>//=.
+    --       + case:H0=>H_c H_m_p H_invm;rewrite (invm_dom_rng _ _ H_invm)//=.
+    --         by move:H3;rewrite supp_dexcepted.
+    --       case:H0=>H_c H_m_p H_invm;have<-//:=(invm_dom_rng Perm.mi{2} Perm.m{2}).
+    --       by rewrite invmC.
+    · apply INV_Real_incr
+      obtain ⟨H_c, H_m_p, H_invm⟩ := ‹INV_Real _ _ _ _ _›
+      apply INV_Real_addm_mi _ _ _ _ _ _ _ ⟨H_c, H_m_p, H_invm⟩
+      · rw [invm_dom_rng _ _ H_invm]
+        exact not_of_mem_support_dexcepted ‹_›
+      · rw [← invm_dom_rng _ _ ((invmC _ _).mp H_invm)]
+        assumption
+    --     + exact INV_Real_incr.
+    · exact INV_Real_incr _ _ _ _ _ ‹_›
+  -- EC: + proc;inline*;sp;if;auto.
+  · equiv_proc; stmt_inline*; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto
+    -- EC: swap 6;wp;sp=>/=;if;auto;last by progress;split;case:H0=>//=;smt(size_ge0).
+    stmt_swap 6; stmt_wp; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 =>
+      ec_auto; ec_progress
+      obtain ⟨h, hm, hi⟩ := ‹INV_Real _ _ _ _ _›
+      exact ⟨by have := size_ge0 x0₂.1; omega, hm, hi⟩
+    -- EC: conseq(: p{2} = bl{2} /\ n{2} = nb{2} /\ lres{2} = [] /\ b{2} = b0 /\
+    --     i{2} = 0 /\ p{1} = bl{1} /\ n{1} = nb{1} /\ lres{1} = [] /\ b{1} = b0 /\
+    --     i{1} = 0 /\ z{2} = [] /\ z{1} = [] /\ ={bl, nb} /\ ={Redo.prefixes} /\
+    --     ={Perm.mi, Perm.m} /\ ={C.c} /\
+    --     INV_Real SLCommon.C.c{1} C.c{2} Perm.m{1} Perm.mi{1} Redo.prefixes{1} /\
+    --     C.c{1} + size bl{1} + max (nb{1} - 1) 0 <= max_size /\ valid p{1}
+    --   ==> ={lres} /\ ={Redo.prefixes} /\ ={Perm.mi, Perm.m} /\
+    --     C.c{1} + size bl{1} + max (nb{1} - 1) 0 =
+    --     C.c{2} + size bl{2} + max (nb{2} - 1) 0 /\
+    --     INV_Real SLCommon.C.c{1} (C.c{2} + size bl{2} + max (nb{2} - 1) 0)
+    --     Perm.m{1} Perm.mi{1} Redo.prefixes{1});progress.
+    equiv_conseq (: §p{2} = §bl{2} ∧ §n{2} = §nb{2} ∧ §lres{2} = [] ∧ §b{2} = b0 ∧
+      §i{2} = 0 ∧ §p{1} = §bl{1} ∧ §n{1} = §nb{1} ∧ §lres{1} = [] ∧ §b{1} = b0 ∧
+      §i{1} = 0 ∧ §z{2} = [] ∧ §z{1} = [] ∧ ={bl, nb} ∧ ={SLCommon.Redo.prefixes} ∧
+      ={Perm.mi, Perm.m} ∧ ={C.c} ∧
+      INV_Real §SLCommon.C.c{1} §C.c{2} §Perm.m{1} §Perm.mi{1} §SLCommon.Redo.prefixes{1} ∧
+      §C.c{1} + size §bl{1} + max (§nb{1} - 1) 0 ≤ max_size ∧ valid §p{1}
+      ==> ={lres} ∧ ={SLCommon.Redo.prefixes} ∧ ={Perm.mi, Perm.m} ∧
+      §C.c{1} + size §bl{1} + max (§nb{1} - 1) 0 =
+      §C.c{2} + size §bl{2} + max (§nb{2} - 1) 0 ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{2} + size §bl{2} + max (§nb{2} - 1) 0)
+      §Perm.m{1} §Perm.mi{1} §SLCommon.Redo.prefixes{1})
+    case pre => ec_close
+    case post => ec_close
+    -- EC: sp.
+    stmt_sp
+    -- EC: seq 2 2:(={i,n,p,lres,nb,bl,b,glob P,glob C,glob Redo}
+    --            /\  INV_Real SLCommon.C.c{1} (C.c{2} + size bl{2})
+    --                  Perm.m{1} Perm.mi{1} Redo.prefixes{1}
+    --            /\  (n,p){1} = (nb,bl){1} /\ lres{1} = [] /\ i{1} = 0
+    --            /\  valid p{1}
+    --            /\ Redo.prefixes.[p]{1} = Some (b,sc){1}).
+    equiv_seq 2 2 : (={i, n, p, lres, nb, bl, b, Perm.m, Perm.mi, C.c, SLCommon.Redo.prefixes} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{2} + size §bl{2}) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      (§n{1}, §p{1}) = (§nb{1}, §bl{1}) ∧ §lres{1} = [] ∧ §i{1} = 0 ∧ valid §p{1} ∧
+      (§SLCommon.Redo.prefixes{1}).get §p{1} = some (§b{1}, §sc{1}))
+    -- EC: + exists* Redo.prefixes{1},SLCommon.C.c{1};elim* => pref count/=.
+    · equiv_exists* §SLCommon.Redo.prefixes{1}, §SLCommon.C.c{1}
+      intro pref count
+      -- EC: wp;conseq(:_==> ={i0,p0,i,p,n,nb,bl,sa,lres,C.c,glob Redo,glob Perm}
+      --           /\ n{1} = nb{1} /\ p{1} = bl{1} /\ p0{1} = p{1} /\ i0{1} = size p{1}
+      --           /\ Redo.prefixes{1}.[take i0{1} p{1}] = Some (sa{1},sc{1})
+      --           /\ INV_Real count C.c{1} Perm.m{1} Perm.mi{1} pref
+      --           /\ (forall l, l \in Redo.prefixes{1} =>
+      --                l \in pref \/ (exists j, 0 < j <= i0{2} /\ l = take j p{1}))
+      --           /\ (forall l, l \in pref => pref.[l] = Redo.prefixes{1}.[l])
+      --           /\ SLCommon.C.c{1} <= count + i0{1} <= C.c{1} + i0{1}
+      --           /\ (forall j, 0 <= j < i0{1} =>
+      --                exists b c, Redo.prefixes{1}.[take j p{1}] = Some (b,c) /\
+      --                Perm.m{1}.[(b +^ nth witness p{1} j, c)] =
+      --                Redo.prefixes{1}.[take (j+1) p{1}]));
+      --       progress.
+      stmt_wp
+      equiv_conseq (: _ ==> ={i0, p0, i, p, n, nb, bl, sa, lres, C.c, SLCommon.Redo.prefixes,
+          Perm.m, Perm.mi} ∧
+        §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p0{1} = §p{1} ∧ §i0{1} = size §p{1} ∧
+        (§SLCommon.Redo.prefixes{1}).get (take §i0{1} §p{1}) = some (§sa{1}, §sc{1}) ∧
+        INV_Real count §C.c{1} §Perm.m{1} §Perm.mi{1} pref ∧
+        (∀ l, FMap.dom §SLCommon.Redo.prefixes{1} l →
+          FMap.dom pref l ∨ ∃ j, 0 < j ∧ j ≤ §i0{2} ∧ l = take j §p{1}) ∧
+        (∀ l, FMap.dom pref l → pref.get l = (§SLCommon.Redo.prefixes{1}).get l) ∧
+        §SLCommon.C.c{1} ≤ count + §i0{1} ∧ count + §i0{1} ≤ §C.c{1} + §i0{1} ∧
+        (∀ j, 0 ≤ j ∧ j < §i0{1} →
+          ∃ b c, (§SLCommon.Redo.prefixes{1}).get (take j §p{1}) = some (b, c) ∧
+            (§Perm.m{1}).get (b +^ nth default §p{1} j, c) =
+              (§SLCommon.Redo.prefixes{1}).get (take (j + 1) §p{1})))
+      case post =>
+        ec_progress
+        --     - have inv0:=H3;have[]h_c1c2[]Hmp0 Hmp1 Hinvm:=inv0;split=>//=.
+        · obtain ⟨h_c1c2, ⟨Hmp0, Hmp1⟩, Hinvm⟩ := ‹INV_Real _ _ Perm_m₂ _ _›
+          have H4 : ∀ l, FMap.dom Redo_prefixes₂ l →
+              FMap.dom prefixes₂ l ∨ ∃ j, 0 < j ∧ j ≤ size p0₂1 ∧ l = take j p0₂1 := by assumption
+          have H5 : ∀ l, FMap.dom prefixes₂ l → prefixes₂.get l = Redo_prefixes₂.get l := by
+            assumption
+          have H8 : ∀ j : ℤ, 0 ≤ j ∧ j < size p0₂1 →
+              ∃ b c, Redo_prefixes₂.get (take j p0₂1) = some (b, c) ∧
+                Perm_m₂.get (b +^ nth default p0₂1 j, c) =
+                  Redo_prefixes₂.get (take (j + 1) p0₂1) := by assumption
+          refine ⟨?_, ⟨?_, ?_⟩, Hinvm⟩
+          --       - case:inv0;smt(size_ge0).
+          · omega
+          --       split=>//=.
+          --       - smt(domE).
+          · rw [← H5 [] ((FMap.domE _ _).mpr (by rw [Hmp0]; simp))]
+            exact Hmp0
+          --       - move=>l H_dom_R i []Hi0 Hisize;have:=H4 l H_dom_R.
+          --         case(l \in Redo.prefixes{2})=>H_in_pref//=.
+          · intro l H_dom_R i ⟨Hi0, Hisize⟩
+            rcases H4 l H_dom_R with H_in_pref | ⟨j, hj0, hjsize, rfl⟩
+            --         * have:=Hmp1 l H_in_pref i _;rewrite//=.
+            --           rewrite ?H5//=;1:smt(domE).
+            --           case(i+1 < size l)=>h;1:smt(domE).
+            --           by rewrite take_oversize 1:/#.
+            · obtain ⟨b, c, hb, hm⟩ := Hmp1 l H_in_pref i ⟨Hi0, Hisize⟩
+              refine ⟨b, c, ?_, ?_⟩
+              · rw [← H5 _ ((FMap.domE _ _).mpr (by rw [hb]; simp))]
+                exact hb
+              rw [hm]
+              by_cases h : i + 1 < size l
+              · obtain ⟨b', c', hb', -⟩ := Hmp1 l H_in_pref (i + 1) ⟨by omega, h⟩
+                exact H5 _ ((FMap.domE _ _).mpr (by rw [hb']; simp))
+              · rw [take_oversize (i + 1) l (by omega)]
+                exact H5 _ H_in_pref
+            --         move=>[]j[][]hj0 hjsize ->>.
+            --         have:=Hisize;rewrite size_take 1:/#.
+            --         pose k:=if _ then _ else _.
+            --         have: k = j by smt().
+            --         move: k=> /> Hij.
+            --         rewrite !take_take!minrE 1:nth_take 1,2:/#.
+            --         rewrite lez_eqVlt -ltzE Hij /=.
+            --         by move: (H8 i _)=> /#.
+            · have Hij : i < j := by
+                rw [size_take j p0₂1 (by omega)] at Hisize
+                split_ifs at Hisize <;> omega
+              obtain ⟨b, c, hb, hm⟩ := H8 i ⟨Hi0, by omega⟩
+              refine ⟨b, c, ?_, ?_⟩
+              · rw [SLCommon.Prefix.take_take, min_eq_left (show i ≤ j by omega)]
+                exact hb
+              · rw [nth_take default j p0₂1 i (by omega) Hij, SLCommon.Prefix.take_take,
+                  min_eq_left (show i + 1 ≤ j by omega)]
+                exact hm
+        --     - smt(get_setE oget_some domE take_oversize).
+        · rw [← take_size p0₂1]
+          assumption
+      -- EC: while( ={i0,p0,i,p,n,nb,bl,sa,sc,lres,C.c,glob Redo,glob Perm}
+      --       /\ n{1} = nb{1} /\ p{1} = bl{1} /\ p0{1} = p{1} /\ 0 <= i0{1} <= size p{1}
+      --       /\ Redo.prefixes{1}.[take i0{1} p{1}] = Some (sa{1},sc{1})
+      --       /\ INV_Real count C.c{1} Perm.m{1} Perm.mi{1} pref
+      --       /\ (forall l, l \in Redo.prefixes{1} =>
+      --            l \in pref \/ (exists j, 0 < j <= i0{2} /\ l = take j p{1}))
+      --       /\ (forall l, l \in pref => pref.[l] = Redo.prefixes{1}.[l])
+      --       /\ SLCommon.C.c{1} <= count + i0{1} <= C.c{1} + i0{1}
+      --       /\ (i0{1} < size p0{1} =>
+      --            take (i0{1}+1) p{1} \in Redo.prefixes{1} =>
+      --            Redo.prefixes{1} = pref)
+      --       /\ all_prefixes Redo.prefixes{1}
+      --       /\ (forall j, 0 <= j < i0{1} =>
+      --            exists b c, Redo.prefixes{1}.[take j p{1}] = Some (b,c) /\
+      --            Perm.m{1}.[(b +^ nth witness p{1} j, c)] =
+      --            Redo.prefixes{1}.[take (j+1) p{1}]));last first.
+      equiv_while (={i0, p0, i, p, n, nb, bl, sa, sc, lres, C.c, SLCommon.Redo.prefixes,
+          Perm.m, Perm.mi} ∧
+        §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p0{1} = §p{1} ∧ 0 ≤ §i0{1} ∧ §i0{1} ≤ size §p{1} ∧
+        (§SLCommon.Redo.prefixes{1}).get (take §i0{1} §p{1}) = some (§sa{1}, §sc{1}) ∧
+        INV_Real count §C.c{1} §Perm.m{1} §Perm.mi{1} pref ∧
+        (∀ l, FMap.dom §SLCommon.Redo.prefixes{1} l →
+          FMap.dom pref l ∨ ∃ j, 0 < j ∧ j ≤ §i0{2} ∧ l = take j §p{1}) ∧
+        (∀ l, FMap.dom pref l → pref.get l = (§SLCommon.Redo.prefixes{1}).get l) ∧
+        §SLCommon.C.c{1} ≤ count + §i0{1} ∧ count + §i0{1} ≤ §C.c{1} + §i0{1} ∧
+        (§i0{1} < size §p0{1} → FMap.dom §SLCommon.Redo.prefixes{1} (take (§i0{1} + 1) §p{1}) →
+          §SLCommon.Redo.prefixes{1} = pref) ∧
+        SLCommon.Prefix.all_prefixes §SLCommon.Redo.prefixes{1} ∧
+        (∀ j, 0 ≤ j ∧ j < §i0{1} →
+          ∃ b c, (§SLCommon.Redo.prefixes{1}).get (take j §p{1}) = some (b, c) ∧
+            (§Perm.m{1}).get (b +^ nth default §p{1} j, c) =
+              (§SLCommon.Redo.prefixes{1}).get (take (j + 1) §p{1})))
+      rotate_left
+      -- EC: + auto;progress.
+      --       - exact size_ge0.
+      --       - by rewrite take0;have[]_[]->//=:=H.
+      --       - smt().
+      --       - by have[]->//=:=H.
+      --       - smt(all_prefixes_of_INV_real).
+      --       - smt().
+      --       - smt().
+      --     (four left after `progress`)
+      · ec_auto; ec_progress
+        · exact size_ge0 _
+        · rw [take0]
+          obtain ⟨-, ⟨h0, -⟩, -⟩ := ‹INV_Real _ _ _ _ _›
+          exact h0
+        · obtain ⟨h, -, -⟩ := ‹INV_Real _ _ _ _ _›
+          omega
+        · exact all_prefixes_of_INV_real _ _ _ _ _ ‹_› _ ‹_› _
+      -- EC: if;auto;progress.
+      --     - smt().
+      --     - smt().
+      --     - smt(domE).
+      --     - smt(domE).
+      --     - smt().
+      --     - smt().
+      --     - smt(all_prefixes_of_INV_real domE take_take size_take).
+      --     (two left after `progress`: the known prefix's entry, and the step at `i0`)
+      stmt_if
+      · ec_close
+      · ec_auto; ec_progress
+        · exact FMap.get_some _ _ ‹_›
+        --     - case(j < i0{2})=>hj;1:smt().
+        --       have<<-/=:j = i0{2} by smt().
+        --       have->>:=H7 H10 H12.
+        --       have[]_[]hmp0 hmp1 _:=H2.
+        --       have[]b3 c3:=hmp1 _ H12 j _;1:smt(size_take).
+        --       smt(take_take nth_take size_take).
+        · by_cases hj : j < i0₂
+          · apply_assumption
+            exact ⟨‹0 ≤ j›, hj⟩
+          obtain rfl : i0₂ = j := by omega
+          obtain ⟨-, ⟨-, hmp1⟩, -⟩ := ‹INV_Real count c₂ m₂ mi₂ prefixes₂›
+          obtain ⟨b3, c3, hb, hm⟩ := hmp1 _ ‹FMap.dom prefixes₂ (take (i0₂ + 1) bl₂)› i0₂
+            ⟨‹0 ≤ i0₂›, by rw [size_take (i0₂ + 1) bl₂ (by omega)]; split_ifs <;> omega⟩
+          rw [SLCommon.Prefix.take_take, min_eq_left (show i0₂ ≤ i0₂ + 1 by omega)] at hb
+          rw [nth_take default (i0₂ + 1) bl₂ i0₂ (by omega) (by omega),
+            SLCommon.Prefix.take_take, min_self] at hm
+          exact ⟨b3, c3, hb, hm⟩
+      -- EC: sp;if;auto;progress.
+      --     (GAP 8: the guard, the same state on both sides: its components are known equal,
+      --     the closer does not put them together)
+      stmt_sp; stmt_if
+      · ec_prep
+        have hx : x3₁ = x1₂ := Prod.ext (by simp only [*]) (by simp only [*])
+        simp [hx]
+      all_goals ec_auto
+      all_goals ec_progress
+      --     (the facts of the invariant, by their statements; the permutation's argument is the
+      --     same state on both sides, GAP 8)
+      all_goals
+        have hx : x3₁ = x1₂ := Prod.ext (by simp only [*]) (by simp only [*])
+        subst hx
+        have hinv : INV_Real count c₂ m₂ mi₂ pref := by assumption
+        have hall : SLCommon.Prefix.all_prefixes prefixes₂ := by assumption
+        have hpl : ∀ l, FMap.dom pref l → pref.get l = prefixes₂.get l := by assumption
+        have hdom : ∀ l, FMap.dom prefixes₂ l →
+            FMap.dom pref l ∨ ∃ j, 0 < j ∧ j ≤ i0₂ ∧ l = take j bl₂ := by assumption
+        have hstep : ∀ j : ℤ, 0 ≤ j ∧ j < i0₂ →
+            ∃ b c, prefixes₂.get (take j bl₂) = some (b, c) ∧
+              m₂.get (b +^ nth default bl₂ j, c) = prefixes₂.get (take (j + 1) bl₂) := by
+          assumption
+        have hnd : ¬ FMap.dom prefixes₂ (take (i0₂ + 1) bl₂) := by assumption
+        have hi0 : 0 ≤ i0₂ := by assumption
+        obtain ⟨sa, sc, hget, hx3⟩ : ∃ sa sc, prefixes₂.get (take i0₂ bl₂) = some (sa, sc) ∧
+            x3₁ = (sa +^ nth default bl₂ i0₂, sc) :=
+          ⟨_, _, ‹prefixes₂.get (take i0₂ bl₂) = some _›, Prod.ext ‹x3₁.1 = _› ‹x3₁.2 = _›⟩
+        have hdi : FMap.dom prefixes₂ (take i0₂ bl₂) := (FMap.domE _ _).mpr (by rw [hget]; simp)
+      --     - smt().
+      --     - smt().
+      · rfl
+      · rfl
+      --     - smt(get_setE domE).
+      --     - rewrite INV_Real_addm_mi//=;smt(supp_dexcepted).
+      · exact INV_Real_addm_mi _ _ _ _ _ _ _ hinv ‹¬ FMap.dom m₂ x3₁›
+          (not_of_mem_support_dexcepted ‹_›)
+      --     - smt(mem_set).
+      · exact absorb_dom hdom hi0 _ _ ‹_›
+      --     - smt(get_setE domE).
+      · exact absorb_get hpl hnd _ _ ‹_›
+      --     - smt().
+      --     - smt().
+      --     - move:H17;apply absurd=>//=_;rewrite mem_set.
+      --       pose x:=_ = _;have->/={x}:x=false by smt(size_take).
+      --       move:H12;apply absurd=>//= hpref.
+      --       have:= H8 _ hpref (i0{2}+1).
+      --       smt(mem_set take_take size_take).
+      · exact absurd ‹_› (absorb_fresh hall hnd hi0 ‹_› _)
+      --     - move=>l;rewrite!mem_set;case=>[H_dom i|->>]/=.
+      --       * by rewrite mem_set;smt().
+      --       move=>j; case(0 <= j)=>hj0; rewrite mem_set.
+      --       * case: (j <= i0{2}) => hjmax; 2:smt(take_oversize size_take).
+      --         left; have-> : take j (take (i0{2}+1) bl{2}) = take j (take i0{2} bl{2}).
+      --         * by rewrite 2!take_take !minrE /#.
+      --         by apply H8; rewrite domE H1.
+      --       rewrite take_le0 1:/#; left.
+      --       by rewrite-(take0 (take i0{2} bl{2})) H8 domE H1.
+      · exact absorb_all_prefixes hall hdi _ _ ‹_› _
+      --     - rewrite !get_set_sameE /=.
+      --       rewrite get_set_neqE 1:/#.
+      --       case: (j = i0{2})=> />.
+      --       + by exists sa_R sc{2}; rewrite !get_set_sameE H1; case: y1L H14 H15.
+      --       move=> neq_j_i0; move: (H9 j _); [1:smt()|2:case=> b' c' []].
+      --       move=> ^ H18 -> H19; exists b' c'=> //=.
+      --       by rewrite !get_set_neqE 1,2:/#.
+      · exact absorb_step hall hnd hget hstep
+          (fun x hx => FMap.get_set_neqE _ _ _ _ (by rintro rfl; exact ‹¬ FMap.dom m₂ _› hx)) _
+          (by rw [← hx3]; exact FMap.get_some _ _ ((FMap.mem_set _ _ _ _).mpr (Or.inr rfl)))
+          j ⟨‹0 ≤ j›, ‹j < i0₂ + 1›⟩
+      --     - smt(get_setE domE).
+      --     - smt().
+      --     - smt(get_setE domE).
+      · rfl
+      · rfl
+      · rfl
+      --     - smt(mem_set).
+      · exact absorb_dom hdom hi0 _ _ ‹_›
+      --     - smt(get_setE domE).
+      · exact absorb_get hpl hnd _ _ ‹_›
+      --     - smt().
+      --     - smt().
+      --     - move:H15;apply absurd=>//=_;rewrite mem_set.
+      --       pose x:=_ = _;have->/={x}:x=false by smt(size_take).
+      --       move:H12;apply absurd=>//=.
+      --       have:=take_take bl{2}(i0{2} + 1)(i0{2} + 1 + 1).
+      --       rewrite minrE (: i0{2} + 1 <= i0{2} + 1 + 1) 1:/#=><-h.
+      --       by rewrite (H8 _ h).
+      · exact absurd ‹_› (absorb_fresh hall hnd hi0 ‹_› _)
+      --     - move=>l;rewrite!mem_set;case=>[H_dom|->>]/=;1:smt(mem_set).
+      --       move=>j;rewrite mem_set.
+      --       case(0 <= j)=>hj0; last first.
+      --       * rewrite take_le0 1:/#; left.
+      --         by rewrite-(take0 (take i0{2} bl{2})) H8 domE H1.
+      --       case(j < i0{2} + 1)=>hjiS;2:smt(domE take_take).
+      --       rewrite take_take/min hjiS//=;left.
+      --       have:=(take_take bl{2} j i0{2}).
+      --       rewrite minrE (: j <= i0{2}) 1:/#=><-.
+      --       smt(all_prefixes_of_INV_real domE).
+      · exact absorb_all_prefixes hall hdi _ _ ‹_› _
+      --     - rewrite get_set_neqE 1:/# get_setE; case: (j = i0{2})=> />.
+      --       + move: H13; rewrite domE; case _: (Perm.m.[sa_R +^ nth witness bl i0, sc]{2})=> />.
+      --         move=> [] b' c' /= p_sasc.
+      --         by exists sa_R sc{2}.
+      --       move=> j_neq_i0; move: (H9 j _); smt().
+      · exact absorb_step hall hnd hget hstep (fun _ _ => rfl) _
+          (by rw [← hx3]; exact FMap.get_some _ _ (of_decide_eq_true ‹_›))
+          j ⟨‹0 ≤ j›, ‹j < i0₂ + 1›⟩
+    -- EC: sp;case(0 < n{1});last first.
+    --     (EC's `sp`: nothing to do here)
+    equiv_case (0 < §n{1})
+    -- EC: - rcondf{1}1;2:rcondf{2}1;auto;1:smt().
+    on_goals 2 =>
+      stmt_rcondf{1} 1
+      on_goals 2 => stmt_rcondf{2} 1
+      · intro σ₂; ec_auto
+      · intro σ₁; ec_auto
+      ec_auto; smt_close []
+    -- EC: splitwhile{1} 1 : i + 1 < n;splitwhile{2} 1 : i + 1 < n.
+    stmt_splitwhile{1} 1 : §i + 1 < §n
+    stmt_splitwhile{2} 1 : §i + 1 < §n
+    -- EC: rcondt{1}2;2:rcondt{2}2;auto;progress.
+    --     + while(i < n);auto.
+    --       by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;auto.
+    --     + while(i < n);auto.
+    --       by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;auto.
+    stmt_rcondt{1} 2
+    on_goals 2 => stmt_rcondt{2} 2
+    · sponge_round
+    · sponge_round
+    -- EC: rcondf{1}4;2:rcondf{2}4;auto.
+    --     + while(i < n);auto;2:smt().
+    --       by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;auto.
+    --     + while(i < n);auto;2:smt().
+    --       by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;auto.
+    stmt_rcondf{1} 4
+    on_goals 2 => stmt_rcondf{2} 4
+    · sponge_round
+    · sponge_round
+    -- EC: rcondf{1}4;2:rcondf{2}4;1,2:auto.
+    --     + while(i < n);auto;2:smt().
+    --       by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;auto.
+    --     + while(i < n);auto;2:smt().
+    --       by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;auto.
+    stmt_rcondf{1} 4
+    on_goals 2 => stmt_rcondf{2} 4
+    · sponge_round
+    · sponge_round
+    -- EC: conseq(:_==> ={i,n,p,lres,nb,bl,b,glob P,glob C,glob Redo}
+    --            /\  INV_Real SLCommon.C.c{1} (C.c{2} + size bl{2} + i{1} - 1)
+    --                  Perm.m{1} Perm.mi{1} Redo.prefixes{1}
+    --            /\  i{1} = n{1});1:smt();wp.
+    equiv_conseq (: _ ==> ={i, n, p, lres, nb, bl, b, Perm.m, Perm.mi, C.c,
+        SLCommon.Redo.prefixes} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{2} + size §bl{2} + §i{1} - 1) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      §i{1} = §n{1})
+    case post => smt_close []
+    stmt_wp
+    -- EC: conseq(:_==> ={i,n,p,lres,nb,bl,b,glob P,glob C,glob Redo}
+    --            /\  INV_Real SLCommon.C.c{1} (C.c{2} + size bl{2} + i{1})
+    --                  Perm.m{1} Perm.mi{1} Redo.prefixes{1}
+    --            /\  i{1}+1 = n{1});1:smt().
+    equiv_conseq (: _ ==> ={i, n, p, lres, nb, bl, b, Perm.m, Perm.mi, C.c,
+        SLCommon.Redo.prefixes} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{2} + size §bl{2} + §i{1}) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      §i{1} + 1 = §n{1})
+    case post => smt_close []
+    -- EC: while(={i,n,p,lres,nb,bl,b,glob P,glob C,glob Redo}
+    --            /\  INV_Real SLCommon.C.c{1} (C.c{2} + size bl{2} + i{1})
+    --                  Perm.m{1} Perm.mi{1} Redo.prefixes{1}
+    --            /\  (n,p){1} = (nb,bl){1} /\ 0 < i{1}+1 <= n{1}
+    --            /\  valid p{1}
+    --            /\  (exists c2, Redo.prefixes.[format p (i+1)]{1} = Some (b,c2){1}));
+    --     last by auto;smt(nseq0 cats0).
+    equiv_while (={i, n, p, lres, nb, bl, b, Perm.m, Perm.mi, C.c, SLCommon.Redo.prefixes} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{2} + size §bl{2} + §i{1}) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      (§n{1}, §p{1}) = (§nb{1}, §bl{1}) ∧ 0 < §i{1} + 1 ∧ §i{1} + 1 ≤ §n{1} ∧ valid §p{1} ∧
+      ∃ c2, (§SLCommon.Redo.prefixes{1}).get (format §p{1} (§i{1} + 1)) = some (§b{1}, c2))
+    rotate_left
+    · ec_auto; ec_progress
+      · exact ⟨sc₁, by rw [zero_add, format_one]; assumption⟩
+      · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
+        omega
+    -- EC: sp;rcondt{1}1;2:rcondt{2}1;auto.
+    stmt_sp; stmt_rcondt{1} 1
+    on_goals 2 => stmt_rcondt{2} 1
+    · intro σ₂; ec_auto; ec_close
+    · intro σ₁; ec_auto; ec_close
+    -- EC: sp.
+    stmt_sp
+    -- EC: splitwhile{1} 1 : i1 < size p1 - 1;splitwhile{2} 1 : i1 < size p1 - 1.
+    stmt_splitwhile{1} 1 : §i1 < size §p1 - 1
+    stmt_splitwhile{2} 1 : §i1 < size §p1 - 1
+    -- EC: rcondt{1}2;2:rcondt{2}2;1,2:by auto;
+    --       while(i1 < size p1);auto;1:if;2:(sp;if);auto;smt(size_cat size_nseq size_ge0).
+    stmt_rcondt{1} 2
+    on_goals 2 => stmt_rcondt{2} 2
+    · sponge_last
+    · sponge_last
+    -- EC: rcondf{1}4;2:rcondf{2}4;1,2:by auto;
+    --       seq 1 : (i1 = size p1 - 1);1:(auto;
+    --         while(i1 < size p1);auto;1:if;2:(sp;if);auto;smt(size_cat size_nseq size_ge0));
+    --       if;sp;2:if;auto;smt(size_cat size_nseq size_ge0).
+    stmt_rcondf{1} 4
+    on_goals 2 => stmt_rcondf{2} 4
+    · sponge_last
+    · sponge_last
+    -- EC: wp=>//=.
+    stmt_wp
+    -- EC: wp;conseq(:_==> ={sa0,sc0,glob Redo,glob Perm}
+    --             /\ INV_Real SLCommon.C.c{1} (C.c{1} + size bl{2} + i{1})
+    --                  Perm.m{1} Perm.mi{1} Redo.prefixes{1}
+    --             /\ (format p{1} i{1} \in Redo.prefixes{1})
+    --             /\ exists (c2 : capacity), Redo.prefixes{1}.[format p{1} (i{1}+1)] =
+    --                  Some (sa0{1}, c2));progress.
+    --     + smt(size_ge0).
+    --     + smt(size_ge0).
+    --     + smt().
+    equiv_conseq (: _ ==> ={sa0, sc0, SLCommon.Redo.prefixes, Perm.m, Perm.mi} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{1} + size §bl{2} + §i{1}) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      FMap.dom §SLCommon.Redo.prefixes{1} (format §p{1} §i{1}) ∧
+      ∃ c2 : capacity,
+        (§SLCommon.Redo.prefixes{1}).get (format §p{1} (§i{1} + 1)) = some (§sa0{1}, c2))
+    case post => ec_close
+    -- EC: seq 1 1 : (={nb,bl,n,p,p1,i,i1,lres,sa0,sc0,C.c,glob Redo,glob Perm}
+    --             /\ n{1} = nb{1} /\ p{1} = bl{1} /\ p1{1} = format p{1} (i{1}+1)
+    --             /\ 1 <= i{1} < n{1} /\ valid p{1} /\ i1{1} = size p1{1} - 1
+    --             /\ Redo.prefixes{1}.[format p{1} i{1}] = Some (sa0{1},sc0{1})
+    --             /\ INV_Real SLCommon.C.c{1} (C.c{1} + size bl{2} + i{1} - 1) Perm.m{1}
+    --                  Perm.mi{1} Redo.prefixes{1});last first.
+    equiv_seq 1 1 : (={nb, bl, n, p, p1, i, i1, lres, sa0, sc0, C.c, SLCommon.Redo.prefixes,
+        Perm.m, Perm.mi} ∧
+      §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p1{1} = format §p{1} (§i{1} + 1) ∧
+      1 ≤ §i{1} ∧ §i{1} < §n{1} ∧ valid §p{1} ∧ §i1{1} = size §p1{1} - 1 ∧
+      (§SLCommon.Redo.prefixes{1}).get (format §p{1} §i{1}) = some (§sa0{1}, §sc0{1}) ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{1} + size §bl{2} + §i{1} - 1) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1})
+    rotate_left
+    -- EC: + if;auto;progress.
+    · stmt_if
+      · ec_close
+      · ec_auto; ec_progress
+        --     - by split;case:H3=>//=;smt().
+        · obtain ⟨h, hm, hi⟩ := ‹INV_Real _ _ _ _ _›
+          exact ⟨by omega, hm, hi⟩
+        --     - by rewrite domE H2//=.
+        · rw [FMap.domE, ‹prefixes₂.get (format p₂ i₂) = some _›]
+          simp
+        --     - move:H4;rewrite take_size /= domE=> h.
+        --       exists (oget Redo.prefixes{2}.[format bl{2} (i{2} + 1)]).`2; move: h.
+        --       by case: (Redo.prefixes{2}.[format bl{2} (i{2} + 1)]); smt().
+        · have h := ‹FMap.dom prefixes₂ (take _ _)›
+          rw [sub_add_cancel, take_size] at h ⊢
+          exact ⟨_, FMap.get_some _ _ h⟩
+      -- EC: sp;if;auto;progress.
+      --     (GAP 8: the guard, the same state on both sides)
+      stmt_sp; stmt_if
+      · ec_prep
+        have hx : x4₁ = x2₂ := Prod.ext (by simp only [*]) (by simp only [*])
+        simp [hx]
+      all_goals ec_auto
+      all_goals ec_progress
+      --     (EC's `rewrite nth_last take_size last_cat last_nseq addr0`, once for all the goals:
+      --     the last block of `format p (i + 1)` is `b0`, and the permutation's argument the
+      --     state recorded for `format p i`, the same on both sides, GAP 8)
+      all_goals
+        have hx : x4₁ = x2₂ := Prod.ext (by simp only [*]) (by simp only [*])
+        have hi : 1 ≤ i₂ := by assumption
+        have hinv : INV_Real (SLCommon_C_c₁ + 1) (c₂ + size p₂ + i₂) m₂ mi₂ prefixes₂ := by
+          obtain ⟨h, hm, hi'⟩ := ‹INV_Real _ _ _ _ _›
+          exact ⟨by omega, hm, hi'⟩
+        obtain ⟨sa0, sc0, hget, hx4⟩ : ∃ sa0 sc0, prefixes₂.get (format p₂ i₂) = some (sa0, sc0) ∧
+            x4₁ = (sa0, sc0) :=
+          ⟨_, _, ‹prefixes₂.get (format p₂ i₂) = some _›,
+            Prod.ext (by rw [‹x4₁.1 = _›, nth_last, format, last_cat,
+              last_nseq _ (i₂ + 1 - 1) b0 (by omega), xorw_b0]) ‹x4₁.2 = _›⟩
+        subst hx
+        subst hx4
+        have hget' : prefixes₂.get (format p₂ (i₂ + 1 - 1)) = some (sa0, sc0) := by
+          rw [add_sub_cancel_right]
+          exact hget
+        simp only [sub_add_cancel, take_size] at *
+      --     (the equalities of the two sides' states are closed with it)
+      --     - move:H4 H5;rewrite!get_setE/= nth_last/=take_size.
+      --       rewrite last_cat last_nseq 1:/# Block.WRing.addr0;progress.
+      --       have//=:=lemma2'(SLCommon.C.c{1} + 1)(C.c{2} + size bl{2} + i{2})
+      --         Perm.m{2}.[(sa0_R, sc0{2}) <- y2L] Perm.mi{2}.[y2L <- (sa0_R, sc0{2})]
+      --         Redo.prefixes{2} bl{2} (i{2}+1) sa0_R sc0{2}.
+      --       rewrite H1/=!mem_set/=H4/=H2/=get_setE/=.
+      --       have->->//=:y2L = (y2L.`1, y2L.`2);1,-1:smt().
+      --       rewrite INV_Real_addm_mi//=;2:smt(supp_dexcepted).
+      --       by have:=H3=>hinv0;split;case:hinv0=>//=/#.
+      · exact lemma2' _ _ _ _ _ p₂ (i₂ + 1) sa0 sc0
+          (INV_Real_addm_mi _ _ _ _ _ _ _ hinv ‹¬ FMap.dom m₂ (sa0, sc0)›
+            (not_of_mem_support_dexcepted ‹_›))
+          (by omega) ‹valid p₂ = true› ((FMap.mem_set _ _ _ _).mpr (Or.inr rfl)) ‹_› hget'
+      --     - by rewrite mem_set//=take_size domE H2.
+      · exact (FMap.mem_set _ _ _ _).mpr (Or.inl ((FMap.domE _ _).mpr (by rw [hget]; simp)))
+      --     - by rewrite!get_setE take_size/=;smt().
+      · exact ⟨_, FMap.get_set_sameE _ _ _⟩
+      --     - move:H4 H5;rewrite nth_last take_size.
+      --       rewrite last_cat last_nseq 1:/# Block.WRing.addr0;progress.
+      --       pose a:=(_, _);have->/={a}:a = oget Perm.m{2}.[(sa0_R, sc0{2})] by smt().
+      --       apply lemma2'=>//=;first have:=H3=>hinv0;split;case:hinv0=>//=/#.
+      --       smt().
+      · exact lemma2' _ _ _ _ _ p₂ (i₂ + 1) sa0 sc0 hinv (by omega) ‹valid p₂ = true›
+          (of_decide_eq_true ‹_›) ‹_› hget'
+      --     - by rewrite mem_set//=take_size;smt(domE).
+      · exact (FMap.mem_set _ _ _ _).mpr (Or.inl ((FMap.domE _ _).mpr (by rw [hget]; simp)))
+      --     - by rewrite!get_setE/=take_size/=;smt().
+      · exact ⟨_, FMap.get_set_sameE _ _ _⟩
+    -- EC: alias{1} 1 pref = Redo.prefixes;sp;alias{1} 1 count = SLCommon.C.c.
+    stmt_alias{1} 1 pref = §SLCommon.Redo.prefixes
+    stmt_sp
+    stmt_alias{1} 1 count = §SLCommon.C.c
+    -- EC: alias{1} 1 pm = Perm.m;sp;alias{1} 1 pmi = Perm.mi;sp.
+    stmt_alias{1} 1 pm = §Perm.m
+    stmt_sp
+    stmt_alias{1} 1 pmi = §Perm.mi
+    stmt_sp
+    -- EC: conseq(:_==> ={nb,bl,n,p,p1,i,i1,lres,sa0,sc0,C.c,glob Redo,glob Perm}
+    --           /\ pmi{1} = Perm.mi{1} /\ pm{1} = Perm.m{1}
+    --           /\ pref{1} = Redo.prefixes{1} /\ SLCommon.C.c{1} = count{1}
+    --           /\ n{1} = nb{1} /\ p{1} = bl{1} /\ p1{1} = format p{1} (i{1}+1)
+    --           /\ i1{1} = size p1{1} - 1
+    --           /\ Redo.prefixes{1}.[format p{1} (i1{1} - size p{1} + 1)] =
+    --                Some (sa0{1}, sc0{1}));progress.
+    equiv_conseq (: _ ==> ={nb, bl, n, p, p1, i, i1, lres, sa0, sc0, C.c, SLCommon.Redo.prefixes,
+        Perm.m, Perm.mi} ∧
+      §pmi{1} = §Perm.mi{1} ∧ §pm{1} = §Perm.m{1} ∧ §pref{1} = §SLCommon.Redo.prefixes{1} ∧
+      §SLCommon.C.c{1} = §count{1} ∧
+      §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p1{1} = format §p{1} (§i{1} + 1) ∧
+      §i1{1} = size §p1{1} - 1 ∧
+      (§SLCommon.Redo.prefixes{1}).get (format §p{1} (§i1{1} - size §p{1} + 1)) =
+        some (§sa0{1}, §sc0{1}))
+    --     + smt().
+    --     + by move: H8; rewrite size_cat size_nseq /= ler_maxr /#.
+    --     + move:H8;rewrite size_cat size_nseq/=/max H0/=;smt().
+    --     (two left after `progress`)
+    case post =>
+      ec_progress
+      · have h := ‹Redo_prefixes₂.get (format p₂1 _) = some (sa0₂1, sc0₂1)›
+        convert h using 3
+        rw [size_format]
+        omega
+      · obtain ⟨h, hm, hi⟩ := ‹INV_Real _ _ _ _ _›
+        exact ⟨by omega, hm, hi⟩
+    -- EC: splitwhile{1}1:i1 < size p;splitwhile{2}1:i1 < size p.
+    --     (GAP 10: `p` is not in the code left, and `splitwhile` reads the code's variables
+    --     only: `p` by its lens)
+    stmt_splitwhile{1} 1 : §i1 < size §(localVarLens "p" (List block))
+    stmt_splitwhile{2} 1 : §i1 < size §(localVarLens "p" (List block))
+    -- EC: while(...)
+    equiv_while (={nb, bl, n, p, p1, i, i1, lres, sa0, sc0, C.c, SLCommon.Redo.prefixes,
+        Perm.m, Perm.mi} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{1} + size §bl{2} + §i{1} - 1) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      §pmi{1} = §Perm.mi{1} ∧ §pm{1} = §Perm.m{1} ∧ §pref{1} = §SLCommon.Redo.prefixes{1} ∧
+      §SLCommon.C.c{1} = §count{1} ∧
+      §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p1{1} = format §p{1} (§i{1} + 1) ∧
+      FMap.dom §SLCommon.Redo.prefixes{1} (format §p{1} §i{1}) ∧
+      size §p{1} ≤ §i1{1} ∧ §i1{1} ≤ size §p1{1} - 1 ∧ valid §p{1} ∧
+      (§SLCommon.Redo.prefixes{1}).get (format §p{1} (§i1{1} - size §p{1} + 1)) =
+        some (§sa0{1}, §sc0{1}))
+    -- EC: + rcondt{1}1;2:rcondt{2}1;auto;progress.
+    --       + have->:take (i1{m} + 1) (format bl{m} (i{m} + 1)) =
+    --               take (i1{m} + 1) (format bl{m} i{m});2:smt(all_prefixes_of_INV_real).
+    --         smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+    --       + have->:take (i1{hr} + 1) (format bl{hr} (i{hr} + 1)) =
+    --               take (i1{hr} + 1) (format bl{hr} i{hr});2:smt(all_prefixes_of_INV_real).
+    --         smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+    · stmt_rcondt{1} 1
+      on_goals 2 => stmt_rcondt{2} 1
+      · intro σ₂; ec_auto; ec_prep
+        exact squeeze_known_tail ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)› ‹size _ ≤ _›
+          (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+      · intro σ₁; ec_auto; ec_prep
+        exact squeeze_known_tail ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)› ‹size _ ≤ _›
+          (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+      ec_auto; ec_progress
+      --       + smt().
+      --       + smt(size_cat size_nseq).
+      · simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+        omega
+      --       + have->:take (i1{2} + 1) (format bl{2} (i{2} + 1)) =
+      --                take (i1{2} + 1) (format bl{2} i{2}).
+      --         - smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+      --         have->:format bl{2} (i1{2} + 1 - size bl{2} + 1) =
+      --                take (i1{2} + 1) (format bl{2} i{2}).
+      --         - smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+      --         have all_pref:=all_prefixes_of_INV_real _ _ _ _ _ H.
+      --         by have:=all_pref _ H0 (i1{2}+1); rewrite domE; smt().
+      · have hg : i1₂ < size (format p₂ (i₂ + 1)) - 1 := by
+          simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+          omega
+        have hk := squeeze_known_tail ‹INV_Real _ _ _ _ _› ‹FMap.dom prefixes₂ (format p₂ i₂)›
+          ‹size p₂ ≤ i1₂› hg
+        have hs := size_format p₂ (i₂ + 1)
+        have hp := size_ge0 p₂
+        rw [take_format p₂ (i₂ + 1) (i1₂ + 1) (by omega) ⟨by omega, by omega⟩,
+          if_neg (by omega)] at hk ⊢
+        exact FMap.get_some _ _ hk
+    -- EC: conseq(...)
+    equiv_conseq (: _ ==> ={nb, bl, n, p, p1, i, i1, lres, sa0, sc0, C.c, SLCommon.Redo.prefixes,
+        Perm.m, Perm.mi} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{1} + size §bl{2} + §i{1} - 1) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      §pmi{1} = §Perm.mi{1} ∧ §pm{1} = §Perm.m{1} ∧ §pref{1} = §SLCommon.Redo.prefixes{1} ∧
+      §SLCommon.C.c{1} = §count{1} ∧
+      §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p1{1} = format §p{1} (§i{1} + 1) ∧
+      FMap.dom §SLCommon.Redo.prefixes{1} (format §p{1} §i{1}) ∧
+      §i1{1} = size §p{1} ∧ valid §p{1} ∧
+      (§SLCommon.Redo.prefixes{1}).get (take §i1{1} §p{1}) = some (§sa0{1}, §sc0{1}))
+    --       1:smt(size_cat size_nseq nseq0 cats0 take_size).
+    case post =>
+      ec_progress
+      · rw [size_format]
+        omega
+      · have h := ‹Redo_prefixes₂.get (take _ _) = some _›
+        rw [take_size] at h
+        rw [sub_self, zero_add, format_one]
+        exact h
+      · sponge_guard
+    -- EC: while(...);last first.
+    equiv_while (={nb, bl, n, p, p1, i, i1, lres, sa0, sc0, C.c, SLCommon.Redo.prefixes,
+        Perm.m, Perm.mi} ∧
+      INV_Real §SLCommon.C.c{1} (§C.c{1} + size §bl{2} + §i{1} - 1) §Perm.m{1} §Perm.mi{1}
+        §SLCommon.Redo.prefixes{1} ∧
+      §pmi{1} = §Perm.mi{1} ∧ §pm{1} = §Perm.m{1} ∧ §pref{1} = §SLCommon.Redo.prefixes{1} ∧
+      §SLCommon.C.c{1} = §count{1} ∧
+      §n{1} = §nb{1} ∧ §p{1} = §bl{1} ∧ §p1{1} = format §p{1} (§i{1} + 1) ∧
+      FMap.dom §SLCommon.Redo.prefixes{1} (format §p{1} §i{1}) ∧
+      0 ≤ §i1{1} ∧ §i1{1} ≤ size §p{1} ∧ valid §p{1} ∧
+      (§SLCommon.Redo.prefixes{1}).get (take §i1{1} §p{1}) = some (§sa0{1}, §sc0{1}))
+    rotate_left
+    -- EC: + auto;progress.
+    --     - smt().
+    --     - have[]_[]:=H;smt(domE).
+    --     - exact size_ge0.
+    --     - have[]_[]:=H;smt(domE take0).
+    --     - smt(size_cat size_nseq).
+    · ec_auto; ec_progress
+      · obtain ⟨h, hm, hi⟩ := ‹INV_Real _ _ _ _ _›
+        exact ⟨by omega, hm, hi⟩
+      · rw [FMap.domE, ‹prefixes₂.get (format bl₂ _) = some _›]
+        simp
+      · exact size_ge0 _
+      · rw [take0]
+        obtain ⟨-, ⟨h0, -⟩, -⟩ := ‹INV_Real _ _ _ _ _›
+        exact h0
+      · sponge_guard
+    -- EC: rcondt{1}1;2:rcondt{2}1;auto;progress.
+    --     - have->:take (i1{m} + 1) (format bl{m} (i{m} + 1)) =
+    --             take (i1{m} + 1) (format bl{m} i{m});2:smt(all_prefixes_of_INV_real).
+    --       smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+    --     - have->:take (i1{hr} + 1) (format bl{hr} (i{hr} + 1)) =
+    --             take (i1{hr} + 1) (format bl{hr} i{hr});2:smt(all_prefixes_of_INV_real).
+    --       smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+    stmt_rcondt{1} 1
+    on_goals 2 => stmt_rcondt{2} 1
+    · intro σ₂; ec_auto; ec_prep
+      exact squeeze_known_head ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)›
+        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+    · intro σ₁; ec_auto; ec_prep
+      exact squeeze_known_head ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)›
+        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+    --     - smt().
+    --     - smt().
+    --     - have->:take (i1{2} + 1) (format bl{2} (i{2} + 1)) =
+    --             take (i1{2} + 1) (format bl{2} i{2})
+    --         by smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
+    --       have->:take (i1{2} + 1) bl{2} =
+    --             take (i1{2} + 1) (format bl{2} i{2})
+    --         by smt(take_cat take_le0 cats0).
+    --       smt(all_prefixes_of_INV_real).
+    ec_auto; ec_progress
+    have hg : i1₂ < size p₂ := by
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+      omega
+    have hk := squeeze_known_head (i := i₂) ‹INV_Real _ _ _ _ _› ‹FMap.dom prefixes₂ (format p₂ i₂)›
+      hg
+    rw [take_format_le p₂ (i₂ + 1) (i1₂ + 1) (by omega)] at hk ⊢
+    exact FMap.get_some _ _ hk
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list

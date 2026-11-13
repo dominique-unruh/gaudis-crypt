@@ -56,6 +56,7 @@ import GaudisCrypt.Lib.EC.FSet
 import GaudisCrypt.Lib.EC.Int
 import GaudisCrypt.Lib.EC.IterProc
 import GaudisCrypt.Lib.EC.List
+import GaudisCrypt.Lib.EC.ListLemmas
 import GaudisCrypt.Lib.EC.ListRange
 import GaudisCrypt.Lib.EC.PROM
 import GaudisCrypt.Lib.EC.PRP

@@ -784,7 +784,10 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
 | 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` (local macros `l3l4_round`, `l3l4_i_lt_n` for the loop side goals EC repeats) | done |
 | 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (EC's `lemma5`, `lemma5bis`; the invariant's readings stated once at the top) | done |
 | 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the four lazy/eager steps are the old port's `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | exc |
-| 971– | section | `Real`, `Real_Ideal`, `Real_Ideal_Abs`, `Simplify_Simulator` | | — | todo |
+| 973–1097 | inductive, local lemmas | `m_p`, `INV_Real`, `INV_Real_incr` … `take_format` | section Real. | the first port's (plain lemmas) | done |
+| 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` (`Perm` for EC's alias `P`; the facts EC proves inline twice are `absorb_dom` … `absorb_step`, `squeeze_known_head`, `squeeze_known_tail`; local macros `sponge_round`, `sponge_last`, `sponge_guard`) | done |
+| 1437– | local lemmas, lemma | `lemma4`, `lemma_3`, `squeeze_squeezeless`, `pr_real` | section Real. | — | todo |
+| 1761– | section | `Real_Ideal`, `Real_Ideal_Abs`, `Simplify_Simulator` | | — | todo |
 
 ## `proof/Sponge.ec`
 

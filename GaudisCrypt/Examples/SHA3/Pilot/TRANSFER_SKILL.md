@@ -634,6 +634,22 @@ Document each in the docstring when it applies.
   - Probing: one lemma in an uncommitted scratch file next to the pilot, compiled alone with the
     lakefile's options (seconds, not the file's minutes), `trace_state` at the open leaves.
 
+  - A long proof: keep the finished branches in a saved copy and `sorry` them in the scratch
+    file (`· sorry -- TRIMn`), splice them back at the end; each check then compiles only the
+    branch in work.
+  - An EC module alias (`module P = Perm`) is written as what it stands for: EC unfolds it, and
+    a Lean `abbrev` of another module type is not opened by `inline*`.
+  - A fact EC proves inline several times (in both branches of a test, at each `rcond`): a plain
+    lemma before the theorem, stated on values, EC's lines kept as comments at each use.
+  - A hypothesis with binders is not found by `‹∀ l, P l → _›`: state it in full,
+    `have h : ∀ l, … := by assumption`.  A side condition `(by omega)` of a lemma inside `rw [..]`
+    runs before the lemma's arguments are known: write the arguments.
+  - A shared preamble for all the leaves (`all_goals have …`) ends with its `simp only … at *`:
+    the goals it closes (`x = x`) then need no bullet.
+  - Two states equal by components after `sp` (GAP 8): `have hx : x₁ = x₂ := Prod.ext (by simp
+    only [*]) (by simp only [*])`, before any `subst` that makes the two sets of hypotheses
+    indistinguishable.
+
 ## 9. Checklist before calling a lemma done
 
 - [ ] Statement in surface syntax, EC's hypotheses only, EC's name; docstring quotes EC's
