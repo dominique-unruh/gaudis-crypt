@@ -36,9 +36,10 @@ set_option ec.strict true
 Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the whole theory
 `HybridIRO` (EC l. 256–1909; l. 1188–1305, the
 modules `BlockSpongeTrans`, `BlockGen` and `BlockGen_loop_direct` with its `bypr` proof, are the
-first port's, E12); and `Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic
-experiment and is described below.  The rest of the file follows in EC's order
-(`notes/SHA3/Mapping.md`).
+first port's, E12); `Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic
+experiment and is described below; and the first lemma of the final section,
+`RealIndif_Sponge_BlockSponge` (EC l. 1953).  The rest of the final section is open: see
+"The final section" in `notes/SHA3/TacticReview.md`.
 
 Translation:
 * the modules are the first port's (`Examples/SHA3/Sponge.lean`); a procedure takes its
@@ -2541,5 +2542,69 @@ theorem Sponge_Raise_BlockSponge_f :
       case guard => intros; simp_all
       case exit => intros; simp_all
       case hpre => equiv_auto; intros; simp_all [blocks2bits_nil]
+
+/-- EC's `sim` on `Perm.f ~ Perm.f` and `Perm.fi ~ Perm.fi` as oracles of a distinguisher: the
+two sides are `Perm`'s procedures behind the first port's records (`DPRIMITIVE.mk`), which
+`equiv_proc` does not open (GAP 1): the records are simplified away first. -/
+local macro "sim_perm" : tactic => `(tactic| (
+  simp only [Perm, PRP.RP.RP, PRP.StrongPRP.PRP.f.mk_simp, PRP.StrongPRP.PRP.fi.mk_simp,
+    Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+  equiv_proc; sim))
+
+/-! ## The main result (EC l. 1913–2163), in progress
+
+`local clone HybridIRO as HIRO`: the clone's variables are those of `HybridIRO` above; they are
+fresh for the declared modules in EC, and named in their restrictions here.  `Dist` is restricted
+against `BlockSim`: the region form (`with glob R`, E14). -/
+
+section
+
+declare module BlockSim <: BlockSponge.SIMULATOR {-IRO, -BlockSponge.BIRO.IRO,
+  -HybridIRO.HybridIROLazy.mp, -HybridIRO.HybridIROEager.mp, -HybridIRO.ERO.RO.m,
+  -HybridIRO.ERO.FRO.m} with glob R
+declare module Dist <: DISTINGUISHER {-Perm, -R, -IRO, -BlockSponge.BIRO.IRO,
+  -HybridIRO.HybridIROLazy.mp, -HybridIRO.HybridIROEager.mp, -HybridIRO.ERO.RO.m,
+  -HybridIRO.ERO.FRO.m}
+
+-- (`Dist`'s declaration mentions `R`: kept for the lemmas that do not mention `BlockSim`)
+include R
+
+/-- EC's `local lemma RealIndif_Sponge_BlockSponge &m :
+Pr[RealIndif(Sponge, Perm, Dist).main() @ &m : res] =
+Pr[BlockSponge.RealIndif(BlockSponge.Sponge, Perm, LowerDist(Dist)).main() @ &m : res]`. -/
+theorem RealIndif_Sponge_BlockSponge (m : VariableAssignment) :
+    Pr[ RealIndif(Sponge, Perm, Dist).main () @ &m : §res ] =
+      Pr[ BlockSponge.RealIndif(BlockSponge.Sponge, Perm, LowerDist(Dist)).main () @ &m :
+        §res ] := by
+  -- EC: byequiv=> //; proc.
+  byequiv; equiv_proc
+  -- EC: seq 2 2 : (={glob Dist, glob Perm}); first sim.
+  --     (`glob Perm` of the concrete `Perm` spelled out, here and in the call's invariant)
+  equiv_seq 2 2 : (={glob Dist, Perm.m, Perm.mi})
+  · sim
+  --     (E5: `LowerDist(Dist)` wraps EC's alias `Dist(RaiseFun(F), P)` in a call, inlined first)
+  stmt_inline{2} 0; stmt_wp
+  -- EC: call (_ : ={glob Perm}); first 2 sim.
+  --     (as an invariant: the oracles' goals are then EC's, `glob Dist` framed by the rule)
+  equiv_call (_ : §Perm.m{1} = §Perm.m{2} ∧ §Perm.mi{1} = §Perm.mi{2})
+  · sim_perm
+  · sim_perm
+  -- EC: conseq Sponge_Raise_BlockSponge_f=> //.
+  · equiv_conseq Sponge_Raise_BlockSponge_f
+    · rintro a₁ g₁ a₂ g₂ ⟨rfl, hm, hmi⟩
+      refine ⟨rfl, ?_⟩
+      change (Perm.m.footprint ⊔ Perm.mi.footprint).touched_getter.get g₁ =
+        (Perm.m.footprint ⊔ Perm.mi.footprint).touched_getter.get g₂
+      rw [TacticMisc.touched_getter_eq_iff_of_lens (X := Lens.pair Perm.m Perm.mi)
+        (Footprint.lens_pair Perm.m Perm.mi)]
+      exact Prod.ext hm hmi
+    · rintro r₁ g₁ r₂ g₂ ⟨hr, hg⟩
+      have hg' := Eq.mp (TacticMisc.touched_getter_eq_iff_of_lens
+        (X := Lens.pair Perm.m Perm.mi) (Footprint.lens_pair Perm.m Perm.mi) g₁ g₂) hg
+      exact ⟨hr, congrArg Prod.fst hg', congrArg Prod.snd hg'⟩
+  -- EC: auto.
+  ec_auto
+
+end
 
 end GaudisCrypt.SHA3.Pilot.Sponge

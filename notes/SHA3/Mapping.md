@@ -934,7 +934,9 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1614 | lemma | `HybridIROEager_f_BlockIRO_f` | same name (EC's script, 258 lines: six `transitivity{i}` steps, seven loops, the calls of the `loop` and `next_block` lemmas; EC's `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` is the new `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)`, `Logic/ECConseqHoare.lean`; `seq 3 2` is `equiv_seq 3 3`; the `smt` leaves by hand; GAP 3, 11, 12, 13) | done |
 | 1873 | lemma | `HybridIROEager_BlockIRO_f` | same name (EC's `transitivity HybridIROEager.f` as `prhlProc_trans_ec`; `conseq Lower_HybridIROEager_f`; `exists*` and `conseq (HybridIROEager_f_BlockIRO_f n1 xs')` with EC's `post` under the precondition, the new `equiv_conseq_pre`) | done |
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
-| 1953–2163 | the final section, `conclu`, `conclusion` | | — | todo |
+| 1913–1918 | section | `declare module BlockSim`, `Dist`; `local clone HybridIRO as HIRO` | `declare module BlockSim <: BlockSponge.SIMULATOR {…} with glob R`, `declare module Dist <: DISTINGUISHER {-Perm, -R, …}`; the clone's variables are `HybridIRO`'s, named in the restrictions | def |
+| 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | same name (EC's script; `LowerDist(Dist)`'s wrapping call inlined, E5; `glob Perm` spelled out in the cut and as the call's invariant; `sim_perm`) | done |
+| 1970–2163 | the ideal side, `conclu`, `conclusion` | | — | todo: open questions on the abstract simulator, `notes/SHA3/TacticReview.md`, "The final section" |
 
 ## `proof/SHA3Indiff.ec`
 

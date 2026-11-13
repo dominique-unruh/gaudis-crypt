@@ -452,3 +452,45 @@ file, `equiv_conseq_pre H`: EC's `conseq H` on procedures with `post` under the 
 (rule `prhlProc_conseq_pre`); used once, in `HybridIROEager_BlockIRO_f`.  In the batch,
 `equiv_conseq H` itself should state `post` so, and the side goals over parameters and results
 should come in read normal form at the plain types.
+
+## The final section of `Sponge.ec` (EC l. 1913–2163): what is open
+
+Done in `Pilot/Sponge.lean`: the section's two declarations (`BlockSim … with glob R`, `Dist`
+restricted against `R`) and `RealIndif_Sponge_BlockSponge` (EC l. 1953).  The ideal side is the
+first place the pilots meet an **abstract simulator** (`BlockSim <: BlockSponge.SIMULATOR`, a
+declared functor whose result is a record of three procedures), and three things are missing.
+They are decisions about the framework, so nothing was built for them:
+
+1. **`proc init() : unit { }`** — EC's module type says `BlockSim(F).init` calls no oracle, and
+   `call (_ : true)` on it (EC l. 1983, 2034, 2049, 2110) uses that: the two sides give
+   `BlockSim` different functionalities.  `declare module` has no per-procedure oracle
+   restriction (for `HYBRID_IRO_DIST`'s `{HI.f}` the missing restriction only cost one more
+   goal, GAP 4; here the extra goal is false).  The first port carried a hypothesis
+   (`SIMULATOR.ECModule`, exception E2).  Options: a section hypothesis in the pilot
+   (`∀ F F', BlockSim(F).init = BlockSim(F').init`, stated once, read as the module type's
+   `{ }`), or oracle restrictions in `moduletype`/`declare module`.
+2. **`proc (I)` on an abstract procedure under an abstract call** (EC l. 1990–1997,
+   2117–2122): `Dist`'s oracle `P.f` is `BlockSim(F).f`, itself abstract with oracle `F.f`.
+   `equiv_proc_to_stmt` turns the procedure judgment into one about the call, and
+   `equiv_call (_ : I)` then applies in principle; it was not tried to the end, because with
+   `={glob BlockSim}` named the oracles' goals keep the region `glob Dist ⊔ glob BlockSim`, and a
+   proven lemma about concrete procedures (`LowerFun_IRO_HybridIROLazy_f`) then needs a frame
+   step that the rule does not do through the first port's records (same reason as below).
+3. **Footprints of the first port's lens-parameterised procedures** (`HybridIROEager.f`,
+   `BlockSponge.BIRO.IRO.f`): `fp_module` proves the bound for `fill_in` but stops at a
+   procedure that calls another one of these ("no concrete procedure body").  Without the
+   bound, `call (HybridIROEager_f_BlockIRO_f n' xs2)` in
+   `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` (EC l. 2070) has no frame for
+   `={glob BlockSim}`.
+
+Smaller findings from `RealIndif_Sponge_BlockSponge`:
+* `equiv_call (_ : ={glob Perm})` on the abstract `Dist` falls through to the older rule's error
+  (`the oracles' variables`); the glob-only rule of `Logic/ECCallUpto.lean` fails first and its
+  error is not shown.  Written as an invariant, `equiv_call (_ : §Perm.m{1} = §Perm.m{2} ∧
+  §Perm.mi{1} = §Perm.mi{2})`, the oracles' goals are EC's.
+* A `seq` cut `={glob Dist, glob Perm}` generalizes the joint region to one value, unrelated to
+  `Perm.m`, `Perm.mi`: written `={glob Dist, Perm.m, Perm.mi}`.
+* `RaiseSim(S)` is `Module.comp S LowerFun`; a call of `RaiseSim(BlockSim, F).init` is seen as
+  `BlockSim`'s after `simp only [RaiseSim, Module.app_comp]`.
+* A declaration restricted against another module's region (`{-R}`) is an instance that mentions
+  `R`: `include R`, or lemmas that do not mention the other module lose the instance.
