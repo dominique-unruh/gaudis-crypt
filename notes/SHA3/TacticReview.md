@@ -368,6 +368,25 @@ three things, none of them a proof step:
   code after the loop, our `phoare` tactics have no such step.  One of its three oracles is done
   in a draft (not in the file).
 
-Independent of all three, and next: the module `Simulator` and section `Simplify_Simulator`
-(EC l. 1946–2195, two equivalences).
+Independent of all three: section `Simplify_Simulator` (EC l. 2008–2195).  Its local clone
+`IRO2` is declared in the pilots' style (`global_var`s, where the first port has a lens
+parameter with eighteen disjointness hypotheses); `L` is an alias.  `equal2` is done (EC's 25
+lines; three new gaps, 14–16: `glob D` past initializations after `skip`, EC's bare `conseq`,
+`sim` over differently named locals).  `equal1` (75 lines) is started: opening, the call and
+its three easy goals, the simulator's `f` up to the split on `valid q`; its two branches (the
+loop of `BIRO.IRO.f` and the eager oracle's loop against `BIRO2.IRO.f`) are left, with
+`Simplify_simulator` (one `RO_LRO_D`).
+
+**The batch of rule fixes this port has collected** (each small, each with a golden test; the
+first needs a full rebuild, so they go together):
+1. `inline`: an option to open a record of another module type (GAP 11).
+2. `ec_prep`: the guards of split loops, `(a && b) = true/false`, and `decide p = !false`
+   (GAP 9; met in three lemmas).
+3. `equiv_conseq` without a specification, EC's `conseq=> />` (GAP 15).
+4. `skip`: `glob D` past writes outside `D`, as `sp` does (GAP 14).
+5. `seq` on a Hoare triple (GAP 9); `splitwhile` reading the conditions' variables (GAP 10).
+6. `phoare_call` with an invariant on an abstract module (GAP 12); a `phoare` step for code
+   after a loop (GAP 13).
+7. `smt_close`'s unknown free variable in `ec_instances` (GAP 2).
+8. `sim` over differently named locals (GAP 16); pair states equal by components (GAP 8).
 

@@ -796,7 +796,12 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
 | 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | — (`call (: invm …)` on `D` in `phoare`, GAP 12) | todo |
 | 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | — (code after a loop in `phoare`, GAP 13; one of three oracles done in a draft) | todo |
 | 1905, 1924 | lemmas | `neg_D_concl`, `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | — (after `concl`) | todo |
-| 1946– | module, section | `Simulator`, `Simplify_Simulator`, final `Real_Ideal` | | — | todo |
+| 1946 | module | `Simulator` | | the first port's | def |
+| 2017 | local clone | `IRO2` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` (`global_var`s) | def |
+| 2025, 2081 | local modules | `Simu`, `L` | section Simplify_Simulator. | the first port's `Simu`; `Simplify_Simulator.L` (alias) | def |
+| 2085 | local lemma | `equal1` | section Simplify_Simulator. | — (opening, call and three oracle goals in a draft) | todo |
+| 2155 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` | done |
+| 2186, 2209 | lemmas | `Simplify_simulator`, `Real_Ideal` | | — | todo |
 
 ## `proof/Sponge.ec`
 

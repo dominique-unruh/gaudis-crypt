@@ -68,6 +68,13 @@ Translation:
   `Real_lossless`).
 * GAP 13: in a `phoare … = 1` goal the tactics have no step for code after a loop (EC's `auto`
   passes samplings of lossless distributions and conditionals behind it; `Ideal_lossless`).
+* GAP 14: after `auto`'s `skip`, `glob D` read past initializations outside `D` is not
+  rewritten (`sp` does it): `simp (disch := fp_disjoint) only [touched_set_of_le_compl]`.
+* GAP 15: EC's `conseq` without a specification (`conseq=> />`: the postcondition without what
+  the precondition gives on unwritten variables) has no automatic form: the postcondition is
+  written out.
+* GAP 16: inlining names the two sides' locals differently (`i`/`i0`), and `sim` does not match
+  them: the loop by its invariant.
 * After `sp`, a goal prints as the plain `prhlStmt` term until the next tactic (the conditions
   `x = e` it adds are not in read form); display only.
 * EC's `List` lemmas the scripts cite (`take0`, `size_take`, `nth_take`, `size_cat`, `last_nseq`,
@@ -3581,5 +3588,146 @@ theorem Neg_D_lossless : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-
   phoare_call (D_lossless F P H H0 H1); phoare_auto
 
 end Real_Ideal_Abs
+
+/-! ## Section `Simplify_Simulator`
+
+`equal2` is done; `equal1` (EC l. 2086) and `Simplify_simulator` (l. 2186) are not yet. -/
+
+namespace Simplify_Simulator
+
+open GaudisCrypt.SHA3.Gconcl_list.Simplify_Simulator (Simu)
+
+/-! EC's `local clone import PROM.FullRO as IRO2 with type in_t <- block list * int,
+type out_t <- block, op dout _ <- bdistr, type d_in_t <- unit, type d_out_t <- bool`: the
+clone's module variables are `global_var`s (the first port's are lens parameters). -/
+
+namespace IRO2
+noncomputable abbrev dout : List block × ℤ → SubProbability block := fun _ => bdistr
+/-- The clone's module variable `IRO2.RO.m`. -/
+global_var RO.m : FMap (List block × ℤ) block
+/-- The clone's module variable `IRO2.FRO.m`. -/
+global_var FRO.m : FMap (List block × ℤ) (block × flag)
+noncomputable abbrev RO := PROM.FullRO.RO (List block × ℤ) block dout RO.m
+noncomputable abbrev RO.asRO := PROM.FullRO.RO.asRO (List block × ℤ) block dout RO.m
+noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) block dout RO.m
+abbrev RO_T := PROM.FullRO.RO_T (List block × ℤ) block
+end IRO2
+
+/-- EC's `local module L (F : IRO2.RO)`:
+`proc distinguish = IdealIndif(BIRO.IRO, Simu(F), DRestr(D)).main` (an alias). -/
+noncomputable abbrev L (D : DISTINGUISHER) (F : IRO2.RO_T) : procmod () → Bool :=
+  Module.app Experiment (Module.pair BIRO.IRO.asF (Module.pair
+    (Module.app Simu (Module.pair F
+      (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block) BIRO.IRO.asF)))
+    (DRestr D)))
+
+-- the simulator's `f` over the inlined oracles
+set_option maxHeartbeats 4000000 in
+/-- EC's `local lemma equal2 &m : Pr [ IdealIndif(BIRO.IRO, Simulator, DRestr(D)).main() @ &m :
+res ] = Pr [ L(IRO2.LRO).distinguish() @ &m : res ]`.
+
+The section's `D` with the local clone's variable in its restriction (fresh in EC).
+Deviations: GAPs 5, 14, 15, 16 of the file header. -/
+theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO, -C, -S,
+      -BIRO2.IRO, -IRO2.RO.m}), ∀ m : VariableAssignment,
+    Pr[ IdealIndif(BIRO.IRO.asF, Simulator, DRestr(D)).main () @ &m : §res ] =
+      Pr[ L(D, IRO2.LRO).distinguish () @ &m : §res ] := by
+  intro D _ m
+  -- EC: byequiv=>//=; proc; inline*; auto.
+  byequiv; equiv_proc; stmt_inline*; ec_auto
+  -- EC: call (: ={BIRO.IRO.mp,C.c,Simulator.m,Simulator.mi,Simulator.paths} /\
+  --         Simulator.unvalid_map{1} = IRO2.RO.m{2}); first last.
+  equiv_call (_ : ={BIRO.IRO.mp, C.c, Simulator.m, Simulator.mi, Simulator.paths} ∧
+    §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  rotate_left
+  -- EC: + by proc; inline*; conseq=> />; sim.
+  · equiv_proc; stmt_inline*
+    sim (_ : §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  -- EC: + by proc; inline*; conseq=> />; sim.
+  · equiv_proc; stmt_inline*
+    sim (_ : §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  -- EC: + by auto=> />.
+  --     (GAP 14: after `auto`'s `skip`, `glob D` is read past the initializations, which are
+  --     outside `D`: `sp` rewrites that, `skip` does not)
+  · ec_auto
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
+    ec_close
+  -- EC: proc; sp; if; auto.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  ec_auto
+  -- EC: call(: ={BIRO.IRO.mp,Simulator.m,Simulator.mi,Simulator.paths} /\
+  --         Simulator.unvalid_map{1} = IRO2.RO.m{2}); auto.
+  --     (GAP 5: EC's `call (: I)` on two different concrete procedures opens the callees)
+  equiv_call (_ : ={arg, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
+    §Simulator.unvalid_map{1} = §IRO2.RO.m{2} ==>
+    ={res, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
+    §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  on_goals 2 => ec_auto
+  equiv_proc
+  -- EC: if; 1,3: auto.
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  -- EC: seq 1 1: (={y1,x, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} /\
+  --       Simulator.unvalid_map{1} = RO.m{2}); 2: by (conseq=> />; sim).
+  equiv_seq 1 1 : (={y1, x, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
+    §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  rotate_left
+  · sim (_ : §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  -- EC: if; 1,3: auto; sp.
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  stmt_sp
+  -- EC: conseq=> />.
+  --     conseq(: ={q, k, BIRO.IRO.mp} /\ Simulator.unvalid_map{1} = RO.m{2} ==> _)=> />.
+  --     + by move=> &1 &2 <- |> <- |>.
+  --     (GAP 15: EC's `conseq` without a specification drops from the postcondition what the
+  --     precondition gives on the variables the code does not write; here that postcondition
+  --     is written out)
+  equiv_conseq (: _ ==> ={y1, BIRO.IRO.mp} ∧ §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+  case post => ec_close
+  equiv_conseq (: ={q, k, BIRO.IRO.mp} ∧ §Simulator.unvalid_map{1} = §IRO2.RO.m{2} ==> _)
+  case pre => ec_close
+  -- EC: inline*; if; 1: auto; 1: sim.
+  --     (GAP 16: inlining names the two sides' locals differently (`i`/`i0`, `r0`/`r`), and
+  --     `sim` does not match them: the loop by its invariant)
+  stmt_inline*; stmt_if
+  · ec_close
+  · stmt_wp; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    equiv_while (={BIRO.IRO.mp, bs, n} ∧ §i{1} = §i0{2} ∧
+      §(localVarLens "x" (List block)){1} = §(localVarLens "x" (List block)){2} ∧
+      §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
+    · stmt_sp; stmt_if
+      · ec_close
+      all_goals ec_auto
+    · ec_auto
+  -- EC: if; 1,3: auto; sp.
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  stmt_sp
+  -- EC: swap{2} 4; while{2}((i<=k){2})(k{2}-i{2}); 1: by (auto; smt()).
+  stmt_swap{2} 4
+  equiv_while{2} (§i{2} ≤ §k{2}) ((§k{2} - §i{2}).toNat)
+  · while_ll_phoare
+    intro σ₁
+    ec_auto
+  · intro σ₁ z
+    ec_auto
+  -- EC: by sp; if{1}; 2: rcondf{2} 2; 1: rcondt{2} 2; auto; smt(DBlock.dunifin_ll).
+  stmt_sp; stmt_if{1}
+  · stmt_rcondt{2} 2
+    · intro σ₁; ec_auto
+    ec_auto; ec_close
+  · stmt_rcondf{2} 2
+    · intro σ₁; ec_auto
+    ec_auto; ec_close
+
+end Simplify_Simulator
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
