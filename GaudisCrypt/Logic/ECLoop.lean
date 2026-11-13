@@ -14,6 +14,9 @@ The loop at EC's position `n` (from 1, the resets inlining leaves not counted, a
 registered judgment, on side `i` of a relational one.  `e` is written like a condition of the
 goal (`§x` reads the program variable `x`) and may be a proposition (decided) or a boolean.
 
+After `splitwhile` the two loops are two statements (the sequence is re-associated), so EC's
+positions after them count as in EC.
+
 `splitwhile` holds for every loop, as in EC (`Stmt.Equiv.splitwhile'`): the split loop's
 expectation is the original's by the least-fixed-point property of loops alone
 (`Stmt.ewp_while_le`), no variant needed.
@@ -176,6 +179,10 @@ elab "stmt_splitwhile" s:(Judgment.judgmentSide)? ppSpace n:num " : " e:term : t
     let ty := (← inferType pr).replace fun x => if x == andB then some G else none
     return (← mkAppM ``StmtWithHoles.seq #[w₁, ← mkAppM ``StmtWithHoles.while #[c, body]],
             ← mkExpectedTypeHint pr ty)) g side?
+  -- the two loops are two statements of the code, as in EC (a loop that is not last would
+  -- otherwise be left as one block, and the positions after it would be off by one)
+  liftMetaTactic1 fun g => do
+    try return some (← Judgment.onStmt TacticMisc.flattenSeq g side?) catch _ => return some g
 
 open Lean Meta Elab Tactic ECLoop in
 /-- **EC's `unroll{i} n`**: see the module docstring. -/
