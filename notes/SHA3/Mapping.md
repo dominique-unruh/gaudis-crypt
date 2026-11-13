@@ -936,7 +936,11 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
 | 1913–1918 | section | `declare module BlockSim`, `Dist`; `local clone HybridIRO as HIRO` | `declare module BlockSim <: BlockSponge.SIMULATOR {…} with glob R`, `declare module Dist <: DISTINGUISHER {-Perm, -R, …}`; the clone's variables are `HybridIRO`'s, named in the restrictions | def |
 | 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | same name (EC's script; `LowerDist(Dist)`'s wrapping call inlined, E5; `glob Perm` spelled out in the cut and as the call's invariant; `sim_perm`) | done |
-| 1970–2163 | the ideal side, `conclu`, `conclusion` | | — | todo: open questions on the abstract simulator, `notes/SHA3/TacticReview.md`, "The final section" |
+| 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | same name (EC's script; the simulator's oracle lists as the section hypothesis `BlockSim_rep`, E2; `call (_ : true)` by `BlockSim_init_call`; EC's `call (_ : P ==> Q). proc (I)` as `equiv_call (_ : ={glob BlockSim} ∧ I)`; `proc (I)` on `BlockSim(F).f` by the new `equiv_proc (I)`; `by conseq H` by the new `equiv_conseq_frame H`) | done |
+| 2007–2057 | local module, local lemmas | `HybridIRODist`, `Experiment_HybridIROExper_Lazy`, `HybridIROExper_Experiment_Eager`, `Experiment_Hybrid_Lazy_Eager` | — | todo |
+| 2059 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | same name (EC's script; `={bs, n}` is `={x}`, the one parameter; `call (HIRO.HybridIROEager_f_BlockIRO_f n' xs2)` framed by the `@[fp_bound]` lemmas; EC's case analysis by hand) | done |
+| 2085 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | same name (as `Ideal_IRO_Experiment_HybridLazy`; `LowerDist(Dist)`'s wrapping call inlined, E5) | done |
+| 2127–2163 | local lemma, lemmas | `IdealIndif_IRO_BlockIRO`, `conclu`, `conclusion` | — | todo |
 
 ## `proof/SHA3Indiff.ec`
 

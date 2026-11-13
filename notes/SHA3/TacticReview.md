@@ -453,7 +453,34 @@ file, `equiv_conseq_pre H`: EC's `conseq H` on procedures with `post` under the 
 `equiv_conseq H` itself should state `post` so, and the side goals over parameters and results
 should come in read normal form at the plain types.
 
-## The final section of `Sponge.ec` (EC l. 1913–2163): what is open
+Also added (2026-11-14, `Logic/ECProcInv.lean`, test `Logic/ECProcInvTest.lean`):
+`equiv_proc (I)`, EC's `proc (I)` on an abstract procedure (a declared functor with one
+procedure by the rule of `equiv_call (_ : I)`; any other by a rule tagged `@[proc_inv]`), and
+`equiv_conseq_frame H`, EC's `conseq H` on procedures with EC's frame (rule
+`prhlProc_conseq_frame`), which reads the goal's procedures off their module views, recognises a
+procedure named differently from `H`'s by its body, and closes the implications that
+simplification closes (with `={glob A, glob B}` giving `={glob B}`).  In the batch:
+`equiv_conseq H` should become this one; `fp_disjoint` should find the finite support of a join
+of regions itself (the tactic hands it over, `withFiniteRegions`); a concrete procedure's
+footprint should be read off its code also for the first port's lens-parameterised modules (now
+`@[fp_bound]` lemmas by `fp_module`).
+
+## The final section of `Sponge.ec` (EC l. 1913–2163): decisions (2026-11-14)
+
+The three questions below were decided as follows.
+1. and 2. **One hypothesis**: the section assumes `SIMULATOR.Representable BlockSim` (the first
+   port's exception E2), which is EC's module type with its oracle lists: `init` calls nothing,
+   `f` and `fi` call `F.f`.  The init equation alone was not enough: no abstract call rule
+   applies to `BlockSim(F).f` without the representation, and `declare module` gives one only
+   for a functor with one procedure.  The two sites then read as EC's with `equiv_proc (I)`;
+   the first version, the first port's rules applied by hand (about 50 lines for EC's six), was
+   dropped.  Still open for the framework: oracle lists in `moduletype`/`declare module`, or the
+   representation derived from the module calculus (a projection functor composed with the
+   simulator), either of which removes the hypothesis.
+3. **Footprints**: `fp_module` proves them; the failure was an `omit [BlockSponge.Params]` (the
+   first port's unfolding lemma takes the instance).  Stated as `@[fp_bound]` lemmas.
+
+## The final section of `Sponge.ec` (EC l. 1913–2163): what was open
 
 Done in `Pilot/Sponge.lean`: the section's two declarations (`BlockSim … with glob R`, `Dist`
 restricted against `R`) and `RealIndif_Sponge_BlockSponge` (EC l. 1953).  The ideal side is the

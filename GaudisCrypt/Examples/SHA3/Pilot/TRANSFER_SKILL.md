@@ -202,7 +202,7 @@ the `while` row.
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
 | `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` | `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)` (`Logic/ECConseqHoare.lean`): the right program's own Hoare triple, its conditions written with the tag (`size §bs{2} = §n{2} - 1`); goals `pre`, `post`, `hoare`, `judgment` |
-| `conseq H` | `equiv_conseq H` (pRHL only); on procedures, when `post` needs the precondition (EC keeps it): `equiv_conseq_pre H` (`Logic/ECConseqHoare.lean`) |
+| `conseq H` | `equiv_conseq H` (pRHL only); on procedures, when `post` needs the precondition (EC keeps it): `equiv_conseq_pre H` (`Logic/ECConseqHoare.lean`); when the goal keeps variables or a `glob` that `H` does not mention (EC's frame), or the goal names the procedures through module views: `equiv_conseq_frame H` (`Logic/ECProcInv.lean`), which also closes the implications that are trivial (`by conseq H`) |
 | `exists* e₁{1}, e₂{2}; elim* => a b` | `equiv_exists* §e₁{1}, §e₂{2}` then `intro a b` (also on procedure judgments, `§x{2}` the parameter); `stmt_exists* e` |
 | `elim * => a b` (after `sp`) | `equiv_elim* => a b` / `hoare_elim* => a`: EC's names, the left side's existentials first |
 | `case (P)` (pRHL) | `equiv_case (P)` |
@@ -216,7 +216,7 @@ the `while` row.
 | `alias{i} n x = e` | `stmt_alias{i} n x = e` |
 | `transitivity{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` | `equiv_trans{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` |
 | `transitivity N.f (P₁ ==> Q₁) (P₂ ==> Q₂)` (procedure) | **no tactic** (2 uses, Sponge); the rule `prhlProc_trans_ec` (`Logic/ECTrans.lean`) |
-| `proc (I)` on an abstract procedure | **no tactic** (4 uses, Sponge); use `equiv_call (_ : ={…} ∧ I)` one level up, or the `AbstractCall` lemmas |
+| `proc (I)` on an abstract procedure | `equiv_proc (I)` (`Logic/ECProcInv.lean`): `D(O₁).f ~ D(O₂).f` with `D` declared, or a procedure with a rule tagged `@[proc_inv]` (a simulator's `S(F).f`: `attribute [local proc_inv] SIMULATOR.call_f SIMULATOR.call_fi`, and the simulator's oracle lists as a section hypothesis). Goals: the oracles' judgments in EC's form `={arg} ∧ I ==> ={res} ∧ I` (then `exact H`, EC's `apply H`), then `pre` if `ec_auto` does not close it. EC's `call (_ : P ==> Q). proc (I)` on the last statement is `equiv_call (_ : ={glob M} ∧ I)` directly |
 | `symmetry` | `equiv_sym` |
 | `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)` — EC's `n` dropped: the call must be the **last** statement (`stmt_wp` first). Goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviations: `bad` must persist; **one oracle only** — Gext's `fel 8 … [ReSample.f : …; ReSample.f1 : …]` needs the multi-oracle extension .  **A procedure the oracles call** (`fel … [Gcol.sample_c : pre]`): `fel §cntr (fun _ => step) q (bad) [Gcol.sample_c : pre] (inv)?` (`Logic/FelInner.lean`; `inv` may be left out): `stmt_wp` itself, the event may be EC's `bad ∧ cntr ≤ q`, `pre` may read anything, the oracles' code checked syntactically (`exp_decr`), `lt` closed; goals `sum`, `init`, then per procedure `step`, `incr`, `same`, `keep`. Over the procedure's body: `byphoare (: True ==> _)`, `phoare_proc`, `phoare_inline*` first (Gcol's `Pr_col`).  Code *after* the adversary's call (Gext's resampling) is checked like the oracles, so it must stay calls of the named procedures: inline only the wrapper (`phoare_inline 1` for `DRestr(D)`'s call, Gext's `Pr_ext`); several procedures `[ReSample.f : …, ReSample.f1 : …]` (EC's `;` is `,`) |
 | `bypr` | not a tactic (E12; before `fel`, collapses to `phoare_proc`) |
@@ -515,6 +515,23 @@ Document each in the docstring when it applies.
 * **Guards after `splitwhile`**: the equality of the two loops' guards that `while` asks is a
   small arithmetic fact about `decide`s; state it once as a private lemma
   (`splitwhile_guard_left`, `_right`, `_le` in `Pilot/Sponge.lean`) and close the leaf with it.
+* **An abstract simulator** (`declare module S <: SIMULATOR {…}`, a functor with several
+  procedures; `Pilot/Sponge.lean`, final section).  EC's module type lists each procedure's
+  oracles; state them once as a section hypothesis (`variable (S_rep :
+  SIMULATOR.Representable … S)`, `include S_rep in` on the lemmas that use it).  Then:
+  `call (_ : true)` on `S(F).init` is `equiv_call` of a small lemma from `SIMULATOR.call_init`
+  (`BlockSim_init_call`), followed by `simp only [Setter.throwaway_set]; ec_auto;
+  simp (disch := fp_disjoint) only [touched_set_of_le_compl]; ec_close`; `proc (I)` on `S(F).f`
+  is `equiv_proc (I)`; `RaiseSim(S, F)` is `S(LowerFun(F))` after
+  `simp only [RaiseSim, Module.app_comp]`.
+* **`equiv_call (_ : ={glob M} ∧ I)` must not be parenthesized**: `(_ : (={glob M} ∧ I))` is
+  read as an invariant without a `glob` part and fails ("the conditions read … which is not a
+  global variable").
+* **No frame where one is expected** (`call H`, `conseq H`: the goal after it asks `={glob M}`
+  or a variable for arbitrary final globals): the footprint of a concrete callee is not known.
+  State it (`@[fp_bound] theorem fvP_X_f : FVP.fvP X.f ≤ X.mp.footprint := by fp_module X.mp`),
+  for the procedure and for the modules it is applied to (`fvP_RaiseFun : … ≤ ⊥`), outside any
+  `include R`.
 * **Side goals over parameter tuples and results** (`prhlProc_trans_ec`, `equiv_conseq_pre`,
   `equiv_conseq H` on procedures): the variables have the signature's types
   (`typeListToTuple [ℤ]`, `(procsig …).ret`) and the conditions are unreduced reads, so `omega`
