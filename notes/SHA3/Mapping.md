@@ -903,6 +903,18 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 2138 | lemma | `conclu` | section . | `conclu` | done |
 | 2153 | lemma | `conclusion` |  | `conclusion` | done |
 
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Sponge.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.Sponge`, over the first port's modules; in progress, EC's order):
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 30, 58, 85 | modules, lemma | `StdSponge`, `Sponge`, `loop_cond` | the first port's | def |
+| 99 | equiv | `Sponge_is_StdSponge` | `Sponge_is_StdSponge` (EC's script on the strict tactics; `(bs, n)` is the one parameter `x`, so `seq 5 5` is `equiv_seq 6 6`; inline fact `size_cat_block`; `size_block`) | done |
+| 131–545 | modules, theory `HybridIRO` up to `HybridIROExper_Lazy_Eager` | | — | todo |
+| 553–1909 | the rest of `HybridIRO` | | — | todo |
+| 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
+| 1953–2163 | the final section, `conclu`, `conclusion` | | — | todo |
+
 ## `proof/SHA3Indiff.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.SHA3Indiff`.
