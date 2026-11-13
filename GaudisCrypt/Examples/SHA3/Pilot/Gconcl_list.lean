@@ -46,6 +46,9 @@ Translation:
 * GAP 6: the frame of `equiv_call (_ : P ==> Q)` is the callee module's (`S(F)`), not the
   procedure's: `S(F).fi` does not call `F`, but the call loses the oracles' maps, and the
   invariant on them is carried in `P` and `Q` (the callee by `sim (_ : inv)`).
+* GAP 7: `hoare_conseq (: _ ==> Q)` and the Hoare `while` have no frame: their side goals know
+  nothing of what the code keeps (EC's `conseq` quantifies over the modified variables only), so
+  a fact about unmodified variables (`(p, n) = parse x`) is carried in `Q` and in the invariant.
 
 From `Ideal_equiv_valid` on, the proofs are written on the strict tactics (`ec_auto`, `ec_close`,
 `ec_progress`, `ec_prep`: `Logic/ECAutoStrict.lean`, `Logic/ECProgress.lean`); `ideal_equiv` is
@@ -1007,5 +1010,488 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
       ‹¬ FMap.dom m₁ _›
   -- EC: auto;smt().
   ec_auto; ec_progress
+
+/-- EC's `local module L4 (D : DISTINGUISHER) (F : F.RO) (F2 : F2.RO)`:
+`proc distinguish = IdealIndif(DSqueeze2(F,F2),S2,DValid(DRestr(D))).main` (an alias; the old
+port's `L4` is a `def`). -/
+noncomputable abbrev L4 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) (F2 : F2.RO_T) :
+    procmod () → Bool :=
+  IdealIndif (Module.app DSqueeze2 (Module.pair F F2)) S2 (DValid (DRestr D))
+
+set_option hygiene false in
+/-- EC's `auto` and `by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.`,
+the side goal of each `rcond` on the last round of `equiv_L3_L4`'s squeezing loop: the loop keeps
+`i < n` (through the functionality's two inner loops).  (No hygiene: `§i`, `§n` are the program's
+variables.) -/
+local macro "l3l4_round" : tactic => `(tactic| (
+  intro σ₂
+  (try stmt_wp)
+  hoare_while (§i < §n)
+  · stmt_sp; stmt_if
+    · stmt_sp; stmt_if
+      · ec_auto; hoare_while (§i < §n)
+        · ec_auto <;> ec_close
+        · ec_close
+        · ec_auto <;> ec_close
+      · ec_auto; hoare_while (§i < §n)
+        · ec_auto <;> ec_close
+        · ec_close
+        · ec_auto <;> ec_close
+    · ec_auto <;> ec_close
+  · ec_close
+  · ec_auto <;> ec_close))
+
+set_option hygiene false in
+/-- EC's `auto` and `by while(i<n);auto;smt(parse_valid parse_gt0).`, the side goal of an `rcond`
+on the last round of a sampling loop in `equiv_L3_L4`'s simulator oracle: the loop keeps `i < n`,
+and `n` is positive (`parse_gt0`).  (No hygiene: `§i`, `§n` are the program's variables.) -/
+local macro "l3l4_i_lt_n" : tactic => `(tactic| (
+  intro σ
+  (try ec_auto)
+  hoare_while (§i < §n)
+  · ec_auto <;> ec_close
+  · first
+    | ec_close
+    | (ec_prep; simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega)
+  · ec_auto; ec_prep
+    first | exact parse_gt0 _ | omega))
+
+-- the oracles' three judgments, over the two functionalities' inlined loops (EC's 120 lines)
+set_option maxHeartbeats 16000000 in
+/-- EC's `local equiv equiv_L3_L4 (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S, -F2.RO, -BIRO.IRO,
+-BIRO2.IRO}) : L3(D,F.RO).distinguish ~ L4(D,F.RO,F2.RO).distinguish : ={glob D} ==>
+={glob D, res}`.
+
+Deviations: GAPs 5 and 7 of the file header.  `S2(F)` is a wrapper of `S(Last(F))` in the old
+declarations (exception E5), one call more than EC's alias: `stmt_inline{2} 0; stmt_sp` after
+EC's `call` into the simulator.  EC's variables of inlined callees are named differently
+(noted at each use).  EC's `smt` calls with `parse_gt0`, `parseK`, `formatK`, `parse_valid` are
+by hand (`smt_close` fails on them with an unknown free variable, GAP 2); the two loop side goals
+EC repeats are the local macros `l3l4_round` and `l3l4_i_lt_n`. -/
+theorem equiv_L3_L4 :
+    ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO, -BIRO.IRO, -BIRO2.IRO}),
+    equiv[ L3(D, SLCommon.F.RO.asRO).distinguish ~
+      L4(D, SLCommon.F.RO.asRO, F2.RO.asRO).distinguish : ={glob D} ==> ={glob D, res} ] := by
+  intro D _
+  --     (EC's `parse_valid` for our `valid`, the decision of `valid_block`)
+  have hparse : ∀ q : List block, valid q = true → parse q = (q, 1) := fun q h =>
+    parse_valid q (by simpa [valid] using h)
+  -- EC: proc; inline*; auto; sp.
+  equiv_proc; stmt_inline*; ec_auto; stmt_sp
+  -- EC: call(: ={glob S, glob C, glob F.RO, glob F2.RO}); auto;first last.
+  equiv_call (_ : ={glob S, glob C, glob SLCommon.F.RO.asRO, glob F2.RO.asRO})
+  on_goals 4 => ec_auto
+  rotate_left
+  -- EC: + by proc; sim.
+  · equiv_proc; sim
+  -- EC: + proc; sp; if; auto; call(: ={glob F.RO, glob F2.RO}); auto; sp; if; auto; inline*; sp.
+  · equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    --     (EC's `auto`: nothing to do here)
+    equiv_call (_ : ={arg, SLCommon.F.RO.m, F2.RO.m} ==> ={res, SLCommon.F.RO.m, F2.RO.m})
+    on_goals 2 => (ec_auto; ec_close)
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    --     (EC's `auto`: nothing to do here)
+    stmt_inline*; stmt_sp
+    -- EC: rcondt{1}1; 1:(auto; smt(parse_valid parse_gt0)); sp.
+    stmt_rcondt{1} 1
+    · ec_auto
+    --     (EC's `sp`: nothing to do here)
+    -- EC: rcondt{1}1; 1:(auto; smt(parse_valid parse_gt0)); sp.
+    stmt_rcondt{1} 1
+    · ec_auto
+    stmt_sp
+    -- EC: rcondf{1}3; 1:(auto; smt(parse_valid parse_gt0)); sp.
+    stmt_rcondf{1} 3
+    · ec_auto
+    --     (EC's `sp`: nothing to do here)
+    -- EC: rcondt{2}1; 1:(auto; smt(parse_valid parse_gt0 parseK formatK)); sp; wp.
+    stmt_rcondt{2} 1
+    · ec_auto
+    --     (EC's `sp`: nothing to do here)
+    stmt_wp
+    -- EC: if{2};sp.
+    stmt_if{2} <;> stmt_sp
+    -- EC: - rcondf{2}3; 1:(auto; smt(parse_valid parse_gt0)); sp.
+    · stmt_rcondf{2} 3
+      · ec_auto
+      --     (EC's `sp`: nothing to do here)
+      -- EC: rcondf{1}8; 1:(auto; smt(parse_valid parse_gt0)); sp.
+      stmt_rcondf{1} 8
+      · ec_auto; ec_close
+      --     (EC's `sp`: nothing to do here)
+      -- EC: rcondf{1}5; 1:(auto; smt(parse_valid parse_gt0 mem_set nseq0 cats0)); sp.
+      stmt_rcondf{1} 5
+      · ec_auto; smt_close [FMap.mem_set, format_one, parse_valid, valid]
+      --     (EC's `sp`: nothing to do here)
+      -- EC: wp 4 2;rnd{1};wp 2 2.
+      stmt_wp 4 2; equiv_rnd{1}; stmt_wp 2 2
+      -- EC: by conseq(:_==> ={F.RO.m} /\ r3{1} = r2{2} /\ x9{1} = x4{2});2:sim;
+      --       smt(DBlock.dunifin_ll nseq0 cats0 parse_valid);progress.
+      --     (EC's `r3`, `x9` on the left and `r2`, `x4` on the right are our `r0`, `x2`)
+      equiv_conseq (: _ ==> ={SLCommon.F.RO.m} ∧ §r0{1} = §r0{2} ∧ §x2{1} = §x2{2})
+      case post => ec_progress
+      --     (EC's `smt` on what `sim` leaves: the two keys are the valid `p`)
+      sim
+      smt_close [format_one, parse_valid, valid]
+    -- EC: rcondt{2}1; 1:(auto; smt(parse_valid parse_gt0)); sp; wp.
+    stmt_rcondt{2} 1
+    · ec_auto
+    stmt_sp
+    --     (EC's `wp`: nothing to do here)
+    -- EC: splitwhile{1} 8 : i + 1 < n.
+    stmt_splitwhile{1} 8 : §i + 1 < §n
+    -- EC: rcondt{1}9;1:auto.
+    stmt_rcondt{1} 9
+    --     - by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.
+    · l3l4_round
+    -- EC: rcondf{1}11;1:auto.
+    --     - by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.
+    stmt_rcondf{1} 11
+    · l3l4_round
+    -- EC: rcondf{1}11;1:auto.
+    --     - by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.
+    stmt_rcondf{1} 11
+    · l3l4_round
+    -- EC: wp.
+    stmt_wp
+    -- EC: while((n,p){1} = (n0,p0){2} /\ i{1} + 1 = i{2} /\ valid p{1} /\ 0 < n{1}
+    --       /\ 0 <= i{2} <= n{1}
+    --       /\ (forall j, 1 <= j <= i{2} => format p{1} j \in F.RO.m{1})
+    --       /\ rcons lres{1} b{1} = lres{2} /\ ={F.RO.m, F2.RO.m});last first.
+    --     (EC's `i`, `lres` on the right are our `i0`, `lres0`)
+    equiv_while ((§n{1}, §p{1}) = (§n0{2}, §p0{2}) ∧ §i{1} + 1 = §i0{2} ∧ valid §p{1} ∧
+      0 < §n{1} ∧ 0 ≤ §i0{2} ∧ §i0{2} ≤ §n{1} ∧
+      (∀ j : ℤ, 1 ≤ j ∧ j ≤ §i0{2} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
+      rcons §lres{1} §b{1} = §lres0{2} ∧ ={SLCommon.F.RO.m, F2.RO.m})
+    rotate_left
+    -- EC: - rcondf{1}5;1:auto;1:smt(mem_set nseq0 cats0 parse_valid).
+    · stmt_rcondf{1} 5
+      · ec_auto; smt_close [FMap.mem_set, format_one, parse_valid, valid]
+      -- EC: wp 4 2;rnd{1};wp 2 2.
+      stmt_wp 4 2; equiv_rnd{1}; stmt_wp 2 2
+      -- EC: conseq(:_==> ={F.RO.m} /\ r3{1} = r0{2} /\ x9{1} \in F.RO.m{1});
+      --       1:smt(DBlock.dunifin_ll nseq0 cats0 parse_valid).
+      --     (EC's `r3`, `x9` on the left are our `r0`, `x2`; `r0` on the right our `r1`)
+      equiv_conseq (: _ ==> ={SLCommon.F.RO.m} ∧ §r0{1} = §r1{2} ∧
+        FMap.dom §SLCommon.F.RO.m{1} §x2{1})
+      case post =>
+        ec_progress
+        all_goals smt_close [format_one, parse_valid, valid]
+      -- EC: by auto;smt(parse_valid nseq0 cats0 mem_set).
+      ec_auto; ec_progress
+      smt_close [FMap.mem_set]
+    -- EC: sp.
+    stmt_sp
+    -- EC: rcondt{1}1;1:auto;sp.
+    stmt_rcondt{1} 1
+    · ec_auto; ec_close
+    stmt_sp
+    -- EC: rcondt{1}1;1:(auto;smt(parse_valid parseK formatK)).
+    stmt_rcondt{1} 1
+    · ec_auto; smt_close [parse_valid, parseK, formatK, valid]
+    -- EC: splitwhile{1} 1 : i1 + 1 < n1.
+    stmt_splitwhile{1} 1 : §i1 + 1 < §n1
+    -- EC: rcondt{1}2;1:auto.
+    --     - by while(i1 < n1);auto;smt(parse_gt0 parse_valid parseK formatK).
+    stmt_rcondt{1} 2
+    · intro σ₂
+      hoare_while (§i1 < §n1)
+      · ec_auto
+      · ec_close
+      · ec_auto; ec_prep; exact parse_gt0 _
+    -- EC: rcondf{1}7;1:auto.
+    --     - by while(i1 < n1);auto;smt(parse_gt0 parse_valid parseK formatK).
+    stmt_rcondf{1} 7
+    · intro σ₂
+      ec_auto
+      hoare_while (§i1 < §n1)
+      · ec_auto
+      · ec_close
+      · ec_auto; ec_prep; exact parse_gt0 _
+    -- EC: rcondf{1}9;1:auto.
+    --     - conseq(:_==> i1 + 1 = n1);1:smt(mem_set parseK parse_valid formatK).
+    --       by while(i1 + 1 <= n1);auto;smt(parse_gt0 parse_valid parseK formatK).
+    stmt_rcondf{1} 9
+    · intro σ₂
+      ec_auto
+      --     (GAP 7: `hoare_conseq` has no frame — what the loop keeps, `(p1, n1) = parse x7`, is
+      --     carried in the new postcondition and in the invariant)
+      hoare_conseq (: _ ==> §i1 + 1 = §n1 ∧ (§p1, §n1) = parse §x7)
+      case post =>
+        ec_prep
+        rw [‹i1 + 1 = _›, formatK]
+        split_ifs <;> simp_all [FMap.mem_set]
+      hoare_while (§i1 + 1 ≤ §n1 ∧ (§p1, §n1) = parse §x7)
+      · ec_auto
+      · ec_prep; simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
+      · ec_auto; ec_prep
+        exact Int.add_one_le_iff.mpr (parse_gt0 _)
+    -- EC: wp 8 2;rnd{1};wp 6 2.
+    stmt_wp 8 2; equiv_rnd{1}; stmt_wp 6 2
+    -- EC: conseq(:_==> n1{1} = i{2} /\ ={F.RO.m} /\ i1{1} = n1{1}
+    --       /\ (forall (j : int), 1 <= j <= i{2} =>
+    --            format p1{1} j \in F.RO.m{1}));
+    --     1:smt(parseK formatK parse_valid DBlock.dunifin_ll).
+    --     (EC's `i` on the right is our `i0`)
+    equiv_conseq (: _ ==> §n1{1} = §i0{2} ∧ ={SLCommon.F.RO.m} ∧ §i1{1} = §n1{1} ∧
+      (∀ j : ℤ, 1 ≤ j ∧ j ≤ §i0{2} → FMap.dom §SLCommon.F.RO.m{1} (format §p1{1} j)))
+    --     (EC's `smt`, by hand: `smt_close` with these hints fails on an unknown free variable,
+    --     GAP 2)
+    case post =>
+      ec_progress
+      · exact bdistr_expected_one
+      · have h := ‹∀ j : ℤ, 1 ≤ j ∧ j ≤ _ + 1 + 1 → FMap.dom SLCommon_F_RO_m₂ _› j
+          ⟨‹1 ≤ j›, ‹j ≤ _›⟩
+        rwa [parseK _ _ (by omega) (by simpa [valid] using ‹valid p0₂1 = true›)] at h
+      · rw [Bool.eq_iff_iff]
+        simp only [Bool.and_eq_true, decide_eq_true_eq]
+        exact ⟨fun h => h.2, fun h => ⟨by omega, h⟩⟩
+    -- EC: seq 2 0 : (={F.RO.m,x0} /\ i1{1} = n1{1} /\ x0{2} = format p{1} i{2}
+    --       /\ n1{1} = i{1} + 1 /\ p1{1} = p{1} /\ i{2} = i{1} + 1 /\ forall (j : int),
+    --         1 <= j <= i{1} => format p{1} j \in F.RO.m{1});last first.
+    --     (EC's `x0` is the functionality's argument on the left, our `x7`, and the oracle's on
+    --     the right, our `x3`; EC's `i` on the right is our `i0`)
+    equiv_seq 2 0 : (={SLCommon.F.RO.m} ∧ §x7{1} = §x3{2} ∧ §i1{1} = §n1{1} ∧
+      §x3{2} = format §p{1} §i0{2} ∧ §n1{1} = §i{1} + 1 ∧ §p1{1} = §p{1} ∧ §i0{2} = §i{1} + 1 ∧
+      (∀ j : ℤ, 1 ≤ j ∧ j ≤ §i{1} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)))
+    rotate_left
+    -- EC: - auto;smt(mem_set).
+    --     (EC's `smt`, by hand: `j` is at most `i`, or the new key)
+    · ec_auto; ec_progress
+      all_goals
+        have hj : j ≤ i₁ ∨ j = i₁ + 1 := by omega
+      · rcases hj with h | rfl
+        · exact ‹∀ j : ℤ, 1 ≤ j ∧ j ≤ i₁ → FMap.dom m₂ (format p1₁ j)› j ⟨‹1 ≤ j›, h⟩
+        · assumption
+      · rw [FMap.mem_set]
+        rcases hj with h | rfl
+        · exact Or.inl (‹∀ j : ℤ, 1 ≤ j ∧ j ≤ i₁ → FMap.dom m₂ (format p1₁ j)› j ⟨‹1 ≤ j›, h⟩)
+        · exact Or.inr rfl
+    -- EC: wp;conseq(:_==> ={F.RO.m} /\ i1{1} + 1 = n1{1}
+    --       /\ (forall (j : int), 1 <= j < n1{1} =>
+    --           format p1{1} j \in F.RO.m{1}));1:smt(parseK).
+    stmt_wp
+    equiv_conseq (: _ ==> ={SLCommon.F.RO.m} ∧ §i1{1} + 1 = §n1{1} ∧
+      (∀ j : ℤ, 1 ≤ j ∧ j < §n1{1} → FMap.dom §SLCommon.F.RO.m{1} (format §p1{1} j)))
+    --     (EC's `smt(parseK)`, by hand)
+    case post =>
+      ec_progress
+      · have h := ‹i1₁1 + 1 = _›
+        rw [parseK] at h
+        exacts [h, by omega, by simpa [valid] using ‹valid p₁1 = true›]
+      · rw [parseK]
+        all_goals first | rfl | omega | (simpa [valid] using ‹valid p₁1 = true›)
+    -- EC: while{1}(={F.RO.m} /\ 0 <= i1{1} /\ i1{1} + 1 <= n1{1} /\ i{2} = n1{1} /\ i{2} = i{1} + 1
+    --       /\ (forall (j : int), 1 <= j < n1{1} =>
+    --           format p1{1} j \in F.RO.m{1}))(n1{1}-i1{1}-1);progress.
+    equiv_while{1} (={SLCommon.F.RO.m} ∧ 0 ≤ §i1{1} ∧ §i1{1} + 1 ≤ §n1{1} ∧ §i0{2} = §n1{1} ∧
+      §i0{2} = §i{1} + 1 ∧
+      (∀ j : ℤ, 1 ≤ j ∧ j < §n1{1} → FMap.dom §SLCommon.F.RO.m{1} (format §p1{1} j)))
+      ((§n1{1} - §i1{1} - 1).toNat)
+    -- EC: + by sp;rcondf 2;auto;smt(DBlock.dunifin_ll).
+    --     (the key of this round is among those already sampled: by hand)
+    · while_ll_phoare
+      intro σ₂
+      ec_auto
+    · intro σ₂ k
+      stmt_sp; stmt_rcondf 2
+      · ec_auto; ec_prep
+        simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_false] at *
+        apply_assumption; constructor <;> omega
+      ec_auto; ec_progress
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega
+    -- EC: by auto;smt(parse_gt0 parseK formatK parse_valid).
+    --     (EC's `smt`, by hand: `parseK` on the valid `p`, then arithmetic)
+    ec_auto; ec_progress
+    all_goals
+      have hK : ∀ k : ℤ, 0 < k → parse (format p0₂ k) = (p0₂, k) := fun k hk =>
+        parseK _ _ hk (by simpa [valid] using ‹valid p0₂ = true›)
+      simp (disch := omega) only [hK] at *
+    all_goals first
+      | omega
+      | (simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega)
+      | (apply_assumption; constructor <;> omega)
+  -- EC: proc; sp; if; auto; call(: ={glob S, glob F.RO, glob F2.RO}); auto.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  ec_auto
+  equiv_call (_ : ={arg, S.m, S.mi, S.paths, SLCommon.F.RO.m, F2.RO.m} ==>
+    ={res, S.m, S.mi, S.paths, SLCommon.F.RO.m, F2.RO.m})
+  on_goals 2 => ec_auto
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  --     (E5: `S2(F)` is a wrapper of `S(Last(F))` here, one call more than EC's alias)
+  stmt_inline{2} 0; stmt_sp
+  -- EC: if; [1,3:by auto]; sim 1 1; if; auto; sim 2 2; sp.
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  sim 1 1
+  stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's `auto`: nothing to do here)
+  stmt_sp
+  -- EC: call(: ={glob F.RO, glob F2.RO});auto;last smt().
+  equiv_call (_ : ={arg, SLCommon.F.RO.m, F2.RO.m} ==> ={res, SLCommon.F.RO.m, F2.RO.m})
+  on_goals 2 => (ec_auto; ec_close)
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  -- EC: inline*;auto;sp.
+  stmt_inline*; ec_auto; stmt_sp
+  -- EC: if;1:auto;1:smt().
+  stmt_if
+  · ec_close
+  -- EC: + rcondf{2}1;1:(auto;smt(parse_valid parse_gt0)).
+  · stmt_rcondf{2} 1
+    · ec_auto; ec_prep; exact parse_gt0 _
+    -- EC: splitwhile{1} 1 : i + 1 < n;splitwhile{2} 1 : i + 1 < n.
+    stmt_splitwhile{1} 1 : §i + 1 < §n
+    stmt_splitwhile{2} 1 : §i + 1 < §n
+    -- EC: rcondt{1}2;1:auto.
+    --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+    stmt_rcondt{1} 2
+    · l3l4_i_lt_n
+    -- EC: rcondt{2}2;1:auto.
+    --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+    stmt_rcondt{2} 2
+    · l3l4_i_lt_n
+    -- EC: rcondf{1}7;1:auto.
+    --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+    stmt_rcondf{1} 7
+    · l3l4_i_lt_n
+    -- EC: rcondf{2}8;1:auto.
+    --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+    stmt_rcondf{2} 8
+    · l3l4_i_lt_n
+    -- EC: rcondf{1}9;1:auto.
+    --     - by while(i+1<=n);auto;
+    --       smt(parse_valid parse_gt0 parseK mem_set formatK).
+    --     (GAP 7: no frame in the Hoare `while`: `(p, n) = parse x` is carried in the invariant)
+    stmt_rcondf{1} 9
+    · intro σ₂
+      ec_auto
+      hoare_while (§i + 1 ≤ §n ∧ (§p, §n) = parse §x)
+      · ec_auto
+      · ec_prep
+        have hi : i + 1 = (parse x).2 := by
+          simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
+        rw [hi, formatK]
+        split_ifs <;> simp_all [FMap.mem_set]
+      · ec_auto; ec_prep
+        exact Int.add_one_le_iff.mpr (parse_gt0 _)
+    -- EC: wp 8 5;rnd{1};wp 6 5.
+    stmt_wp 8 5; equiv_rnd{1}; stmt_wp 6 5
+    -- EC: conseq(:_==> ={F.RO.m} /\ p{2} = x0{2});progress.
+    --     + smt(last_rcons formatK parseK).
+    --     (EC's `x0` on the right, the oracle's argument, is our `x3`)
+    equiv_conseq (: _ ==> ={SLCommon.F.RO.m} ∧ §p{2} = §x3{2})
+    case post =>
+      ec_progress
+      simp [last, rcons]
+    -- EC: seq 3 3 : (={F.RO.m,i,x0} /\ x0{1} = p{2});
+    --       last by conseq(:_==> ={F.RO.m});progress;sim.
+    --     (the left's `x0`, a `List block`, is written with its type: the right has an `x0` of
+    --     another type)
+    equiv_seq 3 3 : (={SLCommon.F.RO.m, i} ∧ §(localVarLens "x0" (List block)){1} = §x3{2} ∧
+      §(localVarLens "x0" (List block)){1} = §p{2})
+    rotate_left
+    · equiv_conseq (: _ ==> ={SLCommon.F.RO.m})
+      case post => ec_progress
+      sim
+    -- EC: auto;conseq(:_==> ={F.RO.m,i,n} /\ p{1} = p0{2} /\ i{1} + 1 = n{2});1:smt(formatK).
+    ec_auto
+    equiv_conseq (: _ ==> ={SLCommon.F.RO.m, i, n} ∧ §p{1} = §p0{2} ∧ §i{1} + 1 = §n{2})
+    case post =>
+      ec_progress
+      rw [‹i₂1 + 1 = _›, formatK]
+    -- EC: by while(={F.RO.m,i,n} /\ p{1} = p0{2} /\ 0 <= i{1} /\ i{1} + 1 <= n{2});
+    --       auto;smt(parse_gt0).
+    equiv_while (={SLCommon.F.RO.m, i, n} ∧ §p{1} = §p0{2} ∧ 0 ≤ §i{1} ∧ §i{1} + 1 ≤ §n{2})
+    · ec_auto; ec_progress
+    ec_auto; ec_progress
+    · exact Int.add_one_le_iff.mpr (parse_gt0 _)
+    · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
+  -- EC: sp;rcondf{2}1;1:(auto;smt(parse_gt0)).
+  --     (EC's `sp`: nothing to do here)
+  stmt_rcondf{2} 1
+  · ec_auto; ec_prep; exact parse_gt0 _
+  -- EC: rcondf{2}1;1:auto;1:smt(parseK formatK).
+  stmt_rcondf{2} 1
+  · ec_auto; ec_prep; rw [formatK]; omega
+  -- EC: splitwhile{1} 1 : i + 1 < n;splitwhile{2} 1 : i + 1 < n.
+  stmt_splitwhile{1} 1 : §i + 1 < §n
+  stmt_splitwhile{2} 1 : §i + 1 < §n
+  -- EC: rcondt{1}2;1:auto.
+  --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+  stmt_rcondt{1} 2
+  · l3l4_i_lt_n
+  -- EC: rcondt{2}2;1:auto.
+  --     - while(i<n);auto;-1:smt(parse_valid parse_gt0).
+  stmt_rcondt{2} 2
+  · l3l4_i_lt_n
+  -- EC: rcondf{1}7;1:auto.
+  --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+  stmt_rcondf{1} 7
+  · l3l4_i_lt_n
+  -- EC: rcondf{2}8;1:auto.
+  --     - by while(i<n);auto;smt(parse_valid parse_gt0).
+  stmt_rcondf{2} 8
+  · l3l4_i_lt_n
+  -- EC: rcondf{1}9;1:auto.
+  --     - by while(i+1<=n);auto;
+  --       smt(parse_valid parse_gt0 parseK mem_set formatK).
+  --     (GAP 7, as above)
+  stmt_rcondf{1} 9
+  · intro σ₂
+    ec_auto
+    hoare_while (§i + 1 ≤ §n ∧ (§p, §n) = parse §x)
+    · ec_auto
+    · ec_prep
+      have hi : i + 1 = (parse x).2 := by
+        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
+      rw [hi, formatK]
+      split_ifs <;> simp_all [FMap.mem_set]
+    · ec_auto; ec_prep
+      exact Int.add_one_le_iff.mpr (parse_gt0 _)
+  -- EC: wp 8 5;rnd{1};wp 6 5.
+  stmt_wp 8 5; equiv_rnd{1}; stmt_wp 6 5
+  -- EC: conseq(:_==> ={F2.RO.m} /\ format pp{2} n{2} = x3{2}).
+  --     + move=> /> &1 &2 H H0 /= /> [#] H1 H2 m lres /= ?.
+  --       smt(last_rcons formatK parseK).
+  --     (EC's `x3` on the right, the oracle's argument, is our `x8`)
+  equiv_conseq (: _ ==> ={F2.RO.m} ∧ format §pp{2} §n{2} = §x8{2})
+  case post =>
+    ec_progress
+    simp [formatK, last, rcons]
+  -- EC: seq 3 3 : (={F2.RO.m,i} /\ x2{1} = x3{2} /\ pp{2} = p{1} /\ format pp{2} n{2} = x3{2});
+  --       last by conseq(:_==> ={F2.RO.m});progress;sim.
+  --     (EC's `x2` on the left is our `x3`)
+  equiv_seq 3 3 : (={F2.RO.m, i} ∧ §x3{1} = §x8{2} ∧ §pp{2} = §p{1} ∧
+    format §pp{2} §n{2} = §x8{2})
+  rotate_left
+  · equiv_conseq (: _ ==> ={F2.RO.m})
+    case post => ec_progress
+    sim
+  -- EC: auto;conseq(:_==> ={F2.RO.m,i,n} /\ i{1} + 1 = n{2});1:smt(formatK).
+  ec_auto
+  equiv_conseq (: _ ==> ={F2.RO.m, i, n} ∧ §i{1} + 1 = §n{2})
+  case post =>
+    ec_progress
+    all_goals simp only [formatK]
+  -- EC: by while(={F2.RO.m,i,n} /\ p{1} = pp{2} /\ 0 <= i{1} /\ i{1} + 1 <= n{2});
+  --       auto;smt(parse_gt0 parseK formatK).
+  equiv_while (={F2.RO.m, i, n} ∧ §p{1} = §pp{2} ∧ 0 ≤ §i{1} ∧ §i{1} + 1 ≤ §n{2})
+  · ec_auto; ec_progress
+  ec_auto; ec_progress
+  · rw [formatK]
+  · exact Int.add_one_le_iff.mpr (parse_gt0 _)
+  · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
 
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
