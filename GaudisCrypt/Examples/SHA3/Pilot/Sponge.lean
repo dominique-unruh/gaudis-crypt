@@ -31,7 +31,7 @@ set_option ec.strict true
 # The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port, in progress
 
 Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the theory `HybridIRO`
-up to `Lower_HybridIROEager_f` (EC l. 256–900); and `Sponge_Raise_BlockSponge_f`
+up to `HybridIROEagerTrans_next_block_split` (EC l. 256–1186); and `Sponge_Raise_BlockSponge_f`
 (EC l. 1922), which was the second tactic experiment and is described below.  The rest of the
 file follows in EC's order (`notes/SHA3/Mapping.md`).
 
@@ -693,6 +693,237 @@ theorem Lower_HybridIROEager_f :
     all_goals ec_auto
   -- EC: auto.
   ec_auto
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (eager_invar block_bits_all_in_dom block_bits_all_out_dom
+  block_bits_dom_all_in_or_out eager_eq_except eager_eq_except_mem_iff
+  eager_eq_except_upd1_eq_in eager_eq_except_upd2_eq_in eager_eq_except_maps_eq
+  block_bits_dom_first_in_imp_all_in block_bits_dom_first_out_imp_all_out)
+
+/-! ### `HybridIROEagerTrans` (EC l. 904–1186)
+
+The module is the first port's, applied at `HybridIROEager.mp`. -/
+
+noncomputable abbrev HybridIROEagerTrans.next_block :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.next_block HybridIROEager.mp
+noncomputable abbrev HybridIROEagerTrans.next_block_split :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.next_block_split HybridIROEager.mp
+noncomputable abbrev HybridIROEagerTrans.loop :=
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.loop HybridIROEager.mp
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: two cases, three loops with their invariants
+/-- EC's `lemma HybridIROEagerTrans_next_block_split :
+equiv[HybridIROEagerTrans.next_block ~ HybridIROEagerTrans.next_block_split :
+={i, m, xs, bs, HybridIROEager.mp} /\ m{1} = i{1} + r /\ size bs{1} = i{1} /\
+block_bits_dom_all_in_or_out xs{1} i{1} HybridIROEager.mp{1} ==> ={res, HybridIROEager.mp}]`.
+
+EC's script for the program steps.  The goals EC closes by `progress` and a list of `smt`s (the
+invariants of the three loops) are closed by hand, each in one block: the conjuncts by `omega`
+and the `eager_eq_except` lemmas, the two quantified ones by cases on the updated key. -/
+theorem HybridIROEagerTrans_next_block_split :
+    equiv[ HybridIROEagerTrans.next_block (xs, i, m, bs) ~
+      HybridIROEagerTrans.next_block_split (xs, i, m, bs) :
+      ={i, m, xs, bs, HybridIROEager.mp} ∧ §m{1} = §i{1} + r ∧ size §bs{1} = §i{1} ∧
+        block_bits_dom_all_in_or_out §xs{1} §i{1} §HybridIROEager.mp{1} ==>
+      ={res, HybridIROEager.mp} ] := by
+  -- EC: proc=> /=.
+  --     case (dom HybridIROEager.mp{2} (xs{2}, i{2})).
+  equiv_proc
+  equiv_case (FMap.dom §HybridIROEager.mp{2} (§xs{2}, §i{2}))
+  -- EC: rcondt{2} 1; first auto.
+  · stmt_rcondt{2} 1
+    · intro σ₁; ec_auto
+    -- EC: conseq
+    --       (_ :
+    --        ={i, m, xs, bs, HybridIROEager.mp} /\ i{1} <= m{1} /\
+    --        (forall (j : int),
+    --         i{1} <= j < m{1} =>
+    --         dom HybridIROEager.mp{1} (xs{1}, j)) ==>
+    --        _).
+    --     progress; smt(gt0_r).
+    equiv_conseq (: ={i, m, xs, bs, HybridIROEager.mp} ∧ §i{1} ≤ §m{1} ∧
+      (∀ j : ℤ, §i{1} ≤ j ∧ j < §m{1} → FMap.dom §HybridIROEager.mp{1} (§xs{1}, j)) ==> _)
+    case pre =>
+      ec_prep
+      exact ⟨by have := gt0_r; omega,
+        fun j hj => block_bits_dom_first_in_imp_all_in _ _ _ ‹_› ‹_› j hj⟩
+    -- EC: while
+    --       (={i, m, xs, bs, HybridIROEager.mp} /\ i{1} <= m{1} /\
+    --        (forall (j : int),
+    --         i{1} <= j < m{1} =>
+    --         dom HybridIROEager.mp{1} (xs{1}, j))).
+    equiv_while (={i, m, xs, bs, HybridIROEager.mp} ∧ §i{1} ≤ §m{1} ∧
+      (∀ j : ℤ, §i{1} ≤ j ∧ j < §m{1} → FMap.dom §HybridIROEager.mp{1} (§xs{1}, j)))
+    -- EC: wp; inline*.
+    --     rcondf{1} 3; first auto; smt().
+    --     auto; smt().
+    --     (after `sp`, the conditional is first)
+    · stmt_wp; stmt_inline*; stmt_sp
+      stmt_rcondf{1} 1
+      · intro σ₂; ec_auto
+      ec_auto; ec_prep
+      have h : ∀ j : ℤ, i₂ ≤ j ∧ j < m₂ → FMap.dom mp₂ (xs₂, j) := by assumption
+      exact ⟨rfl, by omega, fun j hj => h j ⟨by omega, hj.2⟩⟩
+    -- EC: auto.
+    · ec_auto
+  -- EC: rcondf{2} 1; first auto.
+  --     sp; exists* i{1}; elim*=> i'.
+  · stmt_rcondf{2} 1
+    · intro σ₁; ec_auto
+    stmt_sp
+    equiv_exists* §i{1}
+    intro i'
+    -- EC: conseq
+    --       (_ :
+    --        ={i, m, xs, bs, HybridIROEager.mp} /\ i{1} = i' /\
+    --        i' + r = m{1} /\ size bs{1} = i' /\ cs{2} = [] /\ j{2} = 0 /\
+    --        (forall (j : int),
+    --         i' <= j < i' + r =>
+    --         ! dom HybridIROEager.mp{1} (xs{1}, j)) ==>
+    --        _).
+    --     progress; smt(gt0_r).
+    equiv_conseq (: ={i, m, xs, bs, HybridIROEager.mp} ∧ §i{1} = i' ∧ i' + r = §m{1} ∧
+      size §bs{1} = i' ∧ §cs{2} = [] ∧ §j{2} = 0 ∧
+      (∀ j : ℤ, i' ≤ j ∧ j < i' + r → ¬ FMap.dom §HybridIROEager.mp{1} (§xs{1}, j)) ==> _)
+    case pre =>
+      ec_prep
+      exact fun j hj => block_bits_dom_first_out_imp_all_out _ _ _ ‹_› ‹_› j hj
+    -- EC: seq 1 2 :
+    --       (={m, xs} /\ i{2} = i' /\ i{1} = i' + r /\ bs{1} = bs{2} /\
+    --        size bs{1} = i' + r /\ m{1} = i' + r /\
+    --        (forall (k : int),
+    --         i' <= k < i' + r =>
+    --         HybridIROEager.mp{1}.[(xs{1}, k)] = Some(nth true bs{1} k)) /\
+    --        eager_eq_except xs{1} i' (i' + r) HybridIROEager.mp{1} HybridIROEager.mp{2}).
+    equiv_seq 1 2 : (={m, xs} ∧ §i{2} = i' ∧ §i{1} = i' + r ∧ §bs{1} = §bs{2} ∧
+      size §bs{1} = i' + r ∧ §m{1} = i' + r ∧
+      (∀ k : ℤ, i' ≤ k ∧ k < i' + r →
+        FMap.get §HybridIROEager.mp{1} (§xs{1}, k) = some (nth true §bs{1} k)) ∧
+      eager_eq_except §xs{1} i' (i' + r) §HybridIROEager.mp{1} §HybridIROEager.mp{2})
+    -- EC: wp.
+    --     while
+    --       (={m, xs} /\ i{2} = i' /\ m{1} = i' + r /\ i' <= i{1} <= i' + r /\
+    --        0 <= j{2} <= r /\ i{1} - i' = j{2} /\
+    --        size bs{1} = i{1} /\ bs{1} = bs{2} ++ cs{2} /\
+    --        (forall (k : int),
+    --         i' <= k < i{1} =>
+    --         HybridIROEager.mp{1}.[(xs{1}, k)] = Some(nth true bs{1} k)) /\
+    --        (forall (k : int),
+    --         i{1} <= k < i' + r =>
+    --         ! dom HybridIROEager.mp{1} (xs{1}, k)) /\
+    --        eager_eq_except xs{1} i' (i' + r) HybridIROEager.mp{1} HybridIROEager.mp{2}).
+    · stmt_wp
+      equiv_while (={m, xs} ∧ §i{2} = i' ∧ §m{1} = i' + r ∧ i' ≤ §i{1} ∧ §i{1} ≤ i' + r ∧
+        0 ≤ §(localVarLens "j" ℤ){2} ∧ §(localVarLens "j" ℤ){2} ≤ r ∧
+        §i{1} - i' = §(localVarLens "j" ℤ){2} ∧
+        size §bs{1} = §i{1} ∧ §bs{1} = §bs{2} ++ §cs{2} ∧
+        (∀ k : ℤ, i' ≤ k ∧ k < §i{1} →
+          FMap.get §HybridIROEager.mp{1} (§xs{1}, k) = some (nth true §bs{1} k)) ∧
+        (∀ k : ℤ, §i{1} ≤ k ∧ k < i' + r → ¬ FMap.dom §HybridIROEager.mp{1} (§xs{1}, k)) ∧
+        eager_eq_except §xs{1} i' (i' + r) §HybridIROEager.mp{1} §HybridIROEager.mp{2})
+      -- EC: inline*; rcondt{1} 3; first auto; smt().
+      --     sp; wp; rnd; skip; progress.
+      · stmt_inline*; stmt_sp
+        stmt_rcondt{1} 1
+        · intro σ₂; ec_auto
+        --     (EC's thirteen `progress` goals: the invariant's conjuncts after one more bit)
+        ec_auto
+        rintro m₁ xs₁ i₁ bs₁ mp₁ xs0₁ i0₁ m₂ xs₂ i₂ j₂ bs₂ cs₂ mp₂
+          ⟨⟨⟨⟨rfl, rfl⟩, rfl, hm, h1, h2, hj0, hjr, hij, hsz, hbs, hA, hB, hE⟩, hlt, -⟩, hx⟩ a -
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj hx
+        simp only [decide_eq_true_eq] at hlt
+        have hg : oget ((mp₁.set (xs0₁, i0₁) a).get (xs0₁, i0₁)) = a := by
+          rw [FMap.get_set_sameE]; rfl
+        rw [hg]
+        refine ⟨⟨⟨rfl, rfl⟩, rfl, hm, by omega, by omega, by omega, by omega, by omega,
+          by rw [size_rcons, hsz], by subst hbs; simp [rcons], fun k hk => ?_, fun k hk hd => ?_,
+          eager_eq_except_upd1_eq_in _ _ _ _ _ _ _ hE h1 (by omega)⟩,
+          decide_eq_decide.mpr ⟨fun _ => by omega, fun _ => by omega⟩⟩
+        · rw [FMap.get_setE, nth_rcons, hsz]
+          by_cases hki : k = i0₁
+          · subst hki; simp
+          · have hlt' : k < i0₁ := by omega
+            rw [if_neg (by simp [hki]), if_pos hlt']
+            exact hA k ⟨hk.1, hlt'⟩
+        · rw [FMap.mem_set] at hd
+          rcases hd with hd | hd
+          · exact hB k ⟨by omega, hk.2⟩ hd
+          · have : k = i0₁ := by simpa using hd
+            omega
+      -- EC: skip; progress; smt(gt0_r cats0 size_cat).
+      · ec_auto
+        rintro i₁ m₁ xs₁ bs₁ mp₁ cs₁ i₂ m₂ xs₂ bs₂ mp₂ cs₂ j₂
+          ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, rfl, hm, hsz, rfl, rfl, hN⟩
+        have hr := gt0_r
+        refine ⟨⟨⟨⟨rfl, rfl⟩, rfl, hm.symm, le_rfl, by omega, le_rfl, by omega, by omega, hsz,
+          (cats0 _).symm, fun k hk => absurd hk.2 (not_lt.mpr hk.1), hN, fun _ _ _ => rfl⟩,
+          decide_eq_decide.mpr ⟨fun _ => by omega, fun _ => by omega⟩⟩,
+          fun τ₁ τ₂ _ _ hI hg1 hg2 => ?_⟩
+        obtain ⟨hmx, hi2, hm1, h1, h2, -, -, hij, hsz', hbs', hA, -, hE⟩ := hI
+        simp only [decide_eq_false_iff_not, not_lt] at hg1
+        have hi : (localVarLens "i" ℤ).get τ₁ = i₁ + r := by omega
+        exact ⟨hmx, hi2, hi, hbs', by rw [hsz', hi], hm1, fun k hk => hA k ⟨hk.1, by omega⟩, hE⟩
+    -- EC: conseq
+    --       (_ :
+    --        ={xs, bs, m} /\ i{2} = i' /\ i{1} = i' + r /\ m{1} = i' + r /\
+    --        size bs{1} = i' + r /\
+    --        (forall (k : int),
+    --         i' <= k < i' + r =>
+    --         HybridIROEager.mp{1}.[(xs{1}, k)] = Some (nth true bs{1} k)) /\
+    --        eager_eq_except xs{1} i' (i' + r)
+    --                        HybridIROEager.mp{1} HybridIROEager.mp{2} ==>
+    --        _)=> //.
+    --     while{2}
+    --       (={xs, bs, m} /\ i' <= i{2} <= i' + r /\ i{1} = i' + r /\
+    --        m{1} = i' + r /\ size bs{1} = i' + r /\
+    --        (forall (k : int),
+    --         i' <= k < i{2} =>
+    --         HybridIROEager.mp{1}.[(xs{1}, k)] = HybridIROEager.mp{2}.[(xs{1}, k)]) /\
+    --        (forall (k : int),
+    --         i{2} <= k < i' + r =>
+    --         HybridIROEager.mp{1}.[(xs{1}, k)] = Some (nth true bs{1} k)) /\
+    --        eager_eq_except xs{1} i' (i' + r)
+    --                        HybridIROEager.mp{1} HybridIROEager.mp{2})
+    --       (m{2} - i{2}).
+    · equiv_while{2} (={xs, bs, m} ∧ i' ≤ §i{2} ∧ §i{2} ≤ i' + r ∧ §i{1} = i' + r ∧
+        §m{1} = i' + r ∧ size §bs{1} = i' + r ∧
+        (∀ k : ℤ, i' ≤ k ∧ k < §i{2} →
+          FMap.get §HybridIROEager.mp{1} (§xs{1}, k) = FMap.get §HybridIROEager.mp{2} (§xs{1}, k)) ∧
+        (∀ k : ℤ, §i{2} ≤ k ∧ k < i' + r →
+          FMap.get §HybridIROEager.mp{1} (§xs{1}, k) = some (nth true §bs{1} k)) ∧
+        eager_eq_except §xs{1} i' (i' + r) §HybridIROEager.mp{1} §HybridIROEager.mp{2})
+        ((§m{2} - §i{2}).toNat)
+      -- EC: progress; auto; progress;
+      --       [smt() | smt(gt0_r) | smt(get_setE) | smt() |
+      --        by apply eager_eq_except_upd2_eq_in | smt()].
+      · while_ll_phoare
+        intro σ₁
+        ec_auto
+      · intro σ₁ z
+        ec_auto
+        rintro xs bs m i mp ⟨⟨⟨rfl, rfl, rfl⟩, hi1, hi2, hI1, hM1, hsz, hA, hB, hE⟩, hlt, hz⟩
+        simp only [decide_eq_true_eq] at hlt
+        refine ⟨⟨⟨rfl, rfl, rfl⟩, by omega, by omega, hI1, hM1, hsz, fun k hk => ?_,
+          fun k hk => hB k ⟨by omega, hk.2⟩,
+          eager_eq_except_upd2_eq_in _ _ _ _ _ _ _ hE hi1 (by omega)⟩, by omega⟩
+        rw [FMap.get_setE]
+        split_ifs with h
+        · have hk' : k = i := by have := h; simp at this; omega
+          subst hk'
+          exact hB k ⟨le_rfl, by omega⟩
+        · exact hA k ⟨hk.1, lt_of_le_of_ne (by omega) fun e => h (by rw [e])⟩
+      -- EC: skip; progress;
+      --       [smt(gt0_r) | smt() | smt() | smt() | smt(eager_eq_except_maps_eq)].
+      ec_auto
+      rintro m₁ xs₁ i₁ bs₁ mp₁ m₂ xs₂ i₂ bs₂ mp₂ ⟨⟨rfl, rfl⟩, rfl, rfl, rfl, hsz, hm, hB, hE⟩
+      have hr := gt0_r
+      refine ⟨⟨⟨rfl, rfl, rfl⟩, le_rfl, by omega, rfl, hm, hsz,
+        fun k hk => absurd hk.2 (not_lt.mpr hk.1), hB, hE⟩,
+        fun τ hbs ⟨⟨hx, hb, hmm⟩, h1, h2, _, _, _, hA, _, hE'⟩ hg => ?_⟩
+      simp only [decide_eq_false_iff_not, not_lt] at hg
+      have hi : (localVarLens "i" ℤ).get τ = i₂ + r := by omega
+      exact ⟨by rw [← hb, hi],
+        eager_eq_except_maps_eq _ _ _ true _ _ (by omega) hE' fun k hk => hA k ⟨hk.1, by omega⟩⟩
 
 end HybridIRO
 

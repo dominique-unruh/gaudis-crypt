@@ -924,7 +924,10 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` | same name (EC's script) | done |
 | 765–871 | preds, lemmas | `eager_invar`, `block_bits_*`, `eager_inv_*` | the first port's (plain lemmas) | done |
 | 877 | lemma | `Lower_HybridIROEager_f` | same name (EC's script) | done |
-| 904–1909 | the rest of `HybridIRO` (`HybridIROEagerTrans` … `HybridIROEager_BlockIRO_f`) | | — | todo |
+| 904 | module | `HybridIROEagerTrans` | the first port's, at `HybridIROEager.mp` | def |
+| 962–1012 | pred, lemmas | `eager_eq_except`, `eager_eq_except_*`, `eager_invar_eq_except_upd1` | the first port's (plain lemmas) | done |
+| 1079 | lemma | `HybridIROEagerTrans_next_block_split` | same name (EC's script for the program steps; the loops' invariant goals, EC's `progress` and `smt`s, by hand) | done |
+| 1188–1909 | the rest of `HybridIRO` (`BlockSpongeTrans`, `Prog`, `BlockGen` … `HybridIROEager_BlockIRO_f`) | | — | todo |
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | `Sponge_Raise_BlockSponge_f` (EC's script; `call (_ : ={glob Perm}); sim` with the views of `Perm` opened by `sim_perm_f`, GAP 11) | done |
 | 1953–2163 | the final section, `conclu`, `conclusion` | | — | todo |
 
