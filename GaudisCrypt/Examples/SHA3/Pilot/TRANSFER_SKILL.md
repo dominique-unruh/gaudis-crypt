@@ -472,6 +472,26 @@ Document each in the docstring when it applies.
   `set_option`/comment/docstring header, not after the last blank line before `theorem` — a
   docstring may contain a blank line, and block comments nest, so a block pasted inside one
   disappears without an error.
+* **`transitivity N (P₁ ==> Q₁) (P₂ ==> Q₂)` on procedures** (`Pilot/Sponge.lean`,
+  `HybridIROEagerTrans_BlockSpongeTrans_next_block`): no tactic yet, the rule is
+  `prhlProc_trans_ec` (`Logic/ECTrans.lean`).  State the judgment EC proves in place as its own
+  lemma, then `refine prhlProc_trans_ec ?_ ?_ h₁ h₂`.  The two side goals are over the parameter
+  tuples: `rintro ⟨xs, i, m, bs⟩ g₁ ⟨x, i', bs'⟩ g₂ ⟨…⟩`, restate each hypothesis in reduced form
+  (`replace hi : i = i2 * r := hi`), give EC's `exists` witness as the tuple and the globals.
+* **A first-port fact about a `module`-declared procedure** is stated with `X.f.procedure`; the
+  judgment syntax `equiv[ X.f ~ … ]` reads `Module.Proc.procedure X.f`, and `exact` does not see
+  through it.  Restate once:
+  `rw [← show Module.Proc.procedure X.f = X.f.procedure from Module.procedure_proc _] at h`.
+* **`call L` where `L` is `true ==> ={res}`** in code that still has other state:
+  `equiv_call (_ : True ==> ={res})`; goals `callee` (`exact L`), then the code before.
+* **`while{i} I V` whose invariant reads an unmodified variable the postcondition does not**:
+  the exit goal frames only the postcondition's reads, so the variable's final value is not
+  tied to the initial one.  Add the missing fact to the preceding `conseq`'s postcondition
+  (marked as a gap) rather than changing the invariant: with an invariant that reads the other
+  memory the strict `auto` on the loop body runs out of recursion depth (`stmt_wp; hoare_skip`).
+* **`omega` after a loop fails with two atoms that print the same** (the guard's read of a
+  local and the invariant's): combine the two hypotheses by a lemma instead
+  (`le_antisymm t2 hg`), which works up to `rfl`.
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
