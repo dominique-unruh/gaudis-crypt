@@ -85,16 +85,15 @@ example : hoare[ P §x ∧ 0 ≤ §x ==> Q §y ] {
   trace_state
   sorry
 
--- no step looks at a state: a frame between two states stays as it is (`auto_prep` rewrites
--- the later state's reads)
+-- states of the context: their reads are values, and a frame between two of them an equation
+-- of values, which is substituted
 /--
 trace: P Q : ℤ → Prop
 x y : Lens ℤ VariableAssignment
 σ τ : VariableAssignment
-left✝¹ : P (x.get σ)
-left✝ : x.get τ = x.get σ
-right✝ : y.get τ = y.get σ + 1
-⊢ Q (x.get τ + y.get τ)
+v✝ v : ℤ
+left✝ : P v✝
+⊢ Q (v✝ + (v + 1))
 ---
 warning: declaration uses `sorry`
 -/
@@ -179,6 +178,30 @@ example (x y : Lens ℤ ProgramState) : ∀ σ : ProgramState, P (x.get σ) →
   ec_prep
   trace_state
   sorry
+
+-- a memory in the context (the other side's, in a one-sided rule's side goal): its reads are
+-- values too, so that the equations about them are used
+/--
+trace: P Q : ℤ → Prop
+x y : Lens ℤ ProgramState
+μ : ProgramState
+v : ℤ
+a✝ : P (v + 1)
+⊢ P (v + 1)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (x y : Lens ℤ ProgramState) (μ : ProgramState) : ∀ σ : ProgramState,
+    x.get σ = x.get μ ∧ y.get μ = x.get μ + 1 → P (y.get μ) → P (x.get σ + 1) := by
+  ec_prep
+  trace_state
+  sorry
+
+#guard_msgs in
+example (x y : Lens ℤ ProgramState) (μ : ProgramState) : ∀ σ : ProgramState,
+    x.get σ = x.get μ ∧ y.get μ = x.get μ + 1 → P (y.get μ) → P (x.get σ + 1) := by
+  ec_close
 
 /-! ## `ec_progress`, `ec_close` -/
 

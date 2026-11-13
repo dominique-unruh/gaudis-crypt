@@ -46,9 +46,6 @@ Translation:
 * GAP 6: the frame of `equiv_call (_ : P ==> Q)` is the callee module's (`S(F)`), not the
   procedure's: `S(F).fi` does not call `F`, but the call loses the oracles' maps, and the
   invariant on them is carried in `P` and `Q` (the callee by `sim (_ : inv)`).
-* The side goal of a one-sided `rcond` has the other side's memory in its context; the closer's
-  first phase generalizes the reads of the bound state only: `generalize_reads_all` for the
-  memory's reads, where a hand step needs them as values.
 
 From `Ideal_equiv_valid` on, the proofs are written on the strict tactics (`ec_auto`, `ec_close`,
 `ec_progress`, `ec_prep`: `Logic/ECAutoStrict.lean`, `Logic/ECProgress.lean`); `ideal_equiv` is
@@ -613,8 +610,7 @@ L(D,F.RO).distinguish ~ L3(D,F.RO).distinguish : ={glob D} ==> ={glob D, res}`.
 Deviations: GAPs 5 and 6 of the file header.  EC's `smt(lemma1 lemma2 incl_dom parse_valid …)`
 calls are closed by hand with those lemmas and the old port's `inv_L_L3.dom_valid`, `get_valid`,
 `set_valid`, `dom_invalid`, `get_invalid` (the invariant on a query with a valid, or an invalid,
-prefix); the hypotheses are taken by type.  In the side goal of a one-sided `rcond` the reads of
-the other side's memory are made values by `generalize_reads_all` before the hand step. -/
+prefix); the hypotheses are taken by type. -/
 theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO}),
     equiv[ L(D, SLCommon.F.RO.asRO).distinguish ~ L3(D, SLCommon.F.RO.asRO).distinguish :
       ={glob D} ==> ={glob D, res} ] := by
@@ -768,8 +764,8 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
         stmt_rcondt{1} 2
         on_goals 2 => stmt_rcondt{2} 2
         · ec_auto
-        --     (EC's `smt`, by hand; the reads of the other side's memory as values first)
-        · ec_auto; ec_prep; generalize_reads_all; subst_vars
+        --     (EC's `smt`, by hand)
+        · ec_auto; ec_prep
           exact fun h => ‹¬ FMap.dom _ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
         ec_auto; ec_prep
         exact lemma1 _ _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› (by omega) ‹¬ FMap.dom m₁ _›
@@ -790,12 +786,11 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     -- EC: - rcondf{1}2;2:rcondf{2}2;auto;progress.
     --       * smt(lemma2 incl_dom parse_valid).
     --       by have[]add_maps h1 h2:=H1;rewrite add_maps joinE//=;smt(parse_valid).
-    --     (EC's `smt`s by hand: `parse_valid` on the valid `p`, then the invariant's lemmas; in
-    --     the side goal the reads of the other side's memory are made values first)
+    --     (EC's `smt`s by hand: `parse_valid` on the valid `p`, then the invariant's lemmas)
     · stmt_rcondf{1} 2
       on_goals 2 => stmt_rcondf{2} 2
       · ec_auto
-      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      · ec_auto; ec_prep
         have hpv := hparse _ ‹valid _ = true›
         simp only [hpv] at *
         simpa using lemma2 _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› one_pos ‹FMap.dom _ _›
@@ -812,7 +807,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     stmt_rcondt{1} 2
     on_goals 2 => stmt_rcondt{2} 2
     · ec_auto
-    · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+    · ec_auto; ec_prep
       have hpv := hparse _ ‹valid _ = true›
       simp only [hpv] at *
       exact fun h => ‹¬ FMap.dom _ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
@@ -889,7 +884,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
       · stmt_rcondf{1} 2
         on_goals 2 => stmt_rcondf{2} 2
         · ec_auto
-        · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+        · ec_auto; ec_prep
           simpa using (inv_L_L3.dom_valid ‹inv_L_L3 _ _ _› ‹valid _ = true›).mp ‹FMap.dom _ _›
         ec_auto; ec_progress
         exact congrArg _ (inv_L_L3.get_valid ‹_› ‹valid _ = true›)
@@ -901,7 +896,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
       stmt_rcondt{1} 2
       on_goals 2 => stmt_rcondt{2} 2
       · ec_auto
-      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      · ec_auto; ec_prep
         exact fun h => ‹¬ FMap.dom _ _›
           ((inv_L_L3.dom_valid ‹inv_L_L3 _ _ _› ‹valid _ = true›).mpr h)
       ec_auto; ec_progress
@@ -920,7 +915,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
       · stmt_rcondf{1} 2
         on_goals 2 => stmt_rcondf{2} 2
         · ec_auto
-        · ec_auto; ec_prep; generalize_reads_all; subst_vars
+        · ec_auto; ec_prep
           simpa using lemma2 _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› (by omega)
             ‹FMap.dom _ _›
         ec_auto; ec_progress
@@ -933,7 +928,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
       stmt_rcondt{1} 2
       on_goals 2 => stmt_rcondt{2} 2
       · ec_auto
-      · ec_auto; ec_prep; generalize_reads_all; subst_vars
+      · ec_auto; ec_prep
         exact fun h => ‹¬ FMap.dom _ _› ((incl_dom _ _ _ _ ‹inv_L_L3 _ _ _›).mpr (Or.inl h))
       ec_auto; ec_progress
       exact lemma1 _ _ _ _ _ _ ‹inv_L_L3 _ _ _› ‹valid _ = true› (by omega) ‹¬ FMap.dom m₁ _›
@@ -956,7 +951,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     · stmt_rcondf{1} 2
       on_goals 2 => stmt_rcondf{2} 2
       · ec_auto
-      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      · ec_auto; ec_prep
         simpa using (inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _› ‹valid _ = false›).mp ‹FMap.dom _ _›
       ec_auto; ec_progress
       exact congrArg _ (inv_L_L3.get_invalid ‹_› ‹valid _ = false›)
@@ -967,7 +962,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     stmt_rcondt{1} 2
     on_goals 2 => stmt_rcondt{2} 2
     · ec_auto
-    · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+    · ec_auto; ec_prep
       exact fun h => ‹¬ FMap.dom _ _›
         ((inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _› ‹valid _ = false›).mpr h)
     ec_auto; ec_progress
@@ -992,7 +987,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     · stmt_rcondf{1} 2
       on_goals 2 => stmt_rcondf{2} 2
       · ec_auto
-      · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+      · ec_auto; ec_prep
         simpa using (inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _›
           (parse_not_valid _ ‹valid _ = false› _)).mp ‹FMap.dom _ _›
       ec_auto; ec_progress
@@ -1004,7 +999,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     stmt_rcondt{1} 2
     on_goals 2 => stmt_rcondt{2} 2
     · ec_auto
-    · ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars
+    · ec_auto; ec_prep
       exact fun h => ‹¬ FMap.dom _ _› ((inv_L_L3.dom_invalid ‹inv_L_L3 _ _ _›
         (parse_not_valid _ ‹valid _ = false› _)).mpr h)
     ec_auto; ec_progress

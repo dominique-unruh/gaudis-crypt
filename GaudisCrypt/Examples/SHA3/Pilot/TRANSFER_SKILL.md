@@ -627,8 +627,8 @@ Document each in the docstring when it applies.
     value in the pattern when two hypotheses have the same shape).
   - Nested final memories (`∀ τ₁ τ₂` of `while`/`conseq`) become values too; their names are
     qualified further (`SLCommon_F_RO_m₁` next to `F_RO_m₁`).
-  - The side goal of a one-sided `rcond` keeps the other side's memory in the context:
-    `ec_auto; ec_prep; generalize_reads_all; split_pair_eqs; subst_vars`, then the hand step.
+  - The side goal of a one-sided `rcond` has the other side's memory in the context: the closer
+    makes its reads values too (`ec_auto; ec_prep`, then the hand step).
   - A fact EC's `smt` uses everywhere (`parse_valid` for our `valid`): one `have` at the top of
     the proof; the closers then find it.
   - Probing: one lemma in an uncommitted scratch file next to the pilot, compiled alone with the

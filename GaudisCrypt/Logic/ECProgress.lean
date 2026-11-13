@@ -17,7 +17,10 @@ every read is generalized to a value, as `ec_skip` does (`Logic/ReadNorm.lean`);
 survives is an error** naming the place.  A goal that is not of that shape (after `ec_auto` or
 `ec_skip` it is already about values) is left as it is.  The same is done at states bound further
 in (EC's final memories, `P → ∀ τ₁ τ₂, frames → Q`, of a `while` or `conseq`), when the
-introduction reaches them.
+introduction reaches them.  A memory that is in the context (EC's `&m`; the other side's memory
+in the side goal of a one-sided `rcond`) is not bound by the goal: its reads, in the goal and the
+hypotheses, are made values after the introduction (`generalize_reads_all`), without the check
+that it does not survive.
 
 **Then logic**, on a goal about values.  What `auto_prep` (`Logic/ECClose.lean`) does about
 states (reads through writes, frames, `glob`, renamings) has nothing to do there, and what is
@@ -32,8 +35,7 @@ left of it is logic.  `ec_prep` is that part alone, in `auto_prep`'s order:
 * the tests back to propositions (`decide … = true`), indicators of events, pair equations;
 * take apart and substitute what that made.
 
-No step of the second phase looks at a state: a hypothesis that mentions one (a memory of the
-context) is left as it is.
+No step of the second phase looks at a state.
 
 The old tactics (`auto_prep`, `auto_progress`, `auto_close`) are unchanged
 (`notes/SHA3/TacticReview.md`, step 3).
@@ -126,6 +128,9 @@ elab "ec_intros" : tactic =>
 macro "ec_prep" : tactic => `(tactic| (
   ec_values
   ec_intros
+  -- a memory of the context (the other side's, in the side goal of a one-sided rule): its reads
+  -- values too
+  all_goals try generalize_reads_all
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
   all_goals try mp_hyps
   all_goals try casesm* _ ∧ _
