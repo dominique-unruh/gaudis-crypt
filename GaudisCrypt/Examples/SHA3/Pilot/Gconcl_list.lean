@@ -3672,6 +3672,242 @@ noncomputable abbrev L (D : DISTINGUISHER) (F : IRO2.RO_T) : procmod () → Bool
       (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block) BIRO.IRO.asF)))
     (DRestr D)))
 
+omit [Gconcl_list.Params] in
+/-- EC proves this inline, three times in `equal1` (`have->>: q = (parse l).`1`, the same for
+`k`, then `formatK`): the query parsed from `l` formats back to it. -/
+theorem parse_format_of_eq_parse {q : List block} {k : ℤ} {l : List block}
+    (h : (q, k) = parse l) : parse (format q k) = parse l := by
+  have h1 : q = (parse l).1 := congrArg Prod.fst h
+  have h2 : k = (parse l).2 := congrArg Prod.snd h
+  rw [h1, h2, formatK]
+
+set_option maxHeartbeats 8000000 in
+-- one declaration: the distinguisher's call over three oracles, the simulator's `f` with its
+-- three branches and the two loops of the invalid query
+/-- EC's `local lemma equal1 &m : Pr [ IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m :
+res ] = Pr [ L(IRO2.RO).distinguish() @ &m : res ]`.
+
+The proof is EC's, with these differences.  The fact EC derives inline three times (the query
+parsed on the left formats back to the list parsed on the right) is `parse_format_of_eq_parse`.
+The two loops of the valid query are related by their invariant (GAP 16).  In the invalid query,
+EC shows that the last query is already sampled by splitting off the loop's last iteration
+(`splitwhile`, `rcondt`, `rcondf`, `seq` on a Hoare triple); there is no `seq` on a Hoare triple
+here (GAP 9), and the loop is given the invariant "the query before `i` is sampled" directly.
+The invariant of the main loop carries what the loops do not write (GAP 15). -/
+theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO, -C, -S,
+      -BIRO2.IRO, -IRO2.RO.m}), ∀ m : VariableAssignment,
+    Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] =
+      Pr[ L(D, IRO2.RO.asRO).distinguish () @ &m : §res ] := by
+  intro D _ m
+  -- EC: byequiv=>//=; proc; inline*; auto.
+  byequiv; equiv_proc; stmt_inline*; ec_auto
+  -- EC: call (: ={BIRO.IRO.mp,C.c} /\ ={m,mi,paths}(S,Simulator) /\
+  --         BIRO2.IRO.mp{1} = IRO2.RO.m{2} /\
+  --         incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}); first last.
+  equiv_call (_ : ={BIRO.IRO.mp, C.c} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+    §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+    SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
+  rotate_left
+  -- EC: + by proc; inline*; conseq=>/>; sim.
+  · equiv_proc; stmt_inline*; stmt_sp; stmt_if
+    · ec_close
+    rotate_left
+    · ec_auto
+    ec_auto; stmt_sp; stmt_if
+    · ec_close
+    all_goals ec_auto
+  -- EC: + by proc; inline*; conseq=>/>; sim.
+  · equiv_proc; stmt_inline*
+    sim (_ : §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+      §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+      SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
+    ec_close
+  -- EC: + by auto.
+  · ec_auto
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
+    ec_close
+  -- EC: proc; sp; if; auto.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  rotate_left
+  · ec_auto
+  ec_auto
+  -- EC: call(: ={BIRO.IRO.mp} /\ ={m,mi,paths}(S,Simulator) /\
+  --         BIRO2.IRO.mp{1} = IRO2.RO.m{2} /\
+  --         incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1});auto.
+  --     (GAP 5: EC's `call (: I)` on two different concrete procedures opens the callees)
+  equiv_call (_ : ={arg, BIRO.IRO.mp} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+    §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+    SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1} ==>
+    ={res, BIRO.IRO.mp} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+    §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+    SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
+  rotate_left
+  · ec_auto
+  equiv_proc
+  --     (E5: `SimLast(S)`'s `f` is a wrapper around `S(Last(Valid(F))).f`)
+  stmt_inline{1} 0; stmt_wp; stmt_sp
+  -- EC: if; 1,3: by auto.
+  stmt_if
+  · ec_close
+  rotate_left
+  · ec_auto
+  -- EC: seq 1 1: (={BIRO.IRO.mp,y1,x} /\ ={m,mi,paths}(S,Simulator) /\
+  --           BIRO2.IRO.mp{1} = IRO2.RO.m{2} /\
+  --           incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}); last first.
+  --     (the left's `x`, through the wrapper, is `x0`)
+  equiv_seq 1 1 : (={BIRO.IRO.mp, y1} ∧ §x0{1} = §x{2} ∧ §S.m{1} = §Simulator.m{2} ∧
+    §S.mi{1} = §Simulator.mi{2} ∧ §S.paths{1} = §Simulator.paths{2} ∧
+    §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+    SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
+  rotate_left
+  -- EC: - by conseq=>/>; auto.
+  · ec_auto
+  -- EC: if; 1,3: by auto.
+  stmt_if
+  · ec_close
+  rotate_left
+  · ec_auto
+  -- EC: inline*; sp; if; 1,2: auto.
+  stmt_inline*; stmt_sp; stmt_if
+  -- EC: - move=> /> &1 &2 h1 h2 bl n h3 h4 h5 h6 h7 h8.
+  --       have:= h1; rewrite-h3 /= => [#] ->>->>.
+  --       have:= h4; rewrite-h2 /= => [#] ->>->>.
+  --       have->>/=: q{2} = (parse (rcons p{1} (v{1} +^ x{2}.`1))).`1 by smt().
+  --       have->>/=: k{2} = (parse (rcons p{1} (v{1} +^ x{2}.`1))).`2 by smt().
+  --       move: h5; have-> h5:= formatK (rcons p{1} (v{1} +^ x{2}.`1)).
+  --       by have->>/=: q{1} = (parse (rcons p{1} (v{1} +^ x{2}.`1))).`1 by smt().
+  · ec_prep
+    have h := ‹(_, _) = parse _›
+    rw [parse_format_of_eq_parse h]
+  -- EC: - sp; if; auto.
+  · stmt_wp; stmt_sp; stmt_if
+    --   * move=> /> &1 &2 h1 h2 bl n h3 h4 h5 h6 h7 h8 h9 h10.
+    --     … (the six lines above)
+    · ec_prep
+      have h := ‹(_, _) = parse _›
+      have h1 := ‹(_ : List block) = (parse (format _ _)).1›
+      have h2 := ‹(_ : List block) = (parse (rcons _ _)).1›
+      rw [h1, h2, parse_format_of_eq_parse h]
+    rotate_left
+    · ec_auto; ec_close
+    --   by conseq(:_ ==> ={bs, BIRO.IRO.mp})=> />; sim=> />; smt(parseK formatK).
+    --     (GAP 16: the two sides' locals are named differently, the loop by its invariant)
+    equiv_while (={BIRO.IRO.mp, bs, n} ∧ §i{1} = §i0{2} ∧
+      §x2{1} = §(localVarLens "x1" (List block)){2} ∧ §x0{1} = §x{2} ∧
+      §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+      §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+      SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
+    · stmt_sp; stmt_if
+      · ec_close
+      all_goals ec_auto
+    · ec_auto
+      ec_prep
+      have h := parse_format_of_eq_parse ‹(_, _) = parse _›
+      have h1 := ‹(_ : List block) = (parse (format _ _)).1›
+      have h2 := ‹(_ : List block) = (parse (rcons _ _)).1›
+      have h3 := ‹(_ : ℤ) = (parse (format _ _)).2›
+      have h4 := ‹(_ : ℤ) = (parse (rcons _ _)).2›
+      rw [h] at h1 h3
+      have e1 := h1.trans h2.symm
+      have e2 := h3.trans h4.symm
+      refine ⟨⟨⟨e2, e1, ‹SLCommon.incl _ _›⟩, by rw [e2]⟩, fun τ₁ τ₂ _ _ hI _ _ => ?_⟩
+      obtain ⟨⟨hmp, hbs, -⟩, -, -, hrest⟩ := hI
+      exact ⟨⟨hmp, by rw [hbs]⟩, hrest⟩
+  -- EC: sp; rcondt{1} 1; 1: auto; if{2}; last first.
+  stmt_sp
+  stmt_rcondt{1} 1
+  · intro σ₂; ec_auto
+  stmt_if{2}
+  rotate_left
+  -- EC: + by rcondf{1} 1; auto; smt(parseK formatK).
+  · stmt_rcondf{1} 1
+    · intro σ₂; ec_auto
+      ec_prep
+      have h := parse_format_of_eq_parse ‹(_, _) = parse _›
+      have h3 := ‹(_ : ℤ) = (parse (format _ _)).2›
+      rw [h] at h3
+      rw [h3]; assumption
+    ec_auto
+    ec_prep
+    exact ⟨rfl, ‹SLCommon.incl _ _›⟩
+  -- EC: sp; rcondf{2} 4; 1: auto.
+  stmt_sp
+  stmt_rcondf{2} 4
+  · intro σ₁
+    ec_auto
+    hoare_while (0 < §k ∧ §i ≤ §k ∧ (0 < §i → FMap.dom §IRO2.RO.m (§q, §i - 1)))
+    · ec_auto
+      ec_prep
+      refine ⟨‹_›, by omega, fun _ => ?_⟩
+      simp only [Int.add_sub_cancel]
+      split_ifs <;> simp_all [FMap.mem_set]
+    · ec_prep
+      have hk : i = k := le_antisymm ‹_› ‹_›
+      subst hk
+      simpa using ‹0 < i → _› ‹0 < i›
+    · ec_auto
+      ec_prep
+      exact ⟨‹_›, le_of_lt ‹_›, fun h => absurd h (lt_irrefl 0)⟩
+  -- EC: wp; rnd{2}; wp=> /=; conseq=> />.
+  stmt_wp; equiv_rnd{2}; stmt_wp
+  -- EC: conseq(:_==> i{2} = k{2} /\
+  --       (0 < i{2} => last Block.b0 bs0{1} = oget RO.m{2}.[(q{2}, i{2} -1)]) /\
+  --       BIRO2.IRO.mp{1} = RO.m{2} /\ incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}) =>/>.
+  --     + smt(DBlock.dunifin_ll).
+  --     while (i{2} <= k{2} /\ n0{1} = k{2} /\ i0{1} = i{2} /\ x1{1} = q{2} /\ ={k} /\
+  --       (0 < i{2} => last Block.b0 bs0{1} = oget RO.m{2}.[(q{2}, i{2} - 1)]) /\
+  --       BIRO2.IRO.mp{1} = RO.m{2} /\ incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}).
+  --     (GAP 15: EC's `conseq=> />` keeps what the loops do not write; here the invariant
+  --     carries it, with `0 < k`.  EC's `n0`, `x1` on the left are our `n1`, `x4`.)
+  equiv_while (0 < §k{2} ∧ §i{2} ≤ §k{2} ∧ §n1{1} = §k{2} ∧ §i0{1} = §i{2} ∧
+    §(localVarLens "x4" (List block)){1} = §q{2} ∧
+    (0 < §i{2} → last b0 §bs0{1} = oget (FMap.get §IRO2.RO.m{2} (§q{2}, §i{2} - 1))) ∧
+    §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
+    SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1} ∧
+    ={BIRO.IRO.mp} ∧ §x0{1} = §x{2} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+    §S.paths{1} = §Simulator.paths{2})
+  -- EC: + sp; wp 2 2=> /=; conseq=> />.
+  --       conseq(:_==> b0{1} = oget RO.m{2}.[(q{2}, i{2})] /\ BIRO2.IRO.mp{1} = RO.m{2} /\
+  --         incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}); 1: smt(last_rcons).
+  --       if{1}; 2: rcondf{2} 2; 1: rcondt{2} 2; 1,3: auto.
+  --       - by auto=> />; smt(incl_upd_nin).
+  --       by  auto; smt(DBlock.dunifin_ll).
+  · stmt_sp; stmt_if{1}
+    · stmt_rcondt{2} 2
+      · intro σ₁; ec_auto
+      ec_auto
+      ec_prep
+      refine ⟨‹_›, by omega, fun _ => ?_, rfl,
+        GaudisCrypt.SHA3.Handle.incl_upd_nin _ _ _ _ ‹SLCommon.incl _ _› ‹¬_›⟩
+      simp only [Int.add_sub_cancel, last_rcons, Prod.mk.eta]
+    · stmt_rcondf{2} 2
+      · intro σ₁; ec_auto
+      ec_auto
+      ec_prep
+      refine ⟨bdistr_expected_one, fun a _ => ⟨‹_›, by omega, fun _ => ?_, ‹_›⟩⟩
+      simp only [Int.add_sub_cancel, last_rcons]
+  -- EC: auto=> /> &1 &2 h1 h2 [#] q_L k_L h3 h4 h5 h6 h7 h8 h9 h10;split.
+  --     + have:= h1; rewrite -h3 => [#] />; have:= h4; rewrite -h2 => [#] />.
+  --       have:= h5.
+  --       have-> : q{2} = (parse (rcons p{1} (v{1} +^ x{2}.`1))).`1 by smt().
+  --       have-> : k{2} = (parse (rcons p{1} (v{1} +^ x{2}.`1))).`2 by smt().
+  --       by rewrite (formatK (rcons p{1} (v{1} +^ x{2}.`1)))=> [#] />; smt().
+  --     smt().
+  ec_auto
+  ec_prep
+  have h := parse_format_of_eq_parse ‹(_, _) = parse _›
+  have h1 := ‹(_ : List block) = (parse (format _ _)).1›
+  have h3 := ‹(_ : ℤ) = (parse (format _ _)).2›
+  rw [h] at h1 h3
+  refine ⟨⟨⟨‹_›, le_of_lt ‹_›, h3, h1, fun h0 => absurd h0 (lt_irrefl 0), ‹SLCommon.incl _ _›⟩,
+    by rw [h3]⟩, fun τ₁ τ₂ _ _ hI _ hk => ?_⟩
+  obtain ⟨hk0, hik, -, -, -, hl, hmp, hincl, hb, hx, hm, hmi, hp⟩ := hI
+  have e : (localVarLens "i" ℤ).get τ₂ = (localVarLens "k" ℤ).get τ₂ := le_antisymm hik hk
+  refine ⟨bdistr_expected_one, fun a _ => ⟨⟨hb, ?_⟩, hx, hm, hmi, hp, hmp, hincl⟩⟩
+  rw [← e]
+  exact hl (by rw [e]; exact hk0)
+
 -- the simulator's `f` over the inlined oracles
 set_option maxHeartbeats 4000000 in
 /-- EC's `local lemma equal2 &m : Pr [ IdealIndif(BIRO.IRO, Simulator, DRestr(D)).main() @ &m :
@@ -3706,7 +3942,8 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   -- EC: proc; sp; if; auto.
   equiv_proc; stmt_sp; stmt_if
   · ec_close
-  on_goals 2 => ec_auto
+  rotate_left
+  · ec_auto
   ec_auto
   -- EC: call(: ={BIRO.IRO.mp,Simulator.m,Simulator.mi,Simulator.paths} /\
   --         Simulator.unvalid_map{1} = IRO2.RO.m{2}); auto.
@@ -3715,12 +3952,14 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
     §Simulator.unvalid_map{1} = §IRO2.RO.m{2} ==>
     ={res, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
     §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
-  on_goals 2 => ec_auto
+  rotate_left
+  · ec_auto
   equiv_proc
   -- EC: if; 1,3: auto.
   stmt_if
   · ec_close
-  on_goals 2 => ec_auto
+  rotate_left
+  · ec_auto
   -- EC: seq 1 1: (={y1,x, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} /\
   --       Simulator.unvalid_map{1} = RO.m{2}); 2: by (conseq=> />; sim).
   equiv_seq 1 1 : (={y1, x, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
@@ -3730,7 +3969,8 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   -- EC: if; 1,3: auto; sp.
   stmt_if
   · ec_close
-  on_goals 2 => ec_auto
+  rotate_left
+  · ec_auto
   stmt_sp
   -- EC: conseq=> />.
   --     conseq(: ={q, k, BIRO.IRO.mp} /\ Simulator.unvalid_map{1} = RO.m{2} ==> _)=> />.
@@ -3749,7 +3989,8 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   · ec_close
   · stmt_wp; stmt_sp; stmt_if
     · ec_close
-    on_goals 2 => ec_auto
+    rotate_left
+    · ec_auto
     equiv_while (={BIRO.IRO.mp, bs, n} ∧ §i{1} = §i0{2} ∧
       §(localVarLens "x" (List block)){1} = §(localVarLens "x" (List block)){2} ∧
       §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
@@ -3760,7 +4001,8 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   -- EC: if; 1,3: auto; sp.
   stmt_if
   · ec_close
-  on_goals 2 => ec_auto
+  rotate_left
+  · ec_auto
   stmt_sp
   -- EC: swap{2} 4; while{2}((i<=k){2})(k{2}-i{2}); 1: by (auto; smt()).
   stmt_swap{2} 4
@@ -3778,6 +4020,37 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   · stmt_rcondf{2} 2
     · intro σ₁; ec_auto
     ec_auto; ec_close
+
+/-- The first port's `L D`: a module whose one procedure calls the game (exception E5), which
+is the `RO_Distinguisher` that `RO_LRO_D` takes. -/
+noncomputable abbrev LF (D : DISTINGUISHER) := GaudisCrypt.SHA3.Gconcl_list.Simplify_Simulator.L D
+
+set_option maxHeartbeats 4000000 in
+-- `RO_LRO_D`'s side conditions on the game's modules (`ec_module`, `fp_disjoint`)
+/-- EC's `lemma Simplify_simulator &m : Pr [ IdealIndif(BIRO.IRO, Simulator, DRestr(D)).main() @
+&m : res ] = Pr [ IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res ]`.
+
+The section's `D` with the local clone's variables in its restriction (fresh in EC).  Deviation:
+EC's `L` is an alias, and `RO_LRO_D` takes a module; the two probabilities are first moved to the
+first port's module `L D` (`LF`, exception E5). -/
+theorem Simplify_simulator : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO, -C, -S,
+      -BIRO2.IRO, -IRO2.RO.m, -IRO2.FRO.m}), ∀ m : VariableAssignment,
+    Pr[ IdealIndif(BIRO.IRO.asF, Simulator, DRestr(D)).main () @ &m : §res ] =
+      Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] := by
+  intro D _ m
+  -- EC: rewrite (equal1 &m) (equal2 &m) eq_sym.
+  rw [equal1 D m, equal2 D m, eq_comm]
+  --     (the alias `L(D, F)` and the module `LF(D, F)`, exception E5)
+  have b1 : Pr[ L(D, IRO2.RO.asRO).distinguish () @ &m : §res ] =
+      Pr[ LF(D, IRO2.RO.asRO).distinguish (()) @ &m : §res ] := by
+    byequiv; equiv_proc; stmt_inline*; sim
+  have b2 : Pr[ L(D, IRO2.LRO).distinguish () @ &m : §res ] =
+      Pr[ LF(D, IRO2.LRO).distinguish (()) @ &m : §res ] := by
+    byequiv; equiv_proc; stmt_inline*; sim
+  rw [b1, b2]
+  -- EC: by byequiv(RO_LRO_D L _)=> //=; exact/dunifin_ll.
+  byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) block Unit Bool IRO2.dout IRO2.FRO.m
+    (fun _ => BitWord.dunifin_ll) IRO2.RO.m (LF D) (by ec_module) (by fp_disjoint))
 
 end Simplify_Simulator
 

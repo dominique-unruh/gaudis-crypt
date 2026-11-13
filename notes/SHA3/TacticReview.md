@@ -368,10 +368,14 @@ Independent of all three: section `Simplify_Simulator` (EC l. 2008–2195).  Its
 `IRO2` is declared in the pilots' style (`global_var`s, where the first port has a lens
 parameter with eighteen disjointness hypotheses); `L` is an alias.  `equal2` is done (EC's 25
 lines; three new gaps, 14–16: `glob D` past initializations after `skip`, EC's bare `conseq`,
-`sim` over differently named locals).  `equal1` (75 lines) is started: opening, the call and
-its three easy goals, the simulator's `f` up to the split on `valid q`; its two branches (the
-loop of `BIRO.IRO.f` and the eager oracle's loop against `BIRO2.IRO.f`) are left, with
-`Simplify_simulator` (one `RO_LRO_D`).
+`sim` over differently named locals).  `equal1` (75 lines) and `Simplify_simulator` are done
+(2026-11-13).  `equal1` follows EC's script; the fact EC derives inline three times is one plain
+lemma; EC's proof that the last query is already sampled (`splitwhile`, two `rcond`s and `seq` on
+a Hoare triple) is a loop invariant here, since there is no `seq` on a Hoare triple (GAP 9).
+`Simplify_simulator` is EC's two lines, with two bridges from the alias `L` to the first port's
+module `L D`, which `RO_LRO_D` takes (E5).  With this, what is left of `Gconcl_list` is
+`Real_lossless`, `Ideal_lossless`, and the three lemmas after them (`neg_D_concl`,
+`Inefficient_Real_Ideal`, `Real_Ideal`).
 
 **Step 4, tried another way (2026-11-13): no syntactic `glob`; a region where `glob F(A)` is
 needed.**  Dominique's concern: EasyCrypt's `glob` system may be inconsistent, and taking it over closely
