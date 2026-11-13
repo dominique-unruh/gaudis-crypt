@@ -538,11 +538,13 @@ component's first) its judgment, then the code before the call. -/
 syntax (name := equivCallInvAnd) "equiv_call" " (" "_" " : " "={" term,+ "}" " ∧ " term ")" :
   tactic
 
-elab_rules (kind := equivCallInvAnd) : tactic
-  | `(tactic| equiv_call (_ : ={ $xs,* } ∧ $rest)) => withMainContext do
+/-- `equiv_call (_ : cond)` for `cond` an invariant `={…} ∧ I`, or `={…}` alone (see
+`equivCallInvAnd`). -/
+def equivCallInvAndCore (cond : Term) : TacticM Unit :=
+    withMainContext do
     let g ← getMainGoal
     let ty0 ← prhlGoal g "equiv_call"
-    let (I, globs) ← splitGlobs (← `(={ $xs,* } ∧ $rest))
+    let (I, globs) ← splitGlobs cond
     let IF ← elabRelCond ty0 I
     let (L, _Ω, preds) ← onGlobals #[IF]
     let g₀ ← getMainGoal
@@ -649,5 +651,45 @@ elab_rules (kind := equivCallInvAnd) : tactic
           `glob D` themselves" (some e)
         go false
     else go false
+
+elab_rules (kind := equivCallInvAnd) : tactic
+  | `(tactic| equiv_call (_ : ={ $xs,* } ∧ $rest)) => do
+    equivCallInvAndCore (← `(={ $xs,* } ∧ $rest))
+
+/-- Do both sides of the relational goal end with a call of an applied declared module
+(`D(O₁) ~ D(O₂)`, `D` a local)? -/
+def lastCallsDeclared : TacticM Bool := withMainContext do
+  let s ← saveState
+  try
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_call"
+    let g ← HoareSplit.hoareSplit 1 g
+    let ty ← instantiateMVars (← g.getType)
+    g.withContext do
+      let lastCall (stmt : Lean.Expr) : MetaM (Option Lean.Expr) := do
+        let st ← TacticMisc.openStmt stmt
+        let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then
+            TacticMisc.openStmt (st.getArg! 2) else pure st
+        return last.find? (·.isAppOfArity ``GaudisCrypt.Module.app 6)
+      let some c₁ ← lastCall (ty.getArg! 1) | return false
+      let some c₂ ← lastCall (ty.getArg! 2) | return false
+      return (c₁.getArg! 4).isFVar && (c₂.getArg! 4).isFVar
+  catch _ => return false
+  finally s.restore
+
+/-- **EC's `call (_: ={glob M₁, …, glob Mₙ})`** on an abstract procedure `D(O₁) ~ D(O₂)`, every
+item a `glob`: the invariant form (`equivCallInvAnd`) without an invariant — a concrete module's
+`glob` is its variables' equalities, a declared one's a region, `glob D` is kept without being
+named, and the oracles' goals are EC's `={arg, …} ==> ={res, …}`.  (The form of
+`Logic/ECCallAbstract.lean` wants a variable among the items; with only `glob`s it had no
+rule.)  Any other `equiv_call (_ : ={…})` goes on to that form. -/
+elab_rules (kind := equivCallInv) : tactic
+  | `(tactic| equiv_call (_ : ={ $xs,* })) => do
+    let isGlob : Term → Bool := fun t => match t with
+      | `(glob $_) => true
+      | _ => false
+    unless xs.getElems.all isGlob do throwUnsupportedSyntax
+    unless ← lastCallsDeclared do throwUnsupportedSyntax
+    equivCallInvAndCore (← `(={ $xs,* }))
 
 end GaudisCrypt
