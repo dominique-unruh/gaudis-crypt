@@ -1494,4 +1494,273 @@ theorem equiv_L3_L4 :
   · exact Int.add_one_le_iff.mpr (parse_gt0 _)
   · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
 
+-- the oracles' three judgments, over the squeezing loops against the indexed oracles
+set_option maxHeartbeats 16000000 in
+/-- EC's `local equiv equiv_L4_ideal (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S, -F2.RO,
+-BIRO.IRO, -BIRO2.IRO}) : L4(D,F.LRO,F2.LRO).distinguish ~
+IdealIndif(BIRO.IRO,SimLast(S),DRestr(D)).main : ={glob D} ==> ={glob D, res}`.
+
+Deviations: GAP 5 of the file header.  `S2(F)` and `SimLast(S)(F)` are wrappers in the old
+declarations (exception E5): `stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp` after EC's `call`
+into the simulators.  What EC's `smt(parseK)`, `smt(parse_twice)` read off `INV_L4_ideal` is
+stated once at the top (`hdom`, `hget` for a valid prefix; `hpt`, `hdom'`, `hget'` for an invalid
+one) and applied by hand at EC's `progress` goals, with EC's `lemma5`, `lemma5bis`. -/
+theorem equiv_L4_ideal :
+    ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO, -BIRO.IRO, -BIRO2.IRO}),
+    equiv[ L4(D, SLCommon.F.LRO, F2.LRO).distinguish ~
+      IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main : ={glob D} ==> ={glob D, res} ] := by
+  intro D _
+  --     (what EC's `smt(parseK)` reads off the invariant for a valid `p`: the entry `(p, n)` of
+  --     the indexed oracle is the entry `format p (n + 1)` of the plain one)
+  have hdom : ∀ (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block)
+      (m3 : FMap (List block) block) (m4 : FMap (List block × ℤ) block) (p : List block) (n : ℤ),
+      INV_L4_ideal m1 m2 m3 m4 → valid p = true → 0 ≤ n →
+      (FMap.dom m2 (p, n) ↔ FMap.dom m1 (format p (n + 1))) := by
+    rintro m1 m2 m3 m4 p n ⟨⟨h1, -, -, -⟩, -, -, -⟩ hp hn
+    exact h1 _ _ _ (parseK _ _ (by omega) (by simpa [valid] using hp))
+  have hget : ∀ (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block)
+      (m3 : FMap (List block) block) (m4 : FMap (List block × ℤ) block) (p : List block) (n : ℤ),
+      INV_L4_ideal m1 m2 m3 m4 → valid p = true → 0 ≤ n →
+      FMap.get m2 (p, n) = FMap.get m1 (format p (n + 1)) := by
+    rintro m1 m2 m3 m4 p n ⟨⟨-, -, h3, -⟩, -, -, -⟩ hp hn
+    exact h3 _ _ _ (parseK _ _ (by omega) (by simpa [valid] using hp))
+  --     (the same for an invalid prefix, `(p, n) = parse x`, by EC's `parse_twice`)
+  have hpt : ∀ (x : List block) (i : ℤ), 0 ≤ i → i < (parse x).2 →
+      parse (format (parse x).1 (i + 1)) = ((parse x).1, i + 1) := fun x i h0 hi =>
+    parse_twice (parse x).1 (parse x).2 x rfl (i + 1) ⟨by omega, by omega⟩
+  have hdom' : ∀ (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block)
+      (m3 : FMap (List block) block) (m4 : FMap (List block × ℤ) block) (x : List block) (i : ℤ),
+      INV_L4_ideal m1 m2 m3 m4 → 0 ≤ i → i < (parse x).2 →
+      (FMap.dom m4 ((parse x).1, i) ↔ FMap.dom m3 (format (parse x).1 (i + 1))) := by
+    rintro m1 m2 m3 m4 x i ⟨-, ⟨h1, -, -, -⟩, -, -⟩ h0 hi
+    exact h1 _ _ _ (hpt x i h0 hi)
+  have hget' : ∀ (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block)
+      (m3 : FMap (List block) block) (m4 : FMap (List block × ℤ) block) (x : List block) (i : ℤ),
+      INV_L4_ideal m1 m2 m3 m4 → 0 ≤ i → i < (parse x).2 →
+      FMap.get m4 ((parse x).1, i) = FMap.get m3 (format (parse x).1 (i + 1)) := by
+    rintro m1 m2 m3 m4 x i ⟨-, ⟨-, -, h3, -⟩, -, -⟩ h0 hi
+    exact h3 _ _ _ (hpt x i h0 hi)
+  -- EC: proc; inline*; auto; sp.
+  equiv_proc; stmt_inline*; ec_auto; stmt_sp
+  -- EC: call(: ={glob S, glob C}
+  --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});
+  --       auto; -1:(progress;split;smt(mem_empty in_fset0 emptyE)).
+  equiv_call (_ : ={glob S, glob C} ∧
+    INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+  --     (the invariant on the empty maps: the old port's `INV_L4_ideal_empty`)
+  on_goals 4 =>
+    ec_auto; ec_progress
+    exact INV_L4_ideal_empty
+  -- EC: + proc;sp;if;auto;call(: ={glob S}
+  --         /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2}); auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto
+    equiv_call (_ : ={arg, S.m, S.mi, S.paths} ∧
+        INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ==>
+      ={res, S.m, S.mi, S.paths} ∧
+        INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+    on_goals 2 => ec_auto
+    --     (EC's `call (: I)` opens the callees; E5: `S2(F)` and `SimLast(S)(F)` are wrappers of
+    --     `S(Last(F))` and `S(Last(Valid(F)))` here, one call more than EC's aliases)
+    equiv_proc; stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    -- EC: if;1,3:auto.
+    stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    -- EC: seq 1 1 : (={y1, x, glob S}
+    --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});
+    --     last by conseq(:_==> ={y, glob S});progress;sim.
+    --     (EC's `x` is the wrappers' inlined parameter, our `x0`)
+    equiv_seq 1 1 : (={y1, x0, S.m, S.mi, S.paths} ∧
+      INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+    rotate_left
+    · equiv_conseq (: _ ==> ={y, S.m, S.mi, S.paths})
+      case post => ec_progress
+      sim
+    -- EC: if;auto;call(: INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});auto.
+    stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    --     (EC's `auto`: nothing to do here)
+    equiv_call (_ : ={arg} ∧
+        INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ==>
+      ={res} ∧ INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+    on_goals 2 => ec_auto
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
+    -- EC: inline*;auto;sp;if;auto;1:smt(parseK parse_gt0 formatK);1:sp 0 4;2:sp 0 3.
+    stmt_inline*; ec_auto; stmt_sp
+    stmt_if
+    --     (EC's `smt(parseK parse_gt0 formatK)`, by hand: the right's query is `parse p` again)
+    · ec_prep; simp only [Prod.mk.eta] at *; subst_vars; rw [formatK]
+    -- EC: - rcondt{2}1;1:auto;1:smt(parseK parse_gt0 formatK).
+    · ec_auto; stmt_sp 0 4
+      stmt_rcondt{2} 1
+      · ec_auto; ec_prep; simp only [Prod.mk.eta] at *; subst_vars
+        simp only [formatK] at *
+        rw [‹xn.1 = _›]; exact ‹valid _ = true›
+      -- EC: while(lres{1} = bs{2} /\ ={i,n} /\ x{2} = p0{1} /\ valid p0{1} /\ 0 <= i{1}
+      --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});progress.
+      --     (EC's `x` on the right, `BIRO.IRO.f`'s parameter, is our `x0`)
+      equiv_while (§lres{1} = §bs{2} ∧ ={i, n} ∧ §x0{2} = §p0{1} ∧ valid §p0{1} ∧ 0 ≤ §i{1} ∧
+        INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+      -- EC: * sp;if{2}.
+      · stmt_sp; stmt_if{2}
+        -- EC: + rcondt{1}2;auto;progress.
+        --     - have[]h1 _ _ _:=H1;have[]h'1 _:=h1;smt(parseK).
+        --     - smt(get_setE).
+        --     - smt().
+        --     - exact lemma5.
+        · stmt_rcondt{1} 2
+          · ec_auto; ec_prep
+            refine fun h => ‹¬ FMap.dom _ (_, _)›
+              ((hdom _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹valid _ = true› ?_).mpr h)
+            assumption
+          ec_auto; ec_progress
+          exact lemma5 _ _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹¬ FMap.dom _ (_, _)› ‹0 ≤ n0₂›
+            ‹valid x1₂ = true›
+        -- EC: rcondf{1}2;auto;progress.
+        --     - have[]h1 _ _ _:=H1;have[]h'1 _:=h1;smt(parseK).
+        --     - have[]h1:=H1;have[]:=h1;smt(parseK).
+        --     smt().
+        stmt_rcondf{1} 2
+        · ec_auto; ec_prep
+          simp only [Bool.not_false, decide_eq_true_eq] at *
+          refine (hdom _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹valid _ = true› ?_).mp
+            ‹FMap.dom _ (_, _)›
+          assumption
+        ec_auto; ec_progress
+        rw [hget _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹valid x1₂ = true› ‹0 ≤ n0₂›]
+      -- EC: by if{1};auto;smt(parseK parse_gt0 formatK).
+      --     (EC's `smt`, by hand: the right's query is `parse p` again)
+      stmt_if{1} <;> (ec_auto; ec_progress)
+      all_goals
+        simp only [Prod.mk.eta] at *; subst_vars; simp only [formatK] at *
+        first | omega | simp_all
+    -- EC: rcondf{1}1;1:auto;1:smt(parse_gt0);sp.
+    ec_auto; stmt_sp 0 3
+    stmt_rcondf{1} 1
+    · ec_auto; ec_prep; exact parse_gt0 _
+    stmt_sp
+    -- EC: rcondt{2}1;1:auto.
+    stmt_rcondt{2} 1
+    · ec_auto
+    -- EC: while(lres{1} = bs0{2} /\ (i,n,pp){1} = (i0,n0,x0){2}
+    --       /\ (x0{2}, n0{2}) = parse (format q{2} k{2}) /\ ! valid x0{2} /\ 0 <= i{1}
+    --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});progress.
+    --     (EC's `n0`, `x0` on the right, `BIRO2.IRO.f`'s, are our `n1`, `x2`)
+    equiv_while (§lres{1} = §bs0{2} ∧ (§i{1}, §n{1}, §pp{1}) = (§i0{2}, §n1{2}, §x2{2}) ∧
+      (§x2{2}, §n1{2}) = parse (format §q{2} §k{2}) ∧ valid §x2{2} = false ∧ 0 ≤ §i{1} ∧
+      INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+    -- EC: * sp;if{2}.
+    · stmt_sp; stmt_if{2}
+      -- EC: + rcondt{1}2;auto;progress.
+      --       - have[]_ h1 _ _:=H2;have[]:=h1;progress.
+      --         have:=H7 x0{m} i0{m} (format x0{m} (i0{m} + 1));rewrite H5/==>->//=.
+      --         have->/#:=parse_twice _ _ _ H.
+      --       - smt(get_setE).
+      --       - smt().
+      --       - apply lemma5bis=>//=.
+      --         rewrite(parse_twice _ _ _ H)/#.
+      · stmt_rcondt{1} 2
+        · ec_auto; ec_prep
+          refine fun h => ‹¬ FMap.dom _ (_, _)›
+            ((hdom' _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ?_ ?_).mpr h) <;> assumption
+        ec_auto; ec_progress
+        exact lemma5bis _ _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹¬ FMap.dom _ (_, _)› ‹0 ≤ n2₂›
+          ‹valid _ = false› (hpt _ _ ‹0 ≤ n2₂› ‹n2₂ < _›)
+      -- EC: rcondf{1}2;auto;progress.
+      --     - have[]_ h1 _ _:=H2;have[]:=h1;progress.
+      --       have:=H7 x0{m} i0{m} (format x0{m} (i0{m} + 1));rewrite H5/==>->//=.
+      --       have->/#:=parse_twice _ _ _ H.
+      --     - have[]_ h1 _ _:=H2;have[]h'1 _:=h1;smt(parseK parse_twice).
+      --     - smt().
+      stmt_rcondf{1} 2
+      · ec_auto; ec_prep
+        simp only [Bool.not_false, decide_eq_true_eq] at *
+        refine (hdom' _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ?_ ?_).mp ‹FMap.dom _ (_, _)› <;>
+          assumption
+      ec_auto; ec_progress
+      rw [hget' _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹0 ≤ n2₂› ‹n2₂ < _›]
+    -- EC: by rcondf{1}1;auto;smt(parseK formatK).
+    stmt_rcondf{1} 1
+    · ec_auto; ec_prep; rw [formatK]; omega
+    ec_auto; ec_progress
+    all_goals
+      simp only [Prod.mk.eta] at *; subst_vars; simp only [formatK] at *
+      first
+        | omega
+        | (simp_all [formatK]; done)
+        | (simp_all [formatK]; apply Prod.ext <;> assumption)
+  -- EC: + by proc;inline*;conseq(:_==> ={glob C, glob S, z});progress;sim.
+  · equiv_proc; stmt_inline*
+    equiv_conseq (: _ ==> ={C.c, S.m, S.mi, S.paths, z})
+    case post => ec_progress
+    sim
+  -- EC: proc;sp;if;auto;call(: INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2}
+  --       F2.RO.m{1} BIRO2.IRO.mp{2});auto.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's `auto`: nothing to do here)
+  equiv_call (_ : ={arg} ∧
+      INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ==>
+    ={res} ∧ INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+  on_goals 2 => (ec_auto; ec_close)
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  -- EC: inline*;sp;if;auto;sp.
+  stmt_inline*; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  ec_auto; stmt_sp
+  -- EC: rcondt{1}1;1:auto;if{1};sp.
+  stmt_rcondt{1} 1
+  · ec_auto; ec_close
+  stmt_if{1} <;> stmt_sp
+  -- EC: - by rcondf{1}1;2:rcondf{2}1;auto;smt().
+  · stmt_rcondf{1} 1
+    on_goals 2 => stmt_rcondf{2} 1
+    · ec_auto
+    · ec_auto
+    ec_auto
+  -- EC: while(lres{1} = bs{2} /\ ={i} /\ n0{1} = n{2} /\ x{2} = p0{1} /\ valid p0{1} /\ 0 <= i{1}
+  --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});progress.
+  --     (the right's `x`, a `List block`, is written with its type: there is an `x` of another
+  --     type)
+  equiv_while (§lres{1} = §bs{2} ∧ ={i} ∧ §n0{1} = §n{2} ∧
+    §(localVarLens "x" (List block)){2} = §p0{1} ∧ valid §p0{1} ∧ 0 ≤ §i{1} ∧
+    INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+  -- EC: sp;if{2}.
+  · stmt_sp; stmt_if{2}
+    -- EC: + rcondt{1}2;auto;progress.
+    --       - have[]h1 _ _ _:=H1;have[]h'1 _:=h1;smt(parseK).
+    --       - smt(get_setE).
+    --       - smt().
+    --       - exact lemma5.
+    · stmt_rcondt{1} 2
+      · ec_auto; ec_prep
+        refine fun h => ‹¬ FMap.dom _ (_, _)›
+          ((hdom _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹valid _ = true› ?_).mpr h)
+        assumption
+      ec_auto; ec_progress
+      exact lemma5 _ _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹¬ FMap.dom _ (_, _)› ‹0 ≤ n0₂›
+        ‹valid x0₂ = true›
+    -- EC: rcondf{1}2;auto;progress.
+    --     - have[]h1 _ _ _:=H1;have[]h'1 _:=h1;smt(parseK).
+    --     - have[]h1:=H1;have[]:=h1;smt(parseK).
+    --     smt().
+    stmt_rcondf{1} 2
+    · ec_auto; ec_prep
+      simp only [Bool.not_false, decide_eq_true_eq] at *
+      refine (hdom _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹valid _ = true› ?_).mp
+        ‹FMap.dom _ (_, _)›
+      assumption
+    ec_auto; ec_progress
+    rw [hget _ _ _ _ _ _ ‹INV_L4_ideal _ _ _ _› ‹valid x0₂ = true› ‹0 ≤ n0₂›]
+  --     (EC's `progress` on the loop's entry)
+  ec_auto
+
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
