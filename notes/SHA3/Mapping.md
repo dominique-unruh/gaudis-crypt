@@ -786,7 +786,9 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
 | 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the four lazy/eager steps are the old port's `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | exc |
 | 973–1097 | inductive, local lemmas | `m_p`, `INV_Real`, `INV_Real_incr` … `take_format` | section Real. | the first port's (plain lemmas) | done |
 | 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` (`Perm` for EC's alias `P`; the facts EC proves inline twice are `absorb_dom` … `absorb_step`, `squeeze_known_head`, `squeeze_known_tail`; local macros `sponge_round`, `sponge_last`, `sponge_guard`) | done |
-| 1437– | local lemmas, lemma | `lemma4`, `lemma_3`, `squeeze_squeezeless`, `pr_real` | section Real. | — | todo |
+| 1437, 1463 | local lemmas | `lemma4`, `lemma_3` | section Real. | the first port's (plain lemmas) | done |
+| 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` (the facts EC proves inline at each use are `INV_Real_known_step`, `squeeze_known`, `take_format_full`, `nth_format_pad`, `take_format_pred`; one bridge line for `Sponge(Perm)`, GAP 11) | done |
+| 1748 | lemma | `pr_real` | section Real. | `pr_real` | done |
 | 1761– | section | `Real_Ideal`, `Real_Ideal_Abs`, `Simplify_Simulator` | | — | todo |
 
 ## `proof/Sponge.ec`

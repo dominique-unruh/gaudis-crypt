@@ -15,6 +15,9 @@ variable {α : Type*}
 /-- `lemma take0`. -/
 theorem take0 (s : List α) : take 0 s = [] := by simp [take]
 
+/-- `lemma drop0`. -/
+theorem drop0 (s : List α) : drop 0 s = s := by simp [drop]
+
 /-- `lemma take_le0`. -/
 theorem take_le0 (n : ℤ) (s : List α) (h : n ≤ 0) : take n s = [] := by
   simp [take, Int.toNat_of_nonpos h]

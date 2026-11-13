@@ -317,12 +317,12 @@ back into `glob P`; nothing else of section `Real` waits for it.
 
 `equiv_sponge` (EC lines 1100–1434, 335 lines) is done on the strict tactics: 45 `-- EC:` blocks,
 28 `ec_auto`, 29 `ec_close`/`ec_progress`, 6 `ec_prep`, 3 `smt_close`, no `rename_i`, no fallback,
-no `sorry`.  EC's script has some 110 leaf goals closed by `smt(…)` or by hand; after
-`ec_progress` 75 are left here, all by hand with EC's lemmas.  What is new in it:
+no `sorry`.  The leaves `ec_progress` leaves are closed by hand with EC's lemmas (`smt_close`
+was tried on four: three closed, one failed and is by hand).  What is new in it:
 
 * EC proves the same five facts on `Redo.prefixes.[take (i+1) p <- v]` in both branches of the
   permutation's test (by `smt` and by hand, about 50 lines), and the fact "this prefix of
-  `format p (i+1)` is known" at each of eight `rcond`s.  Here each is a lemma stated once before
+  `format p (i+1)` is known" at each `rcond` of the two inner loops.  Here each is a lemma stated once before
   the theorem (`absorb_*`, `squeeze_known_*`), and the leaves are one `exact` each.  This is the
   one place where the Lean proof is not EC's line for line; EC's lines are kept as comments.
 * `Lib/EC/ListLemmas.lean`: EC's `List` lemmas the script cites (`take0`, `take_le0`,
@@ -335,4 +335,15 @@ no `sorry`.  EC's script has some 110 leaf goals closed by `smt(…)` or by hand
   golden test); no `seq` on a Hoare triple; `splitwhile`'s condition does not see a variable
   that is only in the conditions; a goal prints as the plain term right after `sp`.
 * No shared tactic was changed for this lemma.
+
+`squeeze_squeezeless` (EC lines 1493–1744) and `pr_real` complete section `Real`:
+35 `-- EC:` blocks, 32 `ec_auto`, 24 `ec_close`/`ec_progress`, 7 `ec_prep`, no `smt_close`, no
+`rename_i`, no fallback, no `sorry`.  The same pattern as `equiv_sponge`: five plain lemmas for
+facts EC proves inline at each use (`INV_Real_known_step` stands for a seven-line script EC
+repeats five times).  One new gap: `inline*` leaves `Sponge(Perm)`'s calls of the permutation
+behind the first port's `PRIMITIVE.view` (`Flatten.moduleStep?` keeps a record of another module
+type closed, for the first port's proofs), so the proof has one bridge line,
+`simp only [P_view]`.  The fix is an opt-in option of `inline` for the pilots, with a golden
+test; it touches `Logic/Inline.lean` (a rebuild of everything), so it waits for a batch with
+GAP 9 (`ec_prep` on split-loop guards) and the Hoare `seq`.
 
