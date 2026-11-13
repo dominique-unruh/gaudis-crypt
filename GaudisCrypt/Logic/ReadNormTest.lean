@@ -382,6 +382,23 @@ example (R S : ℤ → ℤ → ℤ → Prop) :
   trace_state
   sorry
 
+global_var RnC.RnA.c : ℤ
+
+-- two variables whose module has the same name: the module further out too
+/--
+trace: P Q : ℤ → ℤ → Prop
+⊢ ∀ (ReadNormTest_RnA_c RnC_RnA_c : ℤ), P ReadNormTest_RnA_c RnC_RnA_c → Q (ReadNormTest_RnA_c + 1) RnC_RnA_c
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (P Q : ℤ → ℤ → Prop) : hoare[ P §RnA.c §RnC.RnA.c ==> Q §RnA.c §RnC.RnA.c ] {
+      RnA.c <- $RnA.c + 1;
+    } := by
+  ec_auto
+  trace_state
+  sorry
+
 -- a place under a binder is printed with the binder's variable
 /--
 error: ec_skip: a state is still used after the reads are generalized

@@ -178,7 +178,7 @@ def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
     for d in ← getLCtx do
       used := used.push d.userName.eraseMacroScopes.toString
     let mut reads : Array Lean.Expr := #[]
-    let mut parts : Array (String × Option String × String) := #[]
+    let mut parts : Array (String × List String × String) := #[]
     for (σ, sfx) in [(σ₁, "₁"), (σ₂, "₂")] do
       -- a state that occurs other than read (in a statement's run, say) stays: generalizing its
       -- reads would cut them off from it

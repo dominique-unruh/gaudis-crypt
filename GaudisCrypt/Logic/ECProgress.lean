@@ -15,7 +15,9 @@ The closer works in two phases.
 side goal of a rule: the guards of an `if`, a `conseq`) is brought to the read normal form and
 every read is generalized to a value, as `ec_skip` does (`Logic/ReadNorm.lean`); **a state that
 survives is an error** naming the place.  A goal that is not of that shape (after `ec_auto` or
-`ec_skip` it is already about values) is left as it is.
+`ec_skip` it is already about values) is left as it is.  The same is done at states bound further
+in (EC's final memories, `P → ∀ τ₁ τ₂, frames → Q`, of a `while` or `conseq`), when the
+introduction reaches them.
 
 **Then logic**, on a goal about values.  What `auto_prep` (`Logic/ECClose.lean`) does about
 states (reads through writes, frames, `glob`, renamings) has nothing to do there, and what is
@@ -42,13 +44,19 @@ namespace GaudisCrypt.ECProgress
 open Lean Meta
 
 /-- Introduce every leading binder of the goal (as it is spelled: no unfolding): one that is not
-a hypothesis under its own name, a hypothesis without a name. -/
-partial def introAll (g : MVarId) : MetaM MVarId := g.withContext do
+a hypothesis under its own name, a hypothesis without a name.  At a binder that is a program state
+(the final memories under the hypotheses of a `while` or `conseq` goal, `P → ∀ τ₁ τ₂, …`) the
+rest of the goal is first brought to values, as at the top (`ReadNorm.generalizeStrict`: an error
+if such a state survives). -/
+partial def introAll (tac : String) (g : MVarId) : MetaM MVarId := g.withContext do
   let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
   match ty with
   | .forallE _ dom _ _ =>
-      if ← isProp dom then introAll (← g.intro1).2 else introAll (← g.intro1P).2
-  | .letE .. => introAll (← g.intro1P).2
+      if dom.isConstOf ``ProgramState then
+        introAll tac (← ReadNorm.generalizeStrict tac g)
+      else if ← isProp dom then introAll tac (← g.intro1).2
+      else introAll tac (← g.intro1P).2
+  | .letE .. => introAll tac (← g.intro1P).2
   | _ => return g
 
 /-- The first phase: a goal `∀ σ, P` or `∀ σ₁ σ₂, P` about program states in read normal form,
@@ -109,8 +117,10 @@ elab "ec_values" : tactic =>
 
 open Lean Elab Tactic in
 /-- Introduce every leading binder: a value under its own name, a hypothesis without a name
-(`ec_intro` stops at the first hypothesis; this goes on). -/
-elab "ec_intros" : tactic => liftMetaTactic1 fun g => some <$> GaudisCrypt.ECProgress.introAll g
+(`ec_intro` stops at the first hypothesis; this goes on).  A program state among the binders is
+not introduced: its reads are generalized to values first (an error if it survives). -/
+elab "ec_intros" : tactic =>
+  liftMetaTactic1 fun g => some <$> GaudisCrypt.ECProgress.introAll "ec_intros" g
 
 /-- **The preparation of a goal about values**: see the module docstring. -/
 macro "ec_prep" : tactic => `(tactic| (

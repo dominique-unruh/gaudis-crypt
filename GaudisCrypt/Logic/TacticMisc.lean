@@ -205,26 +205,25 @@ def sanitizeName (s : String) : String :=
 for a variable of a module, the module.  The base name is the variable's name for a local or
 global variable slot (`(varLens ⟨n, …⟩).intoLocal` / `.intoGlobal`, also spelled
 `localVarLens n T`); else, through the wrappers of `readNameWrappers`, the last component of the
-lens's head constant or the name of the local it is; else `v`.  The module is the component before
-the last of the head constant (`RO` for `RO.m`). -/
-partial def readNameParts (g : Lean.Expr) : MetaM (String × Option String) := do
+lens's head constant or the name of the local it is; else `v`.  The modules are the components
+before the last of the head constant, the innermost first (`RO`, `F`, … for `F.RO.m`). -/
+partial def readNameParts (g : Lean.Expr) : MetaM (String × List String) := do
   -- not `whnfR` on `g`: that turns `Lens.toGetter x` into the primitive projection `x.1`
-  if let some n ← varName? g then return (sanitizeName n, none)
+  if let some n ← varName? g then return (sanitizeName n, [])
   match g.getAppFn with
   | .const c _ =>
       match c with
       | .str p s =>
           if readNameWrappers.contains s && g.getAppNumArgs > 0 then readNameParts g.appArg!
-          else if readNameStoplist.contains s then return ("v", none)
-          else
-            let q := match p with
-              | .str _ q => some (sanitizeName q)
-              | _ => none
-            return (sanitizeName s, q)
-      | _ => return ("v", none)
-  | .fvar x => return (sanitizeName (← x.getUserName).eraseMacroScopes.toString, none)
-  | _ => return ("v", none)
+          else if readNameStoplist.contains s then return ("v", [])
+          else return (sanitizeName s, prefixes p)
+      | _ => return ("v", [])
+  | .fvar x => return (sanitizeName (← x.getUserName).eraseMacroScopes.toString, [])
+  | _ => return ("v", [])
 where
+  prefixes : Name → List String
+    | .str p q => sanitizeName q :: prefixes p
+    | _ => []
   varName? (l : Lean.Expr) : MetaM (Option String) := do
     let l ← whnfR l
     unless l.isAppOfArity ``Lens.intoLocal 2 || l.isAppOfArity ``Lens.intoGlobal 2 do
@@ -369,21 +368,32 @@ def freshIn (used : Array String) (base : String) : String := Id.run do
   while used.contains (base ++ toString i) do i := i + 1
   return base ++ toString i
 
-/-- Names for the values of reads, given each read's base name, module and suffix (the side of a
-relational judgment, or none): the base name with the suffix (`m`, `m₁`).  Where that name is
-taken, in `used` or by another of the reads, a variable of a module is named with the module
-(`RO_m`, `RO_m₁`), so that its name does not depend on a number.  A name still taken is numbered
-(`freshIn`). -/
-def readValueNames (used : Array String) (parts : Array (String × Option String × String)) :
+/-- Names for the values of reads, given each read's base name, modules (innermost first) and
+suffix (the side of a relational judgment, or none): the base name with the suffix (`m`, `m₁`).
+Where that name is taken, in `used` or by another of the reads, a variable of a module is named
+with the module (`RO_m`, `RO_m₁`), and with the modules further out as far as needed to tell it
+from the context and from the other reads of that name (`F_RO_m`, `F2_RO_m`), so that its name
+does not depend on a number.  A name still taken is numbered (`freshIn`). -/
+def readValueNames (used : Array String) (parts : Array (String × List String × String)) :
     Array String := Id.run do
   let plain := parts.map fun (b, _, sfx) => b ++ sfx
+  let qual (b : String) (qs : List String) (k : Nat) (sfx : String) : String :=
+    "_".intercalate ((qs.take k).reverse ++ [b]) ++ sfx
   let mut taken := used
   let mut out : Array String := #[]
-  for (b, q, sfx) in parts do
+  for (b, qs, sfx) in parts do
     let n := b ++ sfx
-    let cand := match q with
-      | some q => if used.contains n || plain.count n > 1 then q ++ "_" ++ n else n
-      | none => n
+    let mut cand := n
+    if !qs.isEmpty && (used.contains n || plain.count n > 1) then
+      let mut k := 1
+      cand := qual b qs k sfx
+      -- another read of the same name, of another variable, that this qualification does not
+      -- tell apart
+      let same (c : String) (k : Nat) : Bool := parts.any fun (b', qs', sfx') =>
+        b' ++ sfx' == n && qs' != qs && qual b' qs' k sfx' == c
+      while k < qs.length && (used.contains cand || same cand k) do
+        k := k + 1
+        cand := qual b qs k sfx
     let name := freshIn taken cand
     taken := taken.push name
     out := out.push name

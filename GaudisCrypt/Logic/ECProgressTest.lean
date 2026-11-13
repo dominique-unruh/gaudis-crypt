@@ -162,6 +162,24 @@ goal:
 example (R : ProgramState → Prop) : ∀ σ : ProgramState, R σ → R σ := by
   ec_close
 
+-- states bound further in (the final memories of a `while` or `conseq`): values too, when the
+-- introduction reaches them; the frame `x.get τ = x.get σ` is then an equation of values
+/--
+trace: P Q : ℤ → Prop
+x y : Lens ℤ ProgramState
+y1 x2 : ℤ
+a✝ : P x2
+⊢ Q (x2 + (y1 + 1))
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (x y : Lens ℤ ProgramState) : ∀ σ : ProgramState, P (x.get σ) →
+    ∀ τ : ProgramState, x.get τ = x.get σ ∧ y.get τ = y.get σ + 1 → Q (x.get τ + y.get τ) := by
+  ec_prep
+  trace_state
+  sorry
+
 /-! ## `ec_progress`, `ec_close` -/
 
 -- the goal split, what closes closed, the rest left
