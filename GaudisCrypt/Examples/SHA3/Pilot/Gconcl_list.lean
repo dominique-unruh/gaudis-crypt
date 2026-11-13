@@ -510,4 +510,87 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     ec_auto
   ec_auto
 
+-- the oracles' three judgments, each through the inlined simulator and squeezing loop
+set_option maxHeartbeats 4000000 in
+/-- EC's `local equiv ideal_equiv2 (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S}) :
+L2(D,F.RO).distinguish ~ SLCommon.IdealIndif(IF,S,A(D)).main : ={glob D} ==> ={glob D, res}`.
+
+Deviations: GAP 5 of the file header (EC's `call (: I)` on two concrete procedures).  EC's
+`smt(parse_valid parseK formatK)` are closed without the lemmas. -/
+theorem ideal_equiv2 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
+    equiv[ L2(D, SLCommon.F.RO.asRO).distinguish ~ SLCommon.IdealIndif(IF, S, A(D)).main :
+      ={glob D} ==> ={glob D, res} ] := by
+  intro D _
+  -- EC: proc;inline*;sp;wp.
+  equiv_proc; stmt_inline*; stmt_sp; stmt_wp
+  -- EC: call(: ={glob F.RO, glob S, glob C});auto.
+  equiv_call (_ : ={glob SLCommon.F.RO.asRO, glob S, glob C})
+  on_goals 4 => ec_auto
+  -- EC: + proc;auto;sp;if;auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto
+    -- EC: call(: ={glob F.RO, glob S});auto.
+    equiv_call (_ : ={arg, SLCommon.F.RO.m, S.m, S.mi, S.paths} ==>
+      ={res, SLCommon.F.RO.m, S.m, S.mi, S.paths})
+    on_goals 2 => ec_auto
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
+    -- EC: if; [1,3:by auto]; sim 2 2;if; auto.
+    stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    sim 2 2
+    stmt_if
+    · ec_close
+    on_goals 2 => ec_auto
+    ec_auto
+    -- EC: call(: ={glob F.RO});2:auto.
+    equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+    on_goals 2 => ec_auto
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
+    -- EC: by inline*;sp;wp 2 2;sim.
+    stmt_inline*; stmt_sp; stmt_wp 2 2
+    sim
+  -- EC: + by proc;sim.
+  · equiv_proc; sim
+  -- EC: proc;sp;if;auto;sp.
+  equiv_proc; stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's `auto` on the branch: nothing to do here)
+  stmt_sp
+  -- EC: call(: ={glob F.RO});auto;sp;if;auto;inline*;auto;sp.
+  equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+  on_goals 2 => (ec_auto; ec_close)
+  --     (EC's `call (: I)` opens the callees)
+  equiv_proc
+  stmt_sp; stmt_if
+  · ec_close
+  on_goals 2 => ec_auto
+  --     (EC's two `auto`s on the branch: nothing to do here)
+  stmt_inline*; stmt_sp
+  -- EC: case(0 < n{1});last first.
+  equiv_case (0 < §n{1})
+  rotate_left
+  -- EC: + by rcondf{2}4;1:auto;rcondf{1}5;auto.
+  · stmt_rcondf{2} 4
+    · ec_auto
+    stmt_rcondf{1} 5
+    · ec_auto
+    ec_auto
+  -- EC: while(={lres,F.RO.m,i,n,p,b} /\ valid p{1} /\ 0 <= i{1} <= n{1}).
+  equiv_while (={lres, SLCommon.F.RO.m, i, n, p, b} ∧ valid §p{1} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1})
+  -- EC: + sp;if;1:auto.
+  · stmt_sp; stmt_if
+    · ec_close
+    --     - by auto;smt(parse_valid parseK formatK).
+    · ec_auto; ec_close
+    --     by auto;smt(parse_valid parseK formatK).
+    ec_auto; ec_close
+  -- EC: by auto;smt(parse_valid parseK formatK).
+  ec_auto; ec_close
+
 end GaudisCrypt.SHA3.Pilot.Gconcl_list
