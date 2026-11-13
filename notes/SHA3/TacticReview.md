@@ -447,4 +447,8 @@ first needs a full rebuild, so they go together):
 **Added without waiting for the batch** (new names in new files, no existing tactic touched):
 `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)`, EC's `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)`
 (`Logic/ECConseqHoare.lean`, rule `prhlStmt_and_hoare_right`, test
-`Logic/ECConseqHoareTest.lean`); used once, in `HybridIROEager_f_BlockIRO_f`.
+`Logic/ECConseqHoareTest.lean`); used once, in `HybridIROEager_f_BlockIRO_f`.  In the same
+file, `equiv_conseq_pre H`: EC's `conseq H` on procedures with `post` under the precondition
+(rule `prhlProc_conseq_pre`); used once, in `HybridIROEager_BlockIRO_f`.  In the batch,
+`equiv_conseq H` itself should state `post` so, and the side goals over parameters and results
+should come in read normal form at the plain types.

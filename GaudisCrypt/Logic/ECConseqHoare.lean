@@ -1,7 +1,9 @@
 import GaudisCrypt.Logic.ECConseq
 
 /-!
-# EasyCrypt's `conseq` with a Hoare triple about one side
+# Two more forms of EasyCrypt's `conseq`
+
+## With a Hoare triple about one side
 
     equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)     -- EC's `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)`
 
@@ -14,6 +16,16 @@ Goals in EC's order: `pre` (`A` implies `P` and `P₂`), `post` (EC's
 `A => (frames) => Q => Q₂ => B`, as `equiv_conseq (: P ==> Q)` states it), `hoare` (the triple
 about `c₂`), `judgment` (`c₁ ~ c₂ : P ==> Q`); `_` keeps a condition of the judgment.  The rule
 is `prhlStmt_and_hoare_right` under `prhlStmt_conseq_frame`.
+
+## `conseq H` on procedures, the precondition kept
+
+    equiv_conseq_pre H                            -- EC's `conseq H` on `equiv[ f ~ g : P ==> Q ]`
+
+`equiv_conseq H` states `post` as `Q' ⇒ Q` alone.  EC states it under the precondition
+(`forall &1 &2, P => forall res…, Q' => Q`), which a proof may need (a fact about the arguments).
+`equiv_conseq_pre H` leaves `pre` (`P ⇒ P'`) and that `post`: for the arguments and the initial
+globals that satisfy `P`, and every result and final globals, `Q' ⇒ Q`.  The rule is
+`prhlProc_conseq_pre`.
 -/
 
 namespace GaudisCrypt
@@ -73,5 +85,30 @@ elab "equiv_conseq" " (" ": " P:term " ==> " Q:term ")" " _" " (" ": " P₂:term
   refineTagged (← `(prhlStmt_conseq_frame (A' := $A's) (B' := $B's) $F₁s $F₂s $hF₁s $hF₂s
       (prhlStmt_and_hoare_right (A := $Ps) (B := $Qs) (P₂ := $P₂s) (Q₂ := $Q₂s)
         ?judgment ?hoare) ?pre ?post)) [`pre, `post, `hoare, `judgment]
+
+/-- A judgment about procedures from another one, the postcondition's implication under the
+precondition (EC's `conseq H`: `forall &1 &2, P => forall res…, Q' => Q`). -/
+theorem prhlProc_conseq_pre {sig₁ sig₂ : ProcedureSignature} {p₁ : Procedure sig₁}
+    {p₂ : Procedure sig₂}
+    {A A' : sig₁.ParamType → VariableAssignment → sig₂.ParamType → VariableAssignment → Prop}
+    {B B' : sig₁.ret → VariableAssignment → sig₂.ret → VariableAssignment → Prop}
+    (h : prhlProc A' p₁ p₂ B') (hA : ∀ a₁ g₁ a₂ g₂, A a₁ g₁ a₂ g₂ → A' a₁ g₁ a₂ g₂)
+    (hB : ∀ a₁ g₁ a₂ g₂, A a₁ g₁ a₂ g₂ →
+      ∀ r₁ τ₁ r₂ τ₂, B' r₁ τ₁ r₂ τ₂ → B r₁ τ₁ r₂ τ₂) :
+    prhlProc A p₁ p₂ B := by
+  intro a₁ a₂ g₁ g₂ hAg
+  obtain ⟨μ, m1, m2, sat⟩ := h a₁ a₂ g₁ g₂ (hA _ _ _ _ hAg)
+  exact ⟨μ, m1, m2, fun x hx => hB _ _ _ _ hAg _ _ _ _ (sat x hx)⟩
+
+open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
+/-- **EC's `conseq H`** on a relational judgment about procedures, `post` under the precondition
+as EC states it: goals `pre` (the goal's precondition implies `H`'s) and `post` (for arguments
+and initial globals satisfying the goal's precondition, `H`'s postcondition implies the
+goal's). -/
+elab "equiv_conseq_pre " H:term:max : tactic => withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  unless ty.isAppOfArity ``prhlProc 6 do
+    throwError "equiv_conseq_pre: not a relational judgment about procedures"
+  refineTagged (← `(prhlProc_conseq_pre $H ?pre ?post)) [`pre, `post]
 
 end GaudisCrypt

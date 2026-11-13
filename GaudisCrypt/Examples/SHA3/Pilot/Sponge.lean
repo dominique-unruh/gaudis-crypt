@@ -33,8 +33,8 @@ set_option ec.strict true
 /-!
 # The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port, in progress
 
-Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the theory `HybridIRO`
-up to `HybridIROEager_f_BlockIRO_f` (EC l. 256–1871; l. 1188–1305, the
+Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the whole theory
+`HybridIRO` (EC l. 256–1909; l. 1188–1305, the
 modules `BlockSpongeTrans`, `BlockGen` and `BlockGen_loop_direct` with its `bypr` proof, are the
 first port's, E12); and `Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic
 experiment and is described below.  The rest of the file follows in EC's order
@@ -91,6 +91,12 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   memory: where EC's condition names a variable that neither side reads any more
   (`n{2} = n1 %/ r`), the conjunct is dropped; an inlined parameter keeps its name when the
   caller no longer reads one of that name (EC's `n0` is `n`).
+* `equiv_conseq H` on procedures states `post` without the precondition, where EC keeps it:
+  `equiv_conseq_pre H` (`Logic/ECConseqHoare.lean`) where the proof needs it.  `exists*` on a
+  procedure judgment reads the declared parameter names (`§x{1}` for `HybridIROEager.f`'s
+  `xs`).  A side goal about parameters and results is over their tuple types: introduce them
+  at the plain types (`rintro ⟨xs, (n : ℤ)⟩ … (r₁ : List Bool)`), restate the hypotheses by
+  `replace`, and `change` the goal, before `rw` or `omega`.
 * EC's `alias{2} 1 with w` is not needed: the sampled block is the inlined callee's local `r`
   (two locals `bs`, `r` of different types on the two sides are read as
   `§(localVarLens "bs" (List Bool)){1}`).
@@ -2356,6 +2362,109 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
       intro i2
       equiv_call (HybridIROEagerTrans_BlockSpongeTrans_next_block i2)
       ec_auto
+
+/-! ### `LowerHybridIRO(HybridIROEager).f` and `BlockSponge.BIRO.IRO.f` (EC l. 1873–1909) -/
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: two `conseq`s of long lemmas
+/-- EC's `lemma HybridIROEager_BlockIRO_f` (EC l. 1873), the last of the theory `HybridIRO`.
+
+EC: `transitivity HybridIROEager.f (…) (…)`, the rule `prhlProc_trans_ec` here (GAP 8), so the
+two judgments come first (`h₁`: `conseq Lower_HybridIROEager_f`; `h₂`: `exists*`, then
+`conseq (HybridIROEager_f_BlockIRO_f n1 xs')`), then EC's two side conditions.  The middle
+memory (EC: `exists HybridIROEager.mp{1} BlockSponge.BIRO.IRO.mp{2} (xs{1}, n{1} * r)`) is the
+left globals with `BlockSponge.BIRO.IRO.mp` set to the right one's.  Both procedures take one
+pair: `xs{1} = x{2} /\ ={n}` is about its components. -/
+theorem HybridIROEager_BlockIRO_f :
+    equiv[ LowerHybridIRO(HybridIROEager).f (x) ~ BlockSponge.BIRO.IRO.f (xn) :
+      (§x{1}).1 = (§xn{2}).1 ∧ (§x{1}).2 = (§xn{2}).2 ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+      ={res} ∧ eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ] := by
+  -- EC: by conseq Lower_HybridIROEager_f=> |> &1 &2 ? -> ?.
+  have h₁ : equiv[ LowerHybridIRO(HybridIROEager).f (x) ~ HybridIROEager.f (xs, n) :
+      (§x{1}).1 = §xs{2} ∧ ={HybridIROEager.mp} ∧ §n{2} = (§x{1}).2 * r ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+      §res{1} = bits2blocks §res{2} ∧ ={HybridIROEager.mp} ] := by
+    equiv_conseq Lower_HybridIROEager_f
+    · exact fun _ _ _ _ ⟨h1, h2, h3, _⟩ => ⟨h1, h2, h3.symm⟩
+    · exact fun _ _ _ _ h => h
+  -- EC: exists* n{1}; elim*=> n1; exists* xs{1}; elim*=> xs'.
+  --     conseq (HybridIROEager_f_BlockIRO_f n1 xs')=> //.
+  have h₂ : equiv[ HybridIROEager.f (xs, n) ~ BlockSponge.BIRO.IRO.f (xn) :
+      §xs{1} = (§xn{2}).1 ∧ §n{1} = (§xn{2}).2 * r ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
+      §res{1} = blocks2bits §res{2} ∧
+        eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ] := by
+    --     (`exists*` on a procedure judgment reads the declared parameter names: `xs` is `x`)
+    equiv_exists* §n{1}, §x{1}
+    intro (n1 : ℤ) (xs' : List block)
+    --     (`post` needs the precondition, as EC states it: `equiv_conseq_pre`)
+    equiv_conseq_pre (HybridIROEager_f_BlockIRO_f n1 xs')
+    -- EC: move=> |> &1 &2 ? -> inv; by rewrite needed_blocks_prod_r.
+    · rintro ⟨xs, n⟩ g₁ ⟨x, n'⟩ g₂ ⟨⟨⟨hx, hn, ei⟩, hn1⟩, hxs⟩
+      replace hx : xs = x := hx
+      replace hn : n = n' * r := hn
+      replace hn1 : n = n1 := hn1
+      replace hxs : xs = xs' := hxs
+      exact ⟨hn1.symm, hxs.symm.trans hx, hx,
+        by rw [hn]; exact (needed_blocks_prod_r n').symm, ei⟩
+    -- EC: move=> |> &1 &2 ? n1_eq ? res1 res2 ? ? ? vb_imp not_vb_imp.
+    --     case: (valid_block xs{1})=> [vb_xs1 | not_vb_xs1].
+    --     have [le0_n1_imp gt0_n1_imp] := vb_imp vb_xs1.
+    --     case: (n{1} <= 0)=> [le0_n1 /# | not_le0_n1].
+    --     have gt0_n1 : 0 < n{1} by smt().
+    --     have [-> sz_res2] := gt0_n1_imp gt0_n1.
+    --     have -> : n{1} = size(blocks2bits res2)
+    --        by rewrite size_blocks2bits sz_res2 n1_eq
+    --                   needed_blocks_prod_r mulzC.
+    --     by rewrite take_size.
+    --     by have [-> ->] := not_vb_imp not_vb_xs1.
+    · rintro ⟨xs, (n : ℤ)⟩ g₁ ⟨x, (n' : ℤ)⟩ g₂ ⟨⟨⟨hx, hn, -⟩, hn1⟩, hxs⟩
+        (r₁ : List Bool) τ₁ (r₂ : List block) τ₂ ⟨ei, vb_imp, not_vb_imp⟩
+      replace hn : n = n' * r := hn
+      replace hn1 : n = n1 := hn1
+      replace vb_imp : valid_block xs' → (n1 ≤ 0 → r₁ = [] ∧ r₂ = []) ∧
+          (0 < n1 → r₁ = take n1 (blocks2bits r₂) ∧ size r₂ = (n1 + r - 1) / r) := vb_imp
+      replace not_vb_imp : ¬ valid_block xs' → r₁ = [] ∧ r₂ = [] := not_vb_imp
+      refine ⟨?_, ei⟩
+      change r₁ = blocks2bits r₂
+      by_cases vb : valid_block xs'
+      · obtain ⟨le0_imp, gt0_imp⟩ := vb_imp vb
+        by_cases le0 : n1 ≤ 0
+        · obtain ⟨rfl, rfl⟩ := le0_imp le0; rfl
+        · obtain ⟨h1, sz⟩ := gt0_imp (by omega)
+          have hsize : size (blocks2bits r₂) = n1 := by
+            rw [size_blocks2bits, sz, ← hn1, hn, needed_blocks_prod_r, mul_comm]
+          rw [h1, ← hsize, take_size]
+      · obtain ⟨rfl, rfl⟩ := not_vb_imp vb; rfl
+  -- EC: transitivity
+  --       HybridIROEager.f
+  --       (={xs, HybridIROEager.mp} /\ n{2} = n{1} * r /\
+  --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+  --        res{1} = bits2blocks res{2} /\ ={HybridIROEager.mp})
+  --       (xs{1} = x{2} /\ n{1} = n{2} * r /\
+  --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1} ==>
+  --        res{1} = (blocks2bits res{2}) /\
+  --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1}).
+  refine prhlProc_trans_ec ?_ ?_ h₁ h₂
+  -- EC: move=> |> &1 &2 ? n_eq inv.
+  --     exists HybridIROEager.mp{1} BlockSponge.BIRO.IRO.mp{2} (xs{1}, n{1} * r).
+  --     move=> |>; by rewrite n_eq.
+  · rintro a₁ g₁ a₂ g₂ ⟨h1, h2, ei⟩
+    replace h1 : a₁.1 = a₂.1 := h1
+    replace h2 : a₁.2 = a₂.2 := h2
+    replace ei : eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager.mp.get g₁) := ei
+    refine ⟨(a₁.1, a₁.2 * r),
+      BlockSponge.BIRO.IRO.mp.set (BlockSponge.BIRO.IRO.mp.get g₂) g₁, ⟨rfl, ?_, rfl, ?_⟩, h1,
+      congrArg (· * r) h2, ?_⟩
+    · exact (Lens.get_of_disjoint_set HybridIROEager.mp BlockSponge.BIRO.IRO.mp _ g₁).symm
+    · exact (congrArg (eager_invar · _) (BlockSponge.BIRO.IRO.mp.set_get g₁ _)).mpr ei
+    · exact (congrArg (eager_invar _)
+        (Lens.get_of_disjoint_set HybridIROEager.mp BlockSponge.BIRO.IRO.mp _ g₁)).mpr ei
+  -- EC: progress; apply blocks2bitsK.
+  · rintro r₁ g₁ r' g r₂ g₂ ⟨h1, hmp⟩ ⟨h2, ei⟩
+    exact ⟨h1.trans ((congrArg bits2blocks h2).trans (blocks2bitsK r₂)),
+      (congrArg (eager_invar _) hmp).mpr ei⟩
 
 end HybridIRO
 

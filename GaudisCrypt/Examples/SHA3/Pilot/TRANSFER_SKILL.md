@@ -202,7 +202,7 @@ the `while` row.
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
 | `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` | `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)` (`Logic/ECConseqHoare.lean`): the right program's own Hoare triple, its conditions written with the tag (`size §bs{2} = §n{2} - 1`); goals `pre`, `post`, `hoare`, `judgment` |
-| `conseq H` | `equiv_conseq H` (pRHL only) |
+| `conseq H` | `equiv_conseq H` (pRHL only); on procedures, when `post` needs the precondition (EC keeps it): `equiv_conseq_pre H` (`Logic/ECConseqHoare.lean`) |
 | `exists* e₁{1}, e₂{2}; elim* => a b` | `equiv_exists* §e₁{1}, §e₂{2}` then `intro a b` (also on procedure judgments, `§x{2}` the parameter); `stmt_exists* e` |
 | `elim * => a b` (after `sp`) | `equiv_elim* => a b` / `hoare_elim* => a`: EC's names, the left side's existentials first |
 | `case (P)` (pRHL) | `equiv_case (P)` |
@@ -515,6 +515,14 @@ Document each in the docstring when it applies.
 * **Guards after `splitwhile`**: the equality of the two loops' guards that `while` asks is a
   small arithmetic fact about `decide`s; state it once as a private lemma
   (`splitwhile_guard_left`, `_right`, `_le` in `Pilot/Sponge.lean`) and close the leaf with it.
+* **Side goals over parameter tuples and results** (`prhlProc_trans_ec`, `equiv_conseq_pre`,
+  `equiv_conseq H` on procedures): the variables have the signature's types
+  (`typeListToTuple [ℤ]`, `(procsig …).ret`) and the conditions are unreduced reads, so `omega`
+  and `rw` do not see them.  Introduce at the plain types
+  (`intro (n1 : ℤ) (xs' : List block)`, `rintro ⟨xs, (n : ℤ)⟩ g₁ … (r₁ : List Bool)`), restate
+  each hypothesis (`replace hn : n = n' * r := hn`) and `change` the goal.  A middle memory that
+  mixes the two sides' globals: `M.x.set (M.x.get g₂) g₁`, with `Lens.set_get` and
+  `Lens.get_of_disjoint_set`.
 * **`omega` after a loop fails with two atoms that print the same** (the guard's read of a
   local and the invariant's): combine the two hypotheses by a lemma instead
   (`le_antisymm t2 hg`), which works up to `rfl`.
