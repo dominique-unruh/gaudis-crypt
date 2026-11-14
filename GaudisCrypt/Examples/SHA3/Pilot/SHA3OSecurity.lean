@@ -11,7 +11,7 @@ set_option ec.strict true
 EC-fidelity port, in progress
 
 Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and the local modules
-of section `Preimage` (EC l. 194–300).
+of section `Preimage` (EC l. 194–300) with its first lemma, `rw_RF_List_While` (EC l. 301).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -29,6 +29,10 @@ Translation:
 * EC's module types are structural: a sponge-level `OFUNCTIONALITY` is an `ODFUNCTIONALITY`,
   an `OPRIMITIVE` an `ODPRIMITIVE` of `SH.OIndif` too.  Here each such use is a coercion,
   declared once (`module_subtype`);
+* EC's theory `Program` (the clone `PBool`: `Sample`, `LoopSnoc`, `Sample_LoopSnoc_eq`) is the
+  first port's `PBool.LoopSnoc.sample` and the rule `prhlStmt_dlist_left`
+  (`Lib/EC/DListCall.lean`); EC's two `transitivity` steps through `Sample.sample` and
+  `LoopSnoc.sample` are one, its first leg the lemma `Preimage.dlist_LoopSnoc` (as in E12);
 * the sections' local modules are modules of the namespace of their section (`Preimage.FInit`,
   …); their variables (`Log.m`, `RFList.m`) are `global_var`s, which the section's adversary
   is restricted against (fresh in EC); a local module that takes the section's adversary has
@@ -317,6 +321,55 @@ module RFWhile : SORO.RF_T {
     return ()
   };
 }
+
+/-- EC's `Sample_LoopSnoc_eq` (theory `Program`, the clone `PBool`), through `Sample.sample`:
+sampling `dlist dbool size_out` is running `LoopSnoc.sample(size_out)`.  EC's module `Sample` is
+not ported (the first port has `LoopSnoc` and the rule `prhlStmt_dlist_left`,
+`Lib/EC/DListCall.lean`): EC's two `transitivity` steps of `rw_RF_List_While` are one, with this
+as its first leg (as in exception E12). -/
+theorem dlist_LoopSnoc :
+    equiv[ True ==> §z{1} = §z{2} ]
+      { var z : List Bool;
+        z <$ dlist dbool size_out; } ~
+      { var z : List Bool;
+        z <- call
+          (GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample).procedure (size_out); } := by
+  refine prhlStmt_dlist_left _ { get := fun _ => size_out } (fun _ => rfl) ?_
+  equiv_call (_ : ={arg} ==> ={res})
+  · equiv_proc; sim
+  · ec_auto
+
+/-- EC's `local equiv rw_RF_List_While :
+RFList.get ~ RFWhile.get : ={arg, glob RFList} ==> ={res, glob RFWhile}`. -/
+theorem rw_RF_List_While :
+    equiv[ RFList.get (x) ~ RFWhile.get (x) : ={x, RFList.m} ==> ={res, RFList.m} ] := by
+  -- EC: proc; if; 1, 3: auto; wp.
+  equiv_proc; stmt_if
+  · ec_close
+  · stmt_wp
+    -- EC: conseq(:_==> z{1} = l{2})=> />.
+    equiv_conseq (: _ ==> §z{1} = §l{2})
+    · ec_close
+    -- EC: transitivity{1} { z <@ Sample.sample(size_out); } (true ==> ={z}) (true ==> z{1} = l{2})
+    --     … transitivity{1} { z <@ LoopSnoc.sample(size_out); } (true ==> ={z})
+    --       (true ==> z{1} = l{2})=>/>; last first.
+    --     (one step: EC's module `Sample` is not ported, `dlist_LoopSnoc`)
+    equiv_trans{1} {
+        z <- call (GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample).procedure (size_out); }
+      (True ==> §z{1} = §z{2}) (True ==> §z{1} = §l{2})
+    · intro σ₁ σ₂ _
+      exact ⟨σ₁, trivial⟩
+    · intro τ₁ τ τ₂ h₁ h₂
+      exact h₁.trans h₂
+    -- EC: by call(Sample_LoopSnoc_eq); auto.
+    · exact dlist_LoopSnoc
+    -- EC: + inline*; auto; sim.
+    --       by while(={l, i} /\ n{1} = size_out); auto; smt(cats1).
+    · stmt_inline*; stmt_wp
+      equiv_while (={i} ∧ §l0{1} = §l{2} ∧ §n{1} = size_out)
+      · ec_auto; ec_close
+      ec_auto
+  · ec_auto
 
 end Preimage
 
