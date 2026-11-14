@@ -657,3 +657,44 @@ Nothing was changed in the tactics for this stretch; these are the items for the
    `x3 = oget (unpad_blocks (parse …).1)` from six equations of `sp`, which the closers do not
    chain (GAP 1 of `Gconcl_list`).  Avoided: `wp` through the right's deterministic
    conditional and the facts settled in the last goal, where the two sides are related.
+
+## `SHA3OSecurity.ec`, section `SecondPreimage` (2026-11-14): one new tactic, findings
+
+**New: `bypr`** (`Logic/ByPr.lean`, golden test `Logic/ByPrTest.lean`).  EC's `bypr` on a pHL
+judgment about a procedure: `phoare[ p : P ==> E ] ≤ (ENNReal.ofReal x)` (`=`, `≥`) becomes
+`∀ a σ, P → Pr[ p (a) @ &σ : E ] ≤ x` — the converse of `byphoare`, three rules
+(`Procedure.phoareProc_le_of_toReal_Pr_le`, `…_ge_of_le_toReal_Pr`, `…_eq_of_toReal_Pr_eq`).
+The event is rebuilt from the postcondition in the shape `Pr[ … ]` elaborates to, so the new
+goal prints as a probability.  The precondition stays as the judgment has it (a `let` chain
+over the arguments); `intro a m ⟨h₁, h₂⟩` destructs it.  Used once
+(`Sponge_second_preimage_resistant`).  The pRHL form `bypr e₁ e₂` is still E12.
+
+Items for the next batch (nothing else was changed):
+
+1. **Parameter names of a procedure are not known through a clone's alias or a Lean
+   parameter** (`paramNamesOf`, `Syntax/HoareSyntax.lean`): `SH.SecondPreimage(A, F, P).main`
+   and `TOTO(A).main` give "no parameter names are known", so `byequiv (_ : P ==> Q)`,
+   `byphoare (: P ==> _)`, `phoare_call (: P ==> Q)` cannot be used with `§m1` in `P`; the
+   judgments are written out as terms, with their bound.  To do: `appliedModuleParamNames?`
+   through `unfoldCloneAliases` and through an application to Lean arguments.
+2. **`byphoare`'s judgment has its relation as a lambda** (`fun x1 x2 ↦ x1 ≤ x2`, from the
+   rule's `(· ≤ ·)`), on which `phoareCallStep` fails ("the goal's relation is not …").  It
+   went unnoticed because `phoare_seq` came between the two everywhere else.  To do: state the
+   `byphoare` rules with `@LE.le ENNReal _` (as `phoare[ … ] ≤ r` elaborates), or eta-reduce
+   in `phoareParts`.
+3. **`sim / x` leaves the final implication** where the calls' results are discarded
+   (`Setter.throwaway`) and the globals are read through `ProgramState.globalL.set`:
+   `closeImp`'s `equal_outside` branch lacks `Setter.throwaway` and `globals_globalL_set`.
+   One line by hand in the proof.  To do: add the two to that branch (golden test on a wrapper
+   procedure that sets a variable and calls a game).
+4. **`sp` over `X <- e` for a global `X` states `§X.intoGlobal = e`**; a later condition
+   reading `§X` is generalized to a second value (`Dist_of_P2Adv_m`, `Dist_of_P2Adv_m1`), and
+   the goal `auto` leaves is then false.  Avoided by leaving the assignment to `auto` (`wp`).
+   To do: `sp`'s fact in the read normal form (`Lens.intoGlobal_get_eq`).
+5. **`module … using (A : SH.AdvSecondPreimage)` calling the clone's game on `A`** fails in
+   the `module` command's `apply_simp` proof (unsolved goal about
+   `(SH.SecondPreimage.expression.app (A.expression.pair …)).reduce`); with `A` a Lean
+   parameter it goes through.  To do: reproduce on a small clone.
+6. **Speed**: `rw_ideal_2` 24 min, `rw_ideal` 12, `rw_real` 10, the final lemma 4 (its `sim /`
+   2.5); the module takes about 55 minutes.
+

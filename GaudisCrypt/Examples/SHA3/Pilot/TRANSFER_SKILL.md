@@ -170,7 +170,7 @@ the `while` row.
 | EC | Gaudí |
 |---|---|
 | `byequiv` / `byequiv (_ : P ==> Q)` / `byequiv (H)` | `byequiv` / `byequiv (_ : P ==> Q)` / `byequiv (H)` |
-| `byphoare (: P ==> _)` / `byphoare (H)` | `byphoare (: P ==> _)` / `byphoare (H)` |
+| `byphoare (: P ==> _)` / `byphoare (H)` | `byphoare (: P ==> _)` / `byphoare (H)`.  Where `P` names a parameter of a game whose parameter names are not known (a clone's game, a module with a Lean parameter): `byphoare (?j : phoare[ M.main (m) : §m = a ==> §res ] ≤ (ENNReal.ofReal x))`, the judgment written out with its bound (§7) |
 | `have ->: Pr[…] = Pr[…] by …` (rewrite chain) | `calc` steps, or `have e : … := by …` then `simp only [e]` (`rw` on `Pr[ ]` goals often fails its instances-transparency check) |
 | `proc` | `equiv_proc` / `hoare_proc` / `phoare_proc` (to the body, params as locals; EC's counts) |
 | `inline*` | `stmt_inline*` (`hoare_inline*`, `phoare_inline*`) |
@@ -220,7 +220,7 @@ the `while` row.
 | `proc (I)` on an abstract procedure | `equiv_proc (I)` (`Logic/ECProcInv.lean`): `D(O₁).f ~ D(O₂).f` with `D` declared, or a procedure with a rule tagged `@[proc_inv]` (a simulator's `S(F).f`: `attribute [local proc_inv] SIMULATOR.call_f SIMULATOR.call_fi`, and the simulator's oracle lists as a section hypothesis). Goals: the oracles' judgments in EC's form `={arg} ∧ I ==> ={res} ∧ I` (then `exact H`, EC's `apply H`), then `pre` if `ec_auto` does not close it. EC's `call (_ : P ==> Q). proc (I)` on the last statement is `equiv_call (_ : ={glob M} ∧ I)` directly |
 | `symmetry` | `equiv_sym` |
 | `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)` — EC's `n` dropped: the call must be the **last** statement (`stmt_wp` first). Goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviations: `bad` must persist; **one oracle only** — Gext's `fel 8 … [ReSample.f : …; ReSample.f1 : …]` needs the multi-oracle extension .  **A procedure the oracles call** (`fel … [Gcol.sample_c : pre]`): `fel §cntr (fun _ => step) q (bad) [Gcol.sample_c : pre] (inv)?` (`Logic/FelInner.lean`; `inv` may be left out): `stmt_wp` itself, the event may be EC's `bad ∧ cntr ≤ q`, `pre` may read anything, the oracles' code checked syntactically (`exp_decr`), `lt` closed; goals `sum`, `init`, then per procedure `step`, `incr`, `same`, `keep`. Over the procedure's body: `byphoare (: True ==> _)`, `phoare_proc`, `phoare_inline*` first (Gcol's `Pr_col`).  Code *after* the adversary's call (Gext's resampling) is checked like the oracles, so it must stay calls of the named procedures: inline only the wrapper (`phoare_inline 1` for `DRestr(D)`'s call, Gext's `Pr_ext`); several procedures `[ReSample.f : …, ReSample.f1 : …]` (EC's `;` is `,`) |
-| `bypr` | not a tactic (E12; before `fel`, collapses to `phoare_proc`) |
+| `bypr` (pHL, `phoare[ p : P ==> E ] ≤ r`) | `bypr` (`Logic/ByPr.lean`): the goal becomes `∀ a σ, P → Pr[ p (a) @ &σ : E ] ≤ x` (`=`, `≥`), the bound a real (`ENNReal.ofReal x`); EC's `bypr=> &m [#] -> h` is `intro a m' ⟨ha, h⟩` then `have ha' : a = mess := ha; subst ha'`.  `bypr e₁ e₂` (pRHL) is not a tactic (E12; before `fel` it collapses to `phoare_proc`) |
 
 ### Goal management
 
@@ -695,6 +695,52 @@ Document each in the docstring when it applies.
   pair lens and `Footprint.lens_pair`), give the lemma's restriction as
   `have hP : Module.Declared (SORO_P1 A) S := ⟨by fp_finite, by fp_disjoint⟩`, and add the
   lemma's fresh-in-EC variables (`-SORO.Preimage.Preimage2`) to the adversary's declaration.
+* **`conseq (: _ ==> Q)` in front of the adversary's call drops the variables the adversary
+  does not write** (EC's keeps them; `SHA3OSecurity` GAP 8): a fact about such a variable
+  (`§Dist_of_P2Adv.m{1} = mess`) goes into the call's invariant, and into the `seq`
+  invariants inside the oracles.
+* **`byequiv` with a fact about `&m`, one game taking a parameter**: the judgment written out,
+  `byequiv (?last : equiv[ G₁.main () ~ G₂.main (m1) : §allGlobals{1} = §allGlobals{2} ∧
+  §X{1} = mess ∧ §m1{2} = mess ==> (§res{1} → §res{2}) ])` (`↔` for `=`, which leaves the
+  judgment only), then `case hE => …`, `case last => …`.  A fresh goal name: `?judgment`
+  clashes with the earlier `byequiv`s of the proof.
+* **Parameter names of a clone's game, or of a module with a Lean parameter, are not known**
+  (`SH.SecondPreimage(A, …).main`, `TOTO(A).main`; "no parameter names are known for this
+  procedure"): `byequiv (_ : P ==> Q)`, `byphoare (: P ==> _)` and `phoare_call (: P ==> Q)`
+  cannot read `§m1` in `P`.  Write the judgment, `phoare[ M.main (m1) : … ==> … ] ≤
+  (ENNReal.ofReal x)`, as the term of `byphoare (?j : …)`, `phoare_call (?spec : …)`
+  (`SHA3OSecurity` GAP 9).  The written judgment also has `≤` in the form `phoare_call`
+  reads: plain `byphoare`'s judgment has it as `fun x1 x2 ↦ x1 ≤ x2`, on which `phoare_call`
+  fails ("the goal's relation is not `=`, `≤` or `≥`") unless a `phoare_seq` came between.
+* **`byphoare`'s side goal `hx : 0 ≤ x`** (the bound is a real; EC does not ask): by hand
+  where `positivity` does not see it (`(n ^ 2 - n : ℤ)` cast: `Int.le_self_sq`).
+* **Two queries after the adversary's call** (EC opens both and cases on the first one's
+  counter test): one after the other with `equiv_seq 1 1 : (…)`, each by EC's steps for one
+  query.
+* **A one-sided loop** (`while{2}` in EC): `equiv_while{2} (I) (variant)`; its goals are the
+  loop's losslessness (`while_ll_phoare; intro σ₁; ec_auto; ec_progress`, then the samplings'
+  `…_ll`), the body's Hoare triple (`intro σ₁ k; hoare_auto`), and the precondition.
+* **A wrapped oracle in a statement** (`Bounder(RFWhile).get`): `simp only
+  [SORO.Bounder.apply_simp, SORO.RF_T.get.mk_simp]` before `equiv_proc`.
+* **`sim` where one side writes a variable the other does not** (`TOTO.main` sets
+  `Dist_of_P2Adv.m`, then calls the game): `sim / Dist_of_P2Adv.m` (EC's `sim` with
+  `={glob A}`), after inlining the wrapper's call only.  It may leave the last implication
+  (reads through the calls' writes, states equal outside the variable): `intro σ₁ σ₂ h;
+  simp only [Lens.equal_outside_iff_set] at *; simp_all [Lens.set_get,
+  Lens.get_of_disjoint_set, ECSim.lensWriteNorm, Setter.throwaway, globals_globalL_set]`
+  (`SHA3OSecurity` GAP 10).  A plain `sim` does not read equalities off an event's `↔`.
+* **`sp` over a write to a global, then a call's precondition about that global** (pHL): `sp`
+  states the fact as `§X.intoGlobal = …`, which the closers do not identify with `§X` (two
+  values after `auto`, the goal then false).  Leave the assignment to the `auto` after the
+  call (`SHA3OSecurity` GAP 11).
+* **A local module that only wraps a game applied to the section's adversary** (`TOTO`):
+  the adversary as a Lean parameter, `module TOTO (A : …) { … }` (with `using (A : …)` the
+  `module` command's `apply_simp` proof is left unsolved on the clone's game).
+* **`Countable` side conditions** of the theory lemmas (`RO_is_second_preimage_resistant`):
+  an instance, `Countable f_out` from `to_list_inj`.
+* **The scratch file imports the pilot file**: it must not declare again what the pilot
+  already has (after a splice: the section's header and the new lemma only), and it sees the
+  pilot's *last built* `.olean` — lemmas spliced since then are stubbed in the scratch.
 * **The scratch checker under `timeout`**: when the limit kills it, the filtered log is the
   *previous* run's (the raw log is empty).  Check the raw log's size before reading results;
   run long compiles in the background.

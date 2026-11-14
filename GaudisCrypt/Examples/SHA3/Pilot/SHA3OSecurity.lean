@@ -2,6 +2,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
 import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
 import GaudisCrypt.Examples.SHA3.Pilot.SHA3_OIndiff
 import GaudisCrypt.Examples.SHA3.SHA3OSecurity
+import GaudisCrypt.Logic.ByPr
 
 -- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
 set_option ec.strict true
@@ -16,9 +17,10 @@ of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While
 (EC l. 492), `eq_eager_ideal2` (EC l. 512), `Dist`, `Game`, `eager_ideal` (EC l. 574),
 `rw_ideal_2` (EC l. 652), `rw_ideal` (EC l. 792), `leq_ideal` (EC l. 870), `rw_real`
 (EC l. 881) and `Sponge_preimage_resistant` (EC l. 898): section `Preimage` is complete.
-Of section `SecondPreimage`: its local modules `Dist_of_P2Adv`, `SORO_P2`, `Dist`, `Game`,
-`eager_ideal` (EC l. 1298), `toto` (EC l. 1427), `titi` (EC l. 1442) and `rw_ideal_2`
-(EC l. 1476).  The rest of that section and section `Collision` are to do.
+Section `SecondPreimage` is complete too: its local modules `Dist_of_P2Adv`, `SORO_P2`, `Dist`,
+`Game`, `eager_ideal` (EC l. 1298), `toto` (EC l. 1427), `titi` (EC l. 1442), `rw_ideal_2`
+(EC l. 1476), `rw_ideal` (EC l. 1638), `leq_ideal` (EC l. 1727), `rw_real` (EC l. 1738), `TOTO`
+and `Sponge_second_preimage_resistant` (EC l. 1781).  Section `Collision` is to do.
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -75,6 +77,22 @@ Translation:
 * `byequiv` with a fact about `&m` where one game takes a parameter: the judgment is written
   out, `byequiv (?last : equiv[ … ~ ….main (m1) : … ∧ §Dist_of_P2Adv.m{1} = mess ∧ §m1{2} = mess
   ==> (§res{1} → §res{2}) ])`;
+* GAP 9: the parameter names of a clone's game (`SH.SecondPreimage(A, …).main`) and of a module
+  with a Lean parameter (`TOTO(A).main`) are not known: EC's `byphoare(: arg = mess ==> _)` and
+  `call(: arg = mess /\ … ==> res)` are `byphoare (?j : phoare[ ….main (m) : … ] ≤ …)` and
+  `phoare_call (?spec : phoare[ ….main (m1) : … ] ≤ …)`, the judgments written out with their
+  bound (which also gives the relation the form `phoare_call` reads; plain `byphoare`'s is a
+  lambda);
+* GAP 10: `sim / Dist_of_P2Adv.m` (EC's `sim` between the game and `TOTO`, which sets
+  `Dist_of_P2Adv.m` first) leaves the last implication, the reads through the calls' writes:
+  one `simp` by hand;
+* GAP 11: `sp` over `Dist_of_P2Adv.m <- m` states its fact at a spelling the closers do not
+  identify with the later read of `Dist_of_P2Adv.m`: the assignment is left to the `auto`
+  after the call;
+* EC's `bypr` (pHL) is the new `bypr` (`Logic/ByPr.lean`); `byphoare`'s bound is a real, whose
+  `0 ≤ x` is a side goal EC does not have;
+* `Countable f_out` (from `to_list_inj`) is the side condition of
+  `SORO.RO_is_second_preimage_resistant`;
 * GAP 6: a game of the clone `SH` applied to the sponge's modules (`SH.Preimage(A, OSponge,
   PSome(Perm))`) has them behind the clone's projections and coercions, which `inline` does not
   open: `OPRIMITIVE_coe_eq`, `OSponge_app`, `PSome_Perm_init` (all by `rfl`) put them at the
@@ -2211,7 +2229,7 @@ end
 
 end Preimage
 
-/-! ## Section `SecondPreimage` (EC l. 920–1803), in progress -/
+/-! ## Section `SecondPreimage` (EC l. 920–1803) -/
 
 namespace SecondPreimage
 
@@ -2221,7 +2239,7 @@ namespace SecondPreimage
 -- section, textually those of section `Preimage`: they are that section's
 open Preimage (FInit PInit OF Log.m ExtendOutputSize OFC2 ExtendOutput RFList.m RFList RFWhile
   ExtendSample Fill_In rw_RF_List_While eq_IRO_RFWhile eq_extend of_listK eq_eager_ideal
-  eq_eager_ideal2)
+  eq_eager_ideal2 PSome_Perm_init OSponge_app OPRIMITIVE_coe_eq)
 open GaudisCrypt.SHA3.SHA3OSecurity (inv eq_extend_size)
 
 -- EC's `var m : bool list` of the local module `Dist_of_P2Adv`
@@ -2434,6 +2452,63 @@ theorem titi (mess : List Bool) (c : ℤ) :
     have h1 := ‹SHA3_OIndiff.increase_counter _ _ _ ≤ SHA3Indiff.limit›
     rw [‹xk₁.2 = size_out›] at h1
     exact absurd h1 (not_le.mpr ‹sigma < _›)
+
+/-- `f_out` is countable, by `to_list_inj` (the `Countable` side condition of
+`SORO.RO_is_second_preimage_resistant`; EC's types need none). -/
+instance : Countable f_out :=
+  GaudisCrypt.SHA3.SHA3OSecurity.Params.to_list_inj.countable
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the adversary's oracles
+/-- `SORO_P2(A, F)` touches `A`'s variables, `Log.m`, `Counter.c`, `Dist_of_P2Adv.m` and the
+simulator's (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_SORO_P2 (A : SH.AdvSecondPreimage) :
+    FVP.fvP (SORO_P2 A) ≤ FVP.fvP A ⊔ (Log.m.footprint ⊔ (Counter.c.footprint ⊔
+      (Dist_of_P2Adv.m.footprint ⊔ (Simulator.m.footprint ⊔ (Simulator.mi.footprint ⊔
+        (Simulator.paths.footprint ⊔ Gconcl_list.BIRO2.IRO.mp.footprint)))))) := by
+  have h : FVP.fvP (SORO_P2 A) ≤ FVP.fvP A ⊔ (Lens.pair Log.m (Lens.pair Counter.c
+      (Lens.pair Dist_of_P2Adv.m (Lens.pair Simulator.m (Lens.pair Simulator.mi
+        (Lens.pair Simulator.paths Gconcl_list.BIRO2.IRO.mp)))))).footprint := by
+    fp_module (Lens.pair Log.m (Lens.pair Counter.c (Lens.pair Dist_of_P2Adv.m
+      (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+        Gconcl_list.BIRO2.IRO.mp))))))
+  simpa only [Footprint.lens_pair] using h
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the adversary's oracles
+/-- `Dist_of_P2Adv(A)` touches `A`'s variables, `Log.m` and `Dist_of_P2Adv.m` (EC reads the
+globals off the code). -/
+@[fp_bound] theorem fvP_Dist_of_P2Adv (A : SH.AdvSecondPreimage) :
+    FVP.fvP (Dist_of_P2Adv A) ≤ FVP.fvP A ⊔ (Log.m.footprint ⊔ Dist_of_P2Adv.m.footprint) := by
+  have h : FVP.fvP (Dist_of_P2Adv A) ≤
+      FVP.fvP A ⊔ (Lens.pair Log.m Dist_of_P2Adv.m).footprint := by
+    fp_module (Lens.pair Log.m Dist_of_P2Adv.m)
+  simpa only [Footprint.lens_pair] using h
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob Dist_of_P2Adv(A)`: `glob A` (the region given for `A`), `Log.m` and
+`Dist_of_P2Adv.m`. -/
+instance instECGlobDist_of_P2Adv (A : SH.AdvSecondPreimage) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob A R] :
+    Module.ECGlob (Dist_of_P2Adv A) (R ⊔ (Log.m.footprint ⊔ Dist_of_P2Adv.m.footprint)) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_Dist_of_P2Adv A),
+    (fvP_Dist_of_P2Adv A).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ (Log.m.footprint ⊔ Dist_of_P2Adv.m.footprint), hGF.sup (by fp_finite),
+      sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
+        (Footprint.le_glob_of_le le_sup_right)⟩⟩
+
+-- EC's `local module TOTO` (declared after `rw_real` in EC; here before the section, its
+-- adversary a parameter)
+set_option linter.gaudisCrypt.using false in
+module TOTO (A : SH.AdvSecondPreimage) {
+  proc main (m : List Bool) : Bool {
+    var b : Bool;
+    Dist_of_P2Adv.m <- $m;
+    b <- call SH.SecondPreimage(A, OSponge, PSome(Perm)).main ($m);
+    return $b
+  };
+}
 
 section
 
@@ -3174,6 +3249,430 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
          rw [‹RFList.m.get globals₂ = FMap.empty›] at hd
          exact absurd hd (FMap.mem_empty _))
 
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: the adversary's three oracles and the two queries
+/-- EC's `local lemma rw_ideal &m (mess : bool list)`. -/
+theorem rw_ideal (m : VariableAssignment) (mess : List Bool) :
+    Dist_of_P2Adv.m.get m = mess →
+    Pr[ OIndif(FSome(IRO.asF), OSimulator(FSome(IRO.asF)),
+        ODRestr(Dist_of_P2Adv(A))).main () @ &m : §res ] ≤
+    Pr[ SORO.SecondPreimage(SORO_P2(A), SORO.RF(SORO.RO)).main (mess) @ &m : §res ] := by
+  -- EC: move=> Heq.
+  intro Heq
+  -- EC: rewrite (StdOrder.RealOrder.ler_trans _ _ _ (rw_ideal_2 &m mess Heq)).
+  refine (rw_ideal_2 A m mess Heq).trans ?_
+  -- EC: byequiv(: ={glob A} /\ ={arg} /\ arg{1} = mess ==> _) => //=; proc; inline*; sp; wp.
+  --     (EC's `inline*` leaves the two queries for after the adversary's call)
+  byequiv
+  case hE => exact fun _ _ _ _ h => h
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_sp
+  -- EC: seq 1 1 : (={glob A, glob SHA3Indiff.Simulator, glob SORO.Bounder, glob Counter,
+  --       glob Log, mi, m1} /\ RFList.m{1} = SORO.RO.RO.m{2}).
+  equiv_seq 1 1 : (={glob A, Simulator.m, Simulator.mi, Simulator.paths,
+    Gconcl_list.BIRO2.IRO.mp, SORO.Bounder.bounder, Counter.c, Log.m, mi, m1} ∧
+    §RFList.m{1} = §SORO.RO.m{2})
+  swap
+  -- EC: sp.
+  --     seq 4 4 : (={SORO.Bounder.bounder, x0, m1, m2, hash1, y0} /\ y0{1} = None /\
+  --       RFList.m{1} = SORO.RO.RO.m{2}); last first.
+  --     (the two queries one after the other, the event's implication from their equalities)
+  · stmt_sp
+    equiv_conseq (: _ ==> ={m1, m2, hash1, hash2})
+    · ec_close
+    equiv_seq 1 1 : (={m1, m2, hash1, SORO.Bounder.bounder} ∧ §RFList.m{1} = §SORO.RO.m{2})
+    swap
+    · stmt_inline*; stmt_sp; stmt_wp
+      stmt_if
+      · ec_close
+      · stmt_sp; stmt_wp
+        stmt_if{1}
+        · stmt_wp
+          equiv_rnd (fun l => oget (of_list l))
+          ec_auto; ec_progress
+          · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+          · rw [FMap.get_set_sameE]; rfl
+        · ec_auto; ec_progress
+          · exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+          · obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp ‹FMap.dom _ _›)
+            rw [hv]; rfl
+      · ec_auto
+    stmt_inline*; stmt_sp; stmt_wp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_wp
+      stmt_if{1}
+      · stmt_wp
+        equiv_rnd (fun l => oget (of_list l))
+        ec_auto; ec_progress
+        · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+        · rw [FMap.get_set_sameE]; rfl
+      · ec_auto; ec_progress
+        · exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+        · obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp ‹FMap.dom _ _›)
+          rw [hv]; rfl
+    · ec_auto
+  -- EC: + call(: ={glob SHA3Indiff.Simulator, glob SORO.Bounder, glob Counter, glob Log} /\
+  --       RFList.m{1} = SORO.RO.RO.m{2}); auto.
+  equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
+    SORO.Bounder.bounder, Counter.c, Log.m} ∧ §RFList.m{1} = §SORO.RO.m{2})
+  -- EC: - proc; sp; if; 1, 3: auto; sp.
+  --       inline *; sp; sim.
+  · equiv_proc; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+      -- EC: if; 1: auto; sim.
+      stmt_if
+      · ec_close
+      · stmt_wp
+        -- EC: if; 1: auto; sim.
+        stmt_if
+        · ec_close
+        · sim 4 4
+          -- EC: sp; if; [2,3:sim]; [1,3:by auto=> /> &1 &2 <- /> <- />].
+          stmt_sp
+          stmt_if
+          · ec_close
+          -- EC: sp; if; 1: auto; sim; -1: smt().
+          --     (EC's `sim` over what follows the bounder's conditional — the loop on `Log.m` —
+          --     with `RFList.m{1} = RO.m{2}` kept: `seq` at the conditional, `conseq` to the
+          --     equalities, `sim`)
+          · stmt_wp
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+            equiv_seq 1 1 : (={y, x0, x1, k0, suffix, Simulator.m, Simulator.mi, Simulator.paths,
+              Gconcl_list.BIRO2.IRO.mp, SORO.Bounder.bounder, Counter.c, Log.m} ∧
+              §RFList.m{1} = §SORO.RO.m{2})
+            swap
+            · equiv_conseq (: _ ==> ={o0, x0, Simulator.m, Simulator.mi, Simulator.paths,
+                Gconcl_list.BIRO2.IRO.mp, Log.m})
+              · ec_close
+              sim
+            stmt_if
+            · ec_close
+            -- EC: sp; if{1}.
+            --     * rcondt{2} 2.
+            --       + by auto=> /> + + <- /> <- />.
+            --       auto.
+            --       rnd (fun l => oget (of_list l)) to_list; auto=> />. …
+            --     (EC's `rcondt{2} 2` is the `wp` through the right's conditional, as in the
+            --     lemma's last step: its side goal would need the chain of `sp`'s tuple
+            --     equations by hand)
+            · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+              stmt_if{1}
+              · stmt_wp
+                equiv_rnd (fun l => oget (of_list l))
+                ec_auto; ec_progress
+                · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+                · rw [FMap.get_set_sameE]; rfl
+              -- EC: by auto=> /> + + + <- /> <-; smt(dout_ll).
+              · ec_auto; ec_progress
+                · exact (is_lossless_iff_expected _).mp
+                    GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+                · obtain ⟨v, hv⟩ :=
+                    Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp ‹RO_m₂.dom _›)
+                  rw [hv]; rfl
+            · ec_auto; ec_close
+          · sim; ec_close
+        · ec_auto
+      · ec_auto
+    · ec_auto
+  -- EC: - by proc; inline*; sp; if; auto; sp; if; auto.
+  · equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_if
+      · ec_close
+      · ec_auto
+      · ec_auto
+    · ec_auto
+  -- EC: - proc; inline*; sp; if; auto; sp; if; auto; sp; sim.
+  --       if{1}.
+  --       * rcondt{2} 2; auto.
+  --         rnd (fun l => oget (of_list l)) to_list; auto=> />. …
+  --     (as in the first oracle)
+  · equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp
+      equiv_seq 1 1 : (={y0, x1, k0, suffix, l, k, Simulator.m, Simulator.mi, Simulator.paths,
+        Gconcl_list.BIRO2.IRO.mp, SORO.Bounder.bounder, Counter.c, Log.m} ∧
+        §RFList.m{1} = §SORO.RO.m{2})
+      swap
+      · equiv_conseq (: _ ==> ={r, Counter.c, Log.m})
+        · ec_close
+        sim
+      stmt_if
+      · ec_close
+      · stmt_sp; stmt_if{1}
+        · stmt_wp
+          equiv_rnd (fun l => oget (of_list l))
+          ec_auto; ec_progress
+          · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+          · rw [‹xk₂.1 = xk₁.1›, FMap.get_set_sameE]; rfl
+        · ec_auto; ec_progress
+          · exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+          · have hd := ‹RO_m₂.dom xk₂.1›
+            rw [‹xk₂.1 = xk₁.1›] at hd ⊢
+            obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd)
+            rw [hv]; rfl
+      · ec_auto
+    · ec_auto
+  -- EC: (the `auto` of `call(…); auto`; GAP 4: `glob A` past the initializations' writes)
+  ec_auto; ec_progress
+  have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
+  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+  exact h
+
+/-- EC's `local lemma leq_ideal &m mess`. -/
+theorem leq_ideal (m : VariableAssignment) (mess : List Bool) :
+    Dist_of_P2Adv.m.get m = mess →
+    Pr[ OIndif(FSome(IRO.asF), OSimulator(FSome(IRO.asF)),
+        ODRestr(Dist_of_P2Adv(A))).main () @ &m : §res ] ≤
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
+  -- EC: move=> Heq.
+  intro Heq
+  -- EC: rewrite (StdOrder.RealOrder.ler_trans _ _ _ (rw_ideal &m mess Heq)).
+  refine (rw_ideal A m mess Heq).trans ?_
+  -- EC: rewrite (StdOrder.RealOrder.ler_trans _ _ _
+  --       (RO_is_second_preimage_resistant (SORO_P2(A)) &m mess)).
+  --     (EC checks `SORO_P2(A)` against the restriction of `RO_is_second_preimage_resistant`)
+  have hP : Module.Declared (SORO_P2 A) (SORO.Bounder.bounder.footprint ⊔ SORO.RO.m.footprint ⊔
+      SORO.FRO.m.footprint ⊔ SORO.SecondPreimage.SecondPreimage2.m2.footprint ⊔
+      SORO.SecondPreimage.D1.m1.footprint) := ⟨by fp_finite, by fp_disjoint⟩
+  refine (SORO.RO_is_second_preimage_resistant (SORO_P2 A) m mess).trans ?_
+  -- EC: by rewrite doutE1.
+  rw [div_eq_mul_inv, ← doutE1 default]
+  exact le_rfl
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: the adversary's three oracles and the two queries
+/-- EC's `local lemma rw_real &m mess`. -/
+theorem rw_real (m : VariableAssignment) (mess : List Bool) :
+    Dist_of_P2Adv.m.get m = mess →
+    Pr[ SH.SecondPreimage(A, OSponge, PSome(Perm)).main (mess) @ &m : §res ] =
+    Pr[ OIndif(FSome(Sponge(Poget(PSome(Perm)))), PSome(Perm),
+        ODRestr(Dist_of_P2Adv(A))).main () @ &m : §res ] := by
+  -- EC: move=> Heq.
+  intro Heq
+  byequiv (?last : equiv[ SH.SecondPreimage(A, OSponge, PSome(Perm)).main (m1) ~
+      OIndif(FSome(Sponge(Poget(PSome(Perm)))), PSome(Perm),
+        ODRestr(Dist_of_P2Adv(A))).main () :
+    §allGlobals{1} = §allGlobals{2} ∧ §Dist_of_P2Adv.m{2} = mess ∧ §m1{1} = mess ==>
+    (§res{1} ↔ §res{2}) ])
+  case last =>
+    equiv_proc
+    simp only [OPRIMITIVE_coe_eq]
+    erw [OSponge_app]
+    stmt_inline{2} 2; stmt_inline{2} 2; stmt_inline{2} 2
+    stmt_wp
+    -- EC: seq 1 1 : (={glob A, glob Perm} /\ m1{1} = Dist_of_P2Adv.m{2} /\
+    --       m2{1} = m'{2} /\ Bounder.bounder{1} = Counter.c{2}).
+    equiv_seq 3 5 : (={glob A, Perm.m, Perm.mi} ∧ §m1{1} = §Dist_of_P2Adv.m{2} ∧
+      §m2{1} = §m'{2} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+    swap
+    -- EC: conseq(:_==> m1{1} = Dist_of_P2Adv.m{2} /\ m2{1} = m'{2} /\
+    --       hash1{1} = hash{2} /\ hash2{1} = hash'{2})=> //=; 1: smt().
+    · equiv_conseq (: _ ==> §m1{1} = §Dist_of_P2Adv.m{2} ∧ §m2{1} = §m'{2} ∧
+        §hash1{1} = §hash{2} ∧ §hash2{1} = §hash'{2})
+      · ec_progress; smt_close
+      -- EC: seq 1 1 : (m1{1} = Dist_of_P2Adv.m{2} /\ m2{1} = m'{2} /\
+      --       hash1{1} = hash{2} /\ ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2});
+      --       last first.
+      equiv_seq 1 1 : (§m1{1} = §Dist_of_P2Adv.m{2} ∧ §m2{1} = §m'{2} ∧
+        §hash1{1} = §hash{2} ∧ ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+      swap
+      -- EC: + inline*; sp; if; auto; sp=> /=; sim.
+      · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
+          stmt_inline{2} 0; stmt_inline{2} 0
+          stmt_sp; stmt_wp
+          equiv_conseq (: _ ==> ={z0, n})
+          · ec_close
+          sim
+        · ec_auto
+      -- EC: inline*; sp; if; auto; swap{1} 9; auto; sp=> /=.
+      --     by conseq(:_==>  m1{1} = Dist_of_P2Adv.m{2} /\ m2{1} = m'{2} /\
+      --       of_list (oget (Some (take n{1} z0{1}))) =
+      --       of_list (oget (Some (take n{2} z0{2}))) /\ ={Perm.mi, Perm.m})=> //=; sim.
+      --     (GAP 7: the `while` rule, the permutation's calls by `call (_ : ={glob Perm})`)
+      · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
+          stmt_inline{2} 0; stmt_inline{2} 0
+          stmt_sp; stmt_wp
+          equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+          · ec_close
+          equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
+          · stmt_sp; stmt_if
+            · ec_close
+            · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+            · ec_auto; ec_close
+          equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
+          · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+          ec_auto
+        · ec_auto
+    --     (the initializations: `PSome(Perm).init` behind the clone's projection, GAP 6)
+    stmt_inline{1} 0
+    rw [PSome_Perm_init _ rfl]
+    simp only [PSome, GaudisCrypt.SHA3.OptionIndifferentiability.OPRIMITIVE.init.mk_simp]
+    stmt_inline*
+    stmt_sp
+    -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
+    equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2} ∧
+      §Dist_of_P2Adv.m{2} = mess)
+    -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
+    · simp only [ODPRIMITIVE_f_mk]
+      equiv_proc; stmt_inline*; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp; stmt_if
+        · ec_close
+        · ec_auto
+        · ec_auto
+      · ec_auto
+    -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
+    · simp only [ODPRIMITIVE_fi_mk]
+      equiv_proc; stmt_inline*; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp; stmt_if
+        · ec_close
+        · ec_auto
+        · ec_auto
+      · ec_auto
+    -- EC: - proc; inline*; sp; if; auto; sp=> />.
+    --       by conseq(:_==> ={z0, glob Perm})=> />; sim.
+    --     (GAP 7: `sim` does not end on the two loops here; the `while` rule, the permutation's
+    --     calls by `call (_ : ={glob Perm})`)
+    · equiv_proc
+      stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
+        stmt_inline{2} 0; stmt_inline{2} 0
+        stmt_sp; stmt_wp
+        equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+        · ec_close
+        equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
+        · stmt_sp; stmt_if
+          · ec_close
+          · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+          · ec_auto; ec_close
+        equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
+        · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+        ec_auto
+      · ec_auto
+    -- EC: by auto; smt().
+    --     (GAP 4: `glob A` past the initializations' writes)
+    ec_auto; ec_progress
+    have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+    exact h
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: EC's restriction checks and the losslessness of `Dist_of_P2Adv(A)`
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`A` against the modules of `SHA3OIndiff`)
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma Sponge_second_preimage_resistant &m mess:
+(forall (F <: OIndif.ODFUNCTIONALITY) (P <: OIndif.ODPRIMITIVE),
+islossless F.f => islossless P.f => islossless P.fi => islossless A(F,P).guess) =>
+Pr[SecondPreimage(A, OSponge, PSome(Perm)).main(mess) @ &m : res] <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r +
+(sigma + 1)%r / (2%r ^ size_out)`. -/
+theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List Bool) :
+    (∀ (F <: SH.OIndif.ODFUNCTIONALITY), ∀ (P <: SH.OIndif.ODPRIMITIVE),
+      islossless F.f → islossless P.f → islossless P.fi → islossless A(F, P).guess) →
+    Pr[ SH.SecondPreimage(A, OSponge, PSome(Perm)).main (mess) @ &m : §res ] ≤
+      ((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
+  -- EC: move=> A_ll.
+  intro A_ll
+  -- EC: have->:Pr[SecondPreimage(A, OSponge, PSome(Perm)).main(mess) @ &m : res] =
+  --            Pr[TOTO.main(mess) @ &m : res].
+  --     + by byequiv=> //=; proc; inline*; auto; sim.
+  have h : Pr[ SH.SecondPreimage(A, OSponge, PSome(Perm)).main (mess) @ &m : §res ] =
+      Pr[ TOTO(A).main (mess) @ &m : §res ] := by
+    byequiv; equiv_proc
+    stmt_inline{2} 0
+    --     (EC's `sim` with the memories equal but for `Dist_of_P2Adv.m`, which `TOTO` writes;
+    --     GAP 10: what `sim` leaves, the reads through the calls' writes, by hand)
+    sim / Dist_of_P2Adv.m
+    intro σ₁ σ₂ h
+    simp only [Lens.equal_outside_iff_set] at *
+    simp_all [Lens.set_get, Lens.get_of_disjoint_set, ECSim.lensWriteNorm, Setter.throwaway,
+      globals_globalL_set]
+  rw [h]; clear h
+  -- EC: byphoare(: arg = mess ==>_)=>//=; proc; sp.
+  --     (GAP 9: the parameter's name is not known for `TOTO(A).main`, nor for the clone's game
+  --     below: the judgments written out, with their bound.  EC's `sp` is left to the `auto`
+  --     after the call: GAP 11)
+  byphoare (?j : phoare[ TOTO(A).main (m) : §m = mess ==> §res ] ≤ (ENNReal.ofReal
+      (((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out)))
+  case j =>
+    phoare_proc
+    -- EC: call(: arg = mess /\ mess = Dist_of_P2Adv.m ==> res); auto.
+    phoare_call (?spec : phoare[ SH.SecondPreimage(A, OSponge, PSome(Perm)).main (m1) :
+      §m1 = mess ∧ mess = §Dist_of_P2Adv.m ==> §res ] ≤ (ENNReal.ofReal
+        (((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out)))
+    case spec =>
+      -- EC: bypr=> {&m} &m [#]->; rewrite eq_sym=> Heq.
+      bypr
+      intro a m' ⟨ha, Heq⟩
+      have ha' : a = mess := ha
+      subst ha'
+      -- EC: rewrite (rw_real &m mess Heq).
+      rw [rw_real A m' _ Heq.symm]
+      -- EC: have := SHA3OIndiff (Dist_of_P2Adv(A)) &m _.
+      have h := @Pilot.SHA3_OIndiff.SHA3OIndiff _ _ _ (Dist_of_P2Adv A)
+        ⟨by fp_finite, by fp_disjoint⟩ (R ⊔ (Log.m.footprint ⊔ Dist_of_P2Adv.m.footprint))
+        inferInstance ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ m' ?_
+      · -- EC: by have/#:=leq_ideal &m.
+        have h2 := leq_ideal A m' _ Heq.symm
+        rw [GaudisCrypt.SHA3.SHA3OSecurity.OGReal_eq] at h
+        refine le_trans (sub_le_iff_le_add.mp (abs_le.mp h).2) ?_
+        exact (add_le_add_iff_left _).mpr h2
+      -- EC: + move=> F P Hp Hpi Hf; proc; inline*; sp; auto; call Hf; auto; call Hf; auto.
+      · intro F P Hp Hpi Hf
+        phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+        --     (the adversary's call first: pHL `seq`, as in section `Preimage`)
+        phoare_seq_lossless 1 : (True)
+        -- EC: call(A_ll (DFSetSize(F)) P _ Hp Hpi); auto.
+        · phoare_call (A_ll _ _ ?_ Hp Hpi)
+          · phoare_auto
+          -- EC: - proc; inline*; auto; call Hf; auto.
+          · simp only [SH.OIndif.ODFUNCTIONALITY.f.mk_simp]
+            phoare_proc; phoare_auto; phoare_call Hf; phoare_auto
+        --     (the two queries: `call Hf; auto` each)
+        · phoare_seq_lossless 4 : (True)
+          · stmt_sp; stmt_wp; phoare_call Hf; phoare_auto
+          · stmt_sp; phoare_call Hf; phoare_auto
+    -- EC: (the `auto` of `call(…); auto`)
+    phoare_auto
+    intro m1 h
+    rw [if_pos ⟨h, h.symm⟩]
+  --     (`byphoare`'s bound is a real: it is not negative)
+  case hx =>
+    have h1 : (0 : ℝ) ≤ ((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) := by
+      exact_mod_cast sub_nonneg.mpr (Int.le_self_sq _)
+    have h2 : (0 : ℝ) ≤ ((sigma + 1 : ℤ) : ℝ) := by
+      have := GaudisCrypt.SHA3.SHA3OSecurity.Params.sigma_ge0
+      exact_mod_cast (by change 0 ≤ SHA3Indiff.limit + 1; omega : (0 : ℤ) ≤ sigma + 1)
+    exact add_nonneg (add_nonneg (div_nonneg h1 (by positivity)) (by positivity))
+      (div_nonneg h2 (by positivity))
 
 end
 

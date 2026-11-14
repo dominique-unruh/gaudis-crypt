@@ -1561,7 +1561,11 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 1427 | local equiv | `toto` | `SecondPreimage.toto` (EC's second `if` is `rcondt`) | done |
 | 1442 | local equiv | `titi` | `SecondPreimage.titi` | done |
 | 1476 | local lemma | `rw_ideal_2 &m mess` | `SecondPreimage.rw_ideal_2` (`Preimage`'s script; the queries after the adversary's call by `rw_RF_List_While` / `toto` / `titi`; the branch where the counter is exceeded by EC's one-sided loops; `Dist_of_P2Adv.m` through the call's invariant, GAP 8) | done |
-| 1638–1803 | section `SecondPreimage`, lemmas | `rw_ideal`, `leq_ideal`, `rw_real`, `TOTO`, `Sponge_second_preimage_resistant` | — | todo |
+| 1638–1726 | local lemma | `rw_ideal` | `SecondPreimage.rw_ideal`: EC's script; the two queries one after the other (`seq`), each EC's steps for one query | done |
+| 1727–1736 | local lemma | `leq_ideal` | `SecondPreimage.leq_ideal`: EC's script; `fvP_SORO_P2`, `Module.Declared (SORO_P2 A) …` for EC's restriction check, `Countable f_out` | done |
+| 1738–1770 | local lemma | `rw_real` | `SecondPreimage.rw_real`: EC's script; the judgment of `byequiv` written out (parameter, fact about `&m`), GAP 6–8 as in `Preimage` | done |
+| 1772–1779 | local module | `TOTO` | `SecondPreimage.TOTO (A)` | done |
+| 1781–1803 | lemma | `Sponge_second_preimage_resistant` | `SecondPreimage.Sponge_second_preimage_resistant`: EC's script, with the new `bypr`; the judgments of `byphoare` and `call` written out (GAP 9), `sim / Dist_of_P2Adv.m` with one hand step (GAP 10), EC's `sp` left to `auto` (GAP 11) | done |
 | 1808–2651 | section `Collision` | | — | todo |
 
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`

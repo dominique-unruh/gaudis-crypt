@@ -18,6 +18,7 @@ import GaudisCrypt.Logic.ECWhileRelTest
 import GaudisCrypt.Logic.GlobWritesTest
 import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PHoareSeqTest
+import GaudisCrypt.Logic.ByPrTest
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.ReadNormTest

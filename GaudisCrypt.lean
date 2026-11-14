@@ -112,6 +112,7 @@ import GaudisCrypt.Logic.PHoareWp
 import GaudisCrypt.Logic.PHoareLossless
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PHoareSeqTest
+import GaudisCrypt.Logic.ByPrTest
 import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.GlobWrites
 import GaudisCrypt.Logic.GlobWritesTest
@@ -120,6 +121,7 @@ import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.CallSpec
+import GaudisCrypt.Logic.ByPr
 import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
