@@ -198,7 +198,7 @@ the `while` row.
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; with EC's frame (what the callee does not write): `phoare_call (: P ==> Q) / x, …`, `hoare_call (: P ==> Q) / x, …` (the trivial triple `True ==> True` closed), `phoare_call H / x, …` for lossless + frame |
 | `sim` / `sim n m` / `sim (_ : I)` / `sim` with `={glob A}` | `sim` / `sim n₁ n₂` / `sim (_ : I)` / `sim / x₁, …, xₙ` (equal except the listed globals).  Calls of different concrete procedures (EC's `sim` goes into them): where plain `sim` makes no progress it inlines the callees, runs again and closes the rest by `auto_close` — so EC's `by sim` stays `sim` (Gconcl `G4_Ideal`).  A partial `sim` is never changed that way.  Two loops: the invariant is the relation after them plus EC's equality set (computed backwards through the bodies, `ECSim.eqBack`: locals written before read are not in it); when that relation reads what the loops change, the equality set alone (Gconcl `G2_G3` `M.f`).  Why `sim` stops: `set_option debug.sim true in sim` (loops, calls, unfinished branches) |
 | `rnd` / `rnd{i}` / `rnd f` | `equiv_rnd` / `equiv_rnd{i}` / `equiv_rnd f` (product samplings: `equiv_rnd_dprod`) |
-| `rnd f g` | **missing** (~14 uses, Sponge, SHA3OSecurity): `equiv_rnd f` has other side goals |
+| `rnd f g` | `equiv_rnd f` where the push-forward of the left distribution along `f` is a known equation (`SHA3OSecurity` `rw_ideal`: `equiv_rnd (fun l => oget (of_list l))`, the side goal `dlist dbool size_out >>= pure ∘ f = dout` by the first port's `dlist_dout`); EC's three bijection conditions are not asked.  Otherwise **missing** |
 | pHL `rnd (pred1 v)` / `rnd` (lossless) | `rnd_pred1 v` / `rnd_bound` (on the expectation `phoare_auto` leaves at a sampling) |
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
@@ -671,6 +671,30 @@ Document each in the docstring when it applies.
 * **Probing leaves under a stubbed context**: a lemma made of several `have`s is compiled one
   part at a time with the others' proofs replaced by `sorry` (saved to files and put back by
   script); heartbeat budgets are per declaration, so the assembled lemma needs the sum.
+* **A game of a clone applied to modules of another module type** (`SH.Preimage(A, OSponge,
+  PSome(Perm))`; EC's module types are structural): `inline` stops at the clone's projections
+  and coercions.  Put the game at the modules' own types right after `proc`, by lemmas that
+  hold by `rfl`: the coercion (`OPRIMITIVE_coe_eq`, by `simp only`), the composed functor
+  (`OSponge_app`, by `erw`), a procedure (`PSome_Perm_init`, by `rw` after the `inline` that
+  exposes it).  Three things to know: (1) state the left-hand side with the *theory's* constant
+  (`@SecureHash.OIndif.OPRIMITIVE.init … SH.params P`), not the clone's alias — `rw` keys on the
+  head and does not unfold the alias, `simp` does; (2) where the argument in the goal is not
+  syntactically the module (`Module.app PBounder (PSome Perm)` before `inline`), give the
+  lemma a variable and an equation, `(P) (hP : P = PSome Perm)`, and use it as `rw [L _ rfl]`;
+  (3) `set_option pp.explicit true in trace_state` shows which of the two it is.
+* **`inline*` opens callees whose locals the two sides then name differently, or at two
+  spellings of a type** (`state` / `block × capacity`): the closers do not identify them and
+  `sim` does not relate the loops.  Inline selectively instead (`stmt_inline{i} k`, the `k`-th
+  call site, repeated: each `inline` renumbers them), so that both sides keep the same call in
+  the loop bodies; then EC's `sim` applies, after `equiv_conseq (: _ ==> ={…})` to the
+  equalities.  Where `sim` still does not end, `equiv_while (={…})` and
+  `equiv_call (_ : ={glob P})` on the calls.
+* **A theory's lemma applied to a module built from the section's adversary** (`SORO
+  .RO_is_preimage_resistant (SORO_P1 A)`): state the built module's footprint
+  (`@[fp_bound] theorem fvP_SORO_P1 … ≤ FVP.fvP A ⊔ (X.footprint ⊔ …)` by `fp_module` on the
+  pair lens and `Footprint.lens_pair`), give the lemma's restriction as
+  `have hP : Module.Declared (SORO_P1 A) S := ⟨by fp_finite, by fp_disjoint⟩`, and add the
+  lemma's fresh-in-EC variables (`-SORO.Preimage.Preimage2`) to the adversary's declaration.
 * **The scratch checker under `timeout`**: when the limit kills it, the filtered log is the
   *previous* run's (the raw log is empty).  Check the raw log's size before reading results;
   run long compiles in the background.

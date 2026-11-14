@@ -13,8 +13,9 @@ EC-fidelity port, in progress
 Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and the local modules
 of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While` (EC l. 301),
 `eq_IRO_RFWhile` (EC l. 337), `eq_extend` (EC l. 430), `of_listK`, `Fill_In`, `eq_eager_ideal`
-(EC l. 492), `eq_eager_ideal2` (EC l. 512), `Dist`, `Game`, `eager_ideal` (EC l. 574) and
-`rw_ideal_2` (EC l. 652).
+(EC l. 492), `eq_eager_ideal2` (EC l. 512), `Dist`, `Game`, `eager_ideal` (EC l. 574),
+`rw_ideal_2` (EC l. 652), `rw_ideal` (EC l. 792), `leq_ideal` (EC l. 870) and `rw_real`
+(EC l. 881).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -62,6 +63,16 @@ Translation:
 * a call behind the module type's record (`(SORO.RF_T.get RFList)`) keeps the other variables
   only with its footprint stated at that spelling (`fvP_RF_T_get_RFList`, `fvP_SORO_Bounder`,
   `fvP_RFWhile`: EC reads them off the code);
+* EC's `rnd f g` between `dlist dbool size_out` and `dout` is `equiv_rnd (fun l => oget
+  (of_list l))`: it asks that `f` push the first distribution to the second, which is the first
+  port's `dlist_dout` (EC's `dout_equal_dlist`, `to_listK`);
+* GAP 6: a game of the clone `SH` applied to the sponge's modules (`SH.Preimage(A, OSponge,
+  PSome(Perm))`) has them behind the clone's projections and coercions, which `inline` does not
+  open: `OPRIMITIVE_coe_eq`, `OSponge_app`, `PSome_Perm_init` (all by `rfl`) put them at the
+  sponge's module types first;
+* GAP 7: `sim` does not end on two loops that call the permutation after a `conseq` that keeps
+  `glob Perm` (it does where only locals are kept): the `while` rule and `call (_ : ={glob
+  Perm})`;
 * EC's chains `inline{1} 1; inline{2} 1; sp` down to the adversary's call are
   `repeat stmt_inline{1} 0; repeat stmt_inline{2} 0; stmt_sp`; `sim n n` in front of a call or a
   conditional is `stmt_wp` (`sim n n` where a sampling is left);
@@ -1116,18 +1127,63 @@ the code). -/
 @[fp_bound] theorem fvP_RFWhile : FVP.fvP RFWhile ≤ RFList.m.footprint := by
   fp_module RFList.m
 
+/-- `PSome(Perm)` in a game of the clone `SH` (at the clone's module type, where `inline` does
+not see the first port's record): its `init` is the sponge-level one, by definition. -/
+theorem PSome_Perm_init (P : SH.OIndif.OPRIMITIVE) (hP : P = PSome Perm) :
+    @GaudisCrypt.SHA3.Pilot.SecureHash.OIndif.OPRIMITIVE.init (List Bool) f_out SHA3Indiff.state
+        _ _ _ SH.params P =
+      GaudisCrypt.SHA3.OptionIndifferentiability.OPRIMITIVE.init SHA3Indiff.state (List Bool × ℤ)
+        (List Bool) (PSome Perm) := by
+  subst hP
+  rfl
+
+/-- EC's `OSponge(P) = FSetSize(CSome(Sponge, P))`, unfolded: `FSetSize(FSome(Sponge(Poget(P))))`
+at the sponge's module types (`OSponge` is a composition at the clone `SH`'s, where `inline`
+does not open the sponge's functors). -/
+theorem OSponge_app (P : ODPRIMITIVE) :
+    Module.app OSponge P =
+      Module.app FSetSize (Module.app FSome (Module.app Sponge (Module.app Poget P))) := by
+  unfold OSponge CSome
+  erw [Module.app_comp, Module.app_comp, Module.app_comp]
+  rfl
+
+/-- A sponge-level primitive used as a `DPRIMITIVE` of the clone `SH` (in `SH.Preimage`, for
+`OSponge`) is the same module used as the sponge's (EC's module types are structural): the two
+coercions build it with the two module types' projections. -/
+theorem OPRIMITIVE_coe_eq (P : OPRIMITIVE) :
+    (SH.OIndif.ODPRIMITIVE.mk { f := SH.OIndif.OPRIMITIVE.f P, fi := SH.OIndif.OPRIMITIVE.fi P } :
+        SH.OIndif.ODPRIMITIVE) =
+      (((P : ODPRIMITIVE)) : SH.OIndif.ODPRIMITIVE) :=
+  rfl
+
+set_option maxHeartbeats 10000000 in
+-- `fp_module` through `SORO_P1`'s nest of oracles
+/-- `SORO_P1(A)` touches `A`'s variables, `Log.m`, `Counter.c`, the simulator's maps and
+`Gconcl_list.BIRO2.IRO.mp` (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_SORO_P1 (A : SH.AdvPreimage) :
+    FVP.fvP (SORO_P1 A) ≤ FVP.fvP A ⊔ (Log.m.footprint ⊔ (Counter.c.footprint ⊔
+      (Simulator.m.footprint ⊔ (Simulator.mi.footprint ⊔ (Simulator.paths.footprint ⊔
+        Gconcl_list.BIRO2.IRO.mp.footprint))))) := by
+  have h : FVP.fvP (SORO_P1 A) ≤ FVP.fvP A ⊔ (Lens.pair Log.m (Lens.pair Counter.c
+      (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+        Gconcl_list.BIRO2.IRO.mp))))).footprint := by
+    fp_module (Lens.pair Log.m (Lens.pair Counter.c (Lens.pair Simulator.m
+      (Lens.pair Simulator.mi (Lens.pair Simulator.paths Gconcl_list.BIRO2.IRO.mp)))))
+  simpa only [Footprint.lens_pair] using h
+
 section
 
 -- EC: declare module A <: SH.AdvPreimage {-Perm, -Counter, -Bounder, -F.RO, -F.FRO, -Redo, -C,
 --   -Gconcl.S, -BlockSponge.BIRO.IRO, -BlockSponge.C, -BIRO.IRO, -Gconcl_list.BIRO2.IRO,
 --   -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO, -Gconcl_list.Simulator, -SHA3Indiff.Simulator,
 --   -SHA3Indiff.Cntr, -SORO.Bounder, -SORO.RO.RO, -RO, -FRO}.
--- (and the variables of the section's local modules, `Log.m`, `RFList.m`, fresh in EC)
+-- (and the variables of local modules, fresh in EC: the section's `Log.m`, `RFList.m`, and
+-- `SORO.Preimage.Preimage2` of the lemma `RO_is_preimage_resistant` applied to `SORO_P1(A)`)
 declare module A <: SH.AdvPreimage {-Perm, -Counter, -SH.Bounder, -SLCommon.F.RO,
   -SLCommon.F.FRO, -SLCommon.Redo, -SLCommon.C, -Gconcl.S, -BlockSponge.BIRO.IRO,
   -BlockSponge.C, -IRO, -Gconcl_list.BIRO2.IRO, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
   -Gconcl_list.Simulator, -Simulator, -Cntr, -SORO.Bounder, -SORO.RO, -SORO.FRO,
-  -Eager.RO.m, -Eager.FRO.m, -Log.m, -RFList.m} with glob R
+  -Eager.RO.m, -Eager.FRO.m, -Log.m, -RFList.m, -SORO.Preimage.Preimage2} with glob R
 
 include R
 
@@ -1781,6 +1837,282 @@ theorem rw_ideal_2 (m : VariableAssignment) :
     | (have hd := ‹(RFList.m.get globals₂).dom l›
        rw [‹RFList.m.get globals₂ = FMap.empty›] at hd
        exact absurd hd (FMap.mem_empty _))
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: the adversary's three oracles
+/-- EC's `local lemma rw_ideal &m`. -/
+theorem rw_ideal (m : VariableAssignment) :
+    Pr[ OIndif(FSome(IRO.asF), OSimulator(FSome(IRO.asF)),
+        ODRestr(Dist_of_P1Adv(A))).main () @ &m : §res ] ≤
+    Pr[ SORO.Preimage(SORO_P1(A), SORO.RF(SORO.RO)).main () @ &m : §res ] := by
+  -- EC: rewrite (StdOrder.RealOrder.ler_trans _ _ _ (rw_ideal_2 &m)).
+  refine (rw_ideal_2 A m).trans ?_
+  -- EC: byequiv(: ={glob A} ==> _) => //=; proc; inline*; sp; wp.
+  byequiv
+  case hE => exact fun _ _ _ _ h => h
+  equiv_proc
+  -- EC: swap{2} 2; sp; swap{2}[1..2] 6; sp.
+  --     swap{1} 2; sp; swap{1}[1..2] 6; sp.
+  --     (EC's `inline*` leaves the last query for after the adversary's call)
+  stmt_swap 1
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_sp
+  stmt_swap{1} [1..2] 6; stmt_swap{2} [1..2] 6; stmt_sp
+  -- EC: seq 2 2 : (Log.m{1} = empty /\ … /\ ={glob A, h, hash}); 1: auto=> />.
+  --     seq 1 1 : (={glob A, glob SHA3Indiff.Simulator, glob SORO.Bounder, glob Counter,
+  --       glob Log, mi, h, hash} /\ RFList.m{1} = SORO.RO.RO.m{2}).
+  --     (EC's first `seq` is the initializations, which `sp` has taken; the sampling of `hash`
+  --     and `h <- hash` are the first two of the three statements)
+  equiv_seq 3 3 : (={glob A, Simulator.m, Simulator.mi, Simulator.paths,
+    Gconcl_list.BIRO2.IRO.mp, SORO.Bounder.bounder, Counter.c, Log.m, mi, h, hash} ∧
+    §RFList.m{1} = §SORO.RO.m{2})
+  swap
+  -- EC: sp; if; 1, 3: auto; sp; wp 1 2.
+  · stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_wp
+      -- EC: if{1}.
+      --     + wp=> />.
+      --       rnd (fun x => oget (of_list x)) to_list; auto=> />.
+      --       move=> &l c Hc Hnin; split. … (the bijection's three conditions)
+      --     (`rnd f g` is `equiv_rnd f`: it asks that `f` push `dlist dbool size_out` to `dout`,
+      --     the first port's `dlist_dout`, EC's `dout_equal_dlist` and `to_listK`)
+      stmt_if{1}
+      · stmt_wp
+        equiv_rnd (fun l => oget (of_list l))
+        ec_auto; ec_progress
+        · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+        · exact congrArg (fun o => some (oget o)) ‹_ = some hash₂›
+      -- EC: by auto=> />; smt(dout_ll).
+      · ec_auto; ec_progress
+        · exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+        · rw [‹RO_m₂.get x1₂ = some hash₂›]; rfl
+    · ec_auto
+  -- EC: + call(: ={glob SHA3Indiff.Simulator, glob SORO.Bounder, glob Counter, glob Log} /\
+  --       RFList.m{1} = SORO.RO.RO.m{2}); auto.
+  equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
+    SORO.Bounder.bounder, Counter.c, Log.m} ∧ §RFList.m{1} = §SORO.RO.m{2})
+  -- EC: - proc; sp; if; 1, 3: auto; sp.
+  --       inline *; sp; sim.
+  · equiv_proc; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+      -- EC: if; 1: auto; sim.
+      stmt_if
+      · ec_close
+      · stmt_wp
+        -- EC: if; 1: auto; sim.
+        stmt_if
+        · ec_close
+        · sim 4 4
+          -- EC: sp; if; [2,3:sim]; [1,3:by auto=> /> &1 &2 <- /> <- />].
+          stmt_sp
+          stmt_if
+          · ec_close
+          -- EC: sp; if; 1: auto; sim; -1: smt().
+          --     (EC's `sim` over what follows the bounder's conditional — the loop on `Log.m` —
+          --     with `RFList.m{1} = RO.m{2}` kept: `seq` at the conditional, `conseq` to the
+          --     equalities, `sim`)
+          · stmt_wp
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+            equiv_seq 1 1 : (={y, x0, x1, k0, suffix, Simulator.m, Simulator.mi, Simulator.paths,
+              Gconcl_list.BIRO2.IRO.mp, SORO.Bounder.bounder, Counter.c, Log.m} ∧
+              §RFList.m{1} = §SORO.RO.m{2})
+            swap
+            · equiv_conseq (: _ ==> ={o0, x0, Simulator.m, Simulator.mi, Simulator.paths,
+                Gconcl_list.BIRO2.IRO.mp, Log.m})
+              · ec_close
+              sim
+            stmt_if
+            · ec_close
+            -- EC: sp; if{1}.
+            --     * rcondt{2} 2.
+            --       + by auto=> /> + + <- /> <- />.
+            --       auto.
+            --       rnd (fun l => oget (of_list l)) to_list; auto=> />. …
+            --     (EC's `rcondt{2} 2` is the `wp` through the right's conditional, as in the
+            --     lemma's last step: its side goal would need the chain of `sp`'s tuple
+            --     equations by hand)
+            · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+              stmt_if{1}
+              · stmt_wp
+                equiv_rnd (fun l => oget (of_list l))
+                ec_auto; ec_progress
+                · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+                · rw [FMap.get_set_sameE]; rfl
+              -- EC: by auto=> /> + + + <- /> <-; smt(dout_ll).
+              · ec_auto; ec_progress
+                · exact (is_lossless_iff_expected _).mp
+                    GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+                · obtain ⟨v, hv⟩ :=
+                    Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp ‹RO_m₂.dom _›)
+                  rw [hv]; rfl
+            · ec_auto; ec_close
+          · sim; ec_close
+        · ec_auto
+      · ec_auto
+    · ec_auto
+  -- EC: - by proc; inline*; sp; if; auto; sp; if; auto.
+  · equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_if
+      · ec_close
+      · ec_auto
+      · ec_auto
+    · ec_auto
+  -- EC: - proc; inline*; sp; if; auto; sp; if; auto; sp; sim.
+  --       if{1}.
+  --       * rcondt{2} 2; auto.
+  --         rnd (fun l => oget (of_list l)) to_list; auto=> />. …
+  --     (as in the first oracle)
+  · equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp
+      equiv_seq 1 1 : (={y0, x1, k0, suffix, l, k, Simulator.m, Simulator.mi, Simulator.paths,
+        Gconcl_list.BIRO2.IRO.mp, SORO.Bounder.bounder, Counter.c, Log.m} ∧
+        §RFList.m{1} = §SORO.RO.m{2})
+      swap
+      · equiv_conseq (: _ ==> ={r, Counter.c, Log.m})
+        · ec_close
+        sim
+      stmt_if
+      · ec_close
+      · stmt_sp; stmt_if{1}
+        · stmt_wp
+          equiv_rnd (fun l => oget (of_list l))
+          ec_auto; ec_progress
+          · exact GaudisCrypt.SHA3.SHA3OSecurity.Preimage.dlist_dout
+          · rw [‹xk₂.1 = xk₁.1›, FMap.get_set_sameE]; rfl
+        · ec_auto; ec_progress
+          · exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+          · have hd := ‹RO_m₂.dom xk₂.1›
+            rw [‹xk₂.1 = xk₁.1›] at hd ⊢
+            obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd)
+            rw [hv]; rfl
+      · ec_auto
+    · ec_auto
+  -- EC: by auto=> />; smt(dout_ll).
+  --     (GAP 4: `glob A` past the initializations' writes)
+  ec_auto; ec_progress
+  have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
+  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+  exact h
+
+/-- EC's `local lemma leq_ideal &m`. -/
+theorem leq_ideal (m : VariableAssignment) :
+    Pr[ OIndif(FSome(IRO.asF), OSimulator(FSome(IRO.asF)),
+        ODRestr(Dist_of_P1Adv(A))).main () @ &m : §res ] ≤
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
+  -- EC: rewrite (StdOrder.RealOrder.ler_trans _ _ _ (rw_ideal &m)).
+  refine (rw_ideal A m).trans ?_
+  -- EC: rewrite (StdOrder.RealOrder.ler_trans _ _ _
+  --       (RO_is_preimage_resistant (SORO_P1(A)) &m)).
+  --     (EC checks `SORO_P1(A)` against the restriction of `RO_is_preimage_resistant`)
+  have hP : Module.Declared (SORO_P1 A) (SORO.RO.m.footprint ⊔ SORO.Bounder.bounder.footprint ⊔
+      SORO.Preimage.Preimage2.hash.footprint) := ⟨by fp_finite, by fp_disjoint⟩
+  refine (SORO.RO_is_preimage_resistant (SORO_P1 A) m).trans ?_
+  -- EC: by rewrite doutE1.
+  rw [div_eq_mul_inv, ← doutE1 default]
+  exact le_rfl
+
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: the adversary's three oracles
+/-- EC's `local lemma rw_real &m`. -/
+theorem rw_real (m : VariableAssignment) :
+    Pr[ SH.Preimage(A, OSponge, PSome(Perm)).main () @ &m : §res ] =
+    Pr[ OIndif(FSome(Sponge(Poget(PSome(Perm)))), PSome(Perm),
+        ODRestr(Dist_of_P1Adv(A))).main () @ &m : §res ] := by
+  -- EC: byequiv=>//=; proc; inline*; sp; wp=> />.
+  --     swap{1} 4; sp.
+  --     seq 2 2 : (={glob A, glob Perm, hash, m} /\ Bounder.bounder{1} = Counter.c{2}).
+  --     (GAP 6: `OSponge` and its primitive at the sponge's module types first.  EC's `inline*`
+  --     would also open the sponge's calls of the permutation in the last query, whose locals
+  --     the two sides then name at two spellings of the state type; so `seq` first, on the games
+  --     with the right one opened down to the adversary's call, and the initializations after)
+  byequiv; equiv_proc
+  simp only [OPRIMITIVE_coe_eq]
+  erw [OSponge_app]
+  stmt_inline{2} 2; stmt_inline{2} 2; stmt_inline{2} 2
+  stmt_wp
+  equiv_seq 4 6 : (={glob A, Perm.m, Perm.mi, m} ∧ §hash{1} = §hash0{2} ∧
+    §SH.Bounder.bounder{1} = §Counter.c{2})
+  swap
+  -- EC: by sp; if; auto=>/=; sim; auto.
+  --     (the last query opened down to the sponge's loops; `sim` after `conseq` to the
+  --     equalities the event reads)
+  · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
+      stmt_inline{2} 0; stmt_inline{2} 0
+      stmt_sp; stmt_wp
+      equiv_conseq (: _ ==> ={z0, n})
+      · ec_close
+      sim
+    · ec_auto
+  --     (the initializations: `PSome(Perm).init` behind the clone's projection, GAP 6)
+  stmt_inline{1} 0
+  rw [PSome_Perm_init _ rfl]
+  simp only [PSome, GaudisCrypt.SHA3.OptionIndifferentiability.OPRIMITIVE.init.mk_simp]
+  stmt_inline*
+  stmt_swap{1} 4; stmt_sp
+  -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
+  equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+  -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
+  · simp only [ODPRIMITIVE_f_mk]
+    equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_if
+      · ec_close
+      · ec_auto
+      · ec_auto
+    · ec_auto
+  -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
+  · simp only [ODPRIMITIVE_fi_mk]
+    equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_if
+      · ec_close
+      · ec_auto
+      · ec_auto
+    · ec_auto
+  -- EC: - proc; inline*; sp; if; auto; sp=> />.
+  --       by conseq(:_==> ={z0, glob Perm})=> />; sim.
+  --     (GAP 7: `sim` does not end on the two loops here; the `while` rule, the permutation's
+  --     calls by `call (_ : ={glob Perm})`)
+  · equiv_proc
+    stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
+      stmt_inline{2} 0; stmt_inline{2} 0
+      stmt_sp; stmt_wp
+      equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+      · ec_close
+      equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
+      · stmt_sp; stmt_if
+        · ec_close
+        · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+        · ec_auto; ec_close
+      equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
+      · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+      ec_auto
+    · ec_auto
+  -- EC: by auto.
+  --     (GAP 4: `glob A` past the initializations' writes)
+  ec_auto; ec_progress
+  have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
+  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+  exact h
 
 end
 

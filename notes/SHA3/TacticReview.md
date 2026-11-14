@@ -638,3 +638,22 @@ Nothing was changed in the tactics for this stretch; these are the items for the
    `d₁ >>= pure ∘ f = d₂`, which for `f = oget ∘ of_list` is the first port's `dlist_dout`; EC's
    three bijection conditions are not asked.  If that goes through, `rnd f g` stays
    `equiv_rnd f` with one lemma per pair of distributions.
+
+6. **`rnd f g` did go through `equiv_rnd f`** (`rw_ideal`, three uses): the side goal is the
+   push-forward equation, closed by the first port's `dlist_dout`.  No new tactic.
+7. **`sim` on loops that call a concrete procedure** (`rw_real`): after `conseq (: _ ==>
+   ={z0, n})` it closes two sponge loops with calls of `Poget(PSome(Perm)).f` (3 minutes); after
+   `conseq (: _ ==> ={z0, n, glob Perm})`, on the same loops, it runs for minutes and fails
+   without a message.  Worked around with the `while` rule and `call (_ : ={glob Perm})`.  To
+   do: find what the kept `glob Perm` changes (`debug.sim`).
+8. **`inline` and module types across clones, again** (`rw_real`): three `rfl` lemmas put
+   `SH.Preimage(A, OSponge, PSome(Perm))` at the sponge's module types (the coercion of the
+   primitive, `OSponge` applied, `PSome(Perm).init`).  The GAP 3 and GAP 6 workarounds of this file have
+   the same root: module types of two theories that are equal by unfolding but not reducibly,
+   and constructors/projections that are different constants.  A `clone` that makes the
+   clone's module types reducible aliases of the first port's (or the first port's modules
+   re-stated at the pilot's theories) removes all of them.
+9. **`rcondt{2} 2` with `sp`'s chain of tuple equations** (`rw_ideal`): the side goal needs
+   `x3 = oget (unpad_blocks (parse …).1)` from six equations of `sp`, which the closers do not
+   chain (GAP 1 of `Gconcl_list`).  Avoided: `wp` through the right's deterministic
+   conditional and the facts settled in the last goal, where the two sides are related.

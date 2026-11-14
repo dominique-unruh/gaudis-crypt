@@ -1549,7 +1549,10 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 564 | local module | `Game` | `Preimage.Game` (`A` a Lean parameter) | def |
 | 574 | local lemma | `eager_ideal` | `Preimage.eager_ideal` (EC's script: two `have->` by `byequiv` through the adversary's oracles with `eq_eager_ideal`, `eq_eager_ideal2`, then `call (RO_LRO_D Dist _)` = `equiv_call (Eager.RO_LRO_D (Dist A))`) | done |
 | 652 | local lemma | `rw_ideal_2` | `Preimage.rw_ideal_2` (EC's script: `have->` for `RFList`/`RFWhile` by `byequiv` with `rw_RF_List_While`; `rewrite eager_ideal`; `have->` for the simulator's functionality by `byequiv` with `eq_extend`; the last `byequiv` with `eq_IRO_RFWhile`.  Call invariants in two parts, GAP 5; footprints `fvP_RF_T_get_RFList`, `fvP_RF_T_get_RFWhile`, `fvP_SORO_Bounder`, `fvP_RFWhile`) | done |
-| 792–916 | section `Preimage`, lemmas | `rw_ideal`, `leq_ideal`, `rw_real`, `Sponge_preimage_resistant` | — | todo |
+| 792 | local lemma | `rw_ideal` | `Preimage.rw_ideal` (EC's script; `rnd f g` is `equiv_rnd (fun l => oget (of_list l))` with the first port's `dlist_dout`; EC's `rcondt{2} 2` in the oracles is `wp` through the right's conditional; EC's `sim` past the bounder's conditional is `seq`, `conseq`, `sim`) | done |
+| 870 | local lemma | `leq_ideal` | `Preimage.leq_ideal` (EC's three steps; `SORO_P1(A)` checked against `RO_is_preimage_resistant`'s restriction by `fvP_SORO_P1`) | done |
+| 881 | local lemma | `rw_real` | `Preimage.rw_real` (EC's script with `seq` first and the inlining selective, GAP 6; `OSponge_app`, `OPRIMITIVE_coe_eq`, `PSome_Perm_init` put the clone's game at the sponge's module types; the functionality oracle's `sim` is two `while`s, GAP 7) | done |
+| 898 | lemma | `Sponge_preimage_resistant` | — | todo |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 
