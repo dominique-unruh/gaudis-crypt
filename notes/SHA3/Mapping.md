@@ -1553,7 +1553,14 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 870 | local lemma | `leq_ideal` | `Preimage.leq_ideal` (EC's three steps; `SORO_P1(A)` checked against `RO_is_preimage_resistant`'s restriction by `fvP_SORO_P1`) | done |
 | 881 | local lemma | `rw_real` | `Preimage.rw_real` (EC's script with `seq` first and the inlining selective, GAP 6; `OSponge_app`, `OPRIMITIVE_coe_eq`, `PSome_Perm_init` put the clone's game at the sponge's module types; the functionality oracle's `sim` is two `while`s, GAP 7) | done |
 | 898 | lemma | `Sponge_preimage_resistant` | `Preimage.Sponge_preimage_resistant` (EC's script; `SHA3OIndiff` applied to `Dist_of_P1Adv(A)` with its region written out, `fvP_Dist_of_P1Adv`, `instECGlobDist_of_P1Adv`; `OGReal` unfolded by the first port's `OGReal_eq`) | done |
-| 920–1803 | section `SecondPreimage` | | — | todo |
+| 920–1281 | section `SecondPreimage`: local modules and lemmas without the adversary | `FInit` … `Fill_In`, `rw_RF_List_While`, `eq_IRO_RFWhile`, `eq_extend`, `of_listK`, `eq_eager_ideal`, `eq_eager_ideal2` | section `Preimage`'s (textually the same in EC), opened | reused |
+| 923 | declare | `A` (section `SecondPreimage`) | `declare module A <: SH.AdvSecondPreimage {…} with glob R` | def |
+| 979–1000 | local modules | `Dist_of_P2Adv`, `SORO_P2` | `SecondPreimage.Dist_of_P2Adv` (`Dist_of_P2Adv.m` a `global_var`), `SecondPreimage.SORO_P2` | def |
+| 1281–1296 | local modules | `Dist`, `Game` | `SecondPreimage.Dist`, `SecondPreimage.Game` | def |
+| 1298 | local lemma | `eager_ideal` | `SecondPreimage.eager_ideal` (`Preimage`'s script; the two queries after the adversary's call one after the other, `seq` between them) | done |
+| 1427 | local equiv | `toto` | `SecondPreimage.toto` (EC's second `if` is `rcondt`) | done |
+| 1442 | local equiv | `titi` | `SecondPreimage.titi` | done |
+| 1476–1803 | section `SecondPreimage`, lemmas | `rw_ideal_2`, `rw_ideal`, `leq_ideal`, `rw_real`, `TOTO`, `Sponge_second_preimage_resistant` | — | todo (`rw_ideal_2` written, compiling) |
 | 1808–2651 | section `Collision` | | — | todo |
 
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
