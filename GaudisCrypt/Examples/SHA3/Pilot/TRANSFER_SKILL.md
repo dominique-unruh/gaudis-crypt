@@ -195,7 +195,7 @@ the `while` row.
 | `call (_ : ={glob P})` / `call (_: ={x})` (concrete callee) | `equiv_call (_ : ={glob P})` / `equiv_call (_ : ={x})`, with EC's frame (what the callee does not write keeps its value); the callee's judgment (EC's `1: by sim`) is closed by its footprint |
 | `call H` | `equiv_call (H)` (also where the calls spell the callees differently from `H`: behind a record `(RF.mk { get := M.get }).get`, a view unfolded — `H` is taken to them by their bodies, `Logic/ECProcInv.lean`); `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
-| `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; `phoare_call H / x, …` for lossless + frame |
+| `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; with EC's frame (what the callee does not write): `phoare_call (: P ==> Q) / x, …`, `hoare_call (: P ==> Q) / x, …` (the trivial triple `True ==> True` closed), `phoare_call H / x, …` for lossless + frame |
 | `sim` / `sim n m` / `sim (_ : I)` / `sim` with `={glob A}` | `sim` / `sim n₁ n₂` / `sim (_ : I)` / `sim / x₁, …, xₙ` (equal except the listed globals).  Calls of different concrete procedures (EC's `sim` goes into them): where plain `sim` makes no progress it inlines the callees, runs again and closes the rest by `auto_close` — so EC's `by sim` stays `sim` (Gconcl `G4_Ideal`).  A partial `sim` is never changed that way.  Two loops: the invariant is the relation after them plus EC's equality set (computed backwards through the bodies, `ECSim.eqBack`: locals written before read are not in it); when that relation reads what the loops change, the equality set alone (Gconcl `G2_G3` `M.f`).  Why `sim` stops: `set_option debug.sim true in sim` (loops, calls, unfinished branches) |
 | `rnd` / `rnd{i}` / `rnd f` | `equiv_rnd` / `equiv_rnd{i}` / `equiv_rnd f` (product samplings: `equiv_rnd_dprod`) |
 | `rnd f g` | **missing** (~14 uses, Sponge, SHA3OSecurity): `equiv_rnd f` has other side goals |
@@ -551,6 +551,23 @@ Document each in the docstring when it applies.
   the next step needs, `equiv_exists* §x{1}, §Cntr.c{2}; intro m c1`.
 * **`conseq (: _ ==> Q)` in front of an abstract call** does not keep a global that the callee
   does not write (EC's does, from the restriction): carry the fact through the call's invariant.
+* **`rcondt{i} n; first by auto; inline*; auto; conseq (: _ ==> true); auto`** where statement
+  `n - 1` is a call that does not write what the condition reads (the game's counter past
+  `F.get(m1)`): `stmt_rcondt{i} n` then, for the side goal,
+  `intro σ; hoare_call (: True ==> True) / SRO.Counter.c; ec_auto` (`Logic/ECCallFrame.lean`:
+  the Hoare call with EC's frame; the trivial triple about the callee is closed).  Where the
+  condition is about the other side's copy of the counter, two more lines relate the two.
+* **A branch that both sides leave with the same constant** (`b <- false` after a call, EC:
+  `auto; inline*; auto; sp; conseq (: _ ==> true); auto. if{2}; sp; auto; sim.
+  while{1} (I) (v). …`): after `stmt_wp` the postcondition is `True`; `stmt_inline*; stmt_sp`,
+  `equiv_conseq (: _ ==> True)`, `stmt_if{2}`; where both sides run the same loops, EC's `sim`
+  is `equiv_while` on each loop with the equalities; where one side runs alone,
+  `equiv_while{1} (I) (v)` with its three goals (`while_ll_phoare` for the body's losslessness,
+  the body's triple `intro σ₂ k; hoare_auto; ec_progress`, the code before).  The variant is
+  stated with the loop's own bound (`§n{1}`), not a value known from before the loop (GAP 4).
+* **A section that repeats another's script** (`Collision` after `SecondPreimage`): derive it
+  from the finished one by renaming, compile, and fix what the games' differences change (the
+  pre goals; `seq` counts where a pair assignment is two EC statements and one here).
 * **`islossless` of a game with the adversary's call in the middle** (EC: `seq 1 : true; auto.
   + call (A_ll (O) _); auto. …`): `phoare_proc; phoare_inline*; stmt_sp; stmt_wp;
   phoare_seq_lossless 1 : (True)`, then `phoare_call (@A_ll _ ?_ ?_)` (goals: the code before,

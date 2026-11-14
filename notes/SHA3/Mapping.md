@@ -1387,9 +1387,12 @@ declared at the clone's types.
 | 213 | local equiv | `equiv_ro_iro` | `Preimage.equiv_ro_iro` (EC's script; EC's two `transitivity` steps through `Sample`, `LoopSnoc` are one; GAP 4, 5 of the file) | done |
 | 392 | declare | `A`, `A_ll` | `declare module A <: SRO.AdvPreimage {…} with glob R`, `A_ll` over `{-R}` (E14) | def |
 | 397 | lemma | `Sponge_preimage_resistant` | `Preimage.Sponge_preimage_resistant` (EC's script; GAP 3, 6–8 of the file; `phoare_seq_lossless`, `equiv_call (H)` aligned) | done |
-| 479–865 | section `SecondPreimage` | | — | todo |
-| 869–1239 | section `Collision` | | — | todo |
-| 1241–1274 | modules, section `SHA3_Collision` | `X`, `AdvCollisionSHA3`, `SHA3_coll_resistant` | — | todo |
+| 479–735 | section `SecondPreimage` | `A`, `A_ll`; local `invm_dom_rng`, …, `equiv_sponge_perm`, `equiv_ro_iro` (as in `Preimage`, word for word) | declarations as in `Preimage` (E14); the local lemmas are `Preimage`'s, opened | def |
+| 737 | lemma | `Sponge_second_preimage_resistant` | `SecondPreimage.Sponge_second_preimage_resistant` (EC's script, with its case split and one-sided loops; `hoare_call (: True ==> True) / x` for the `rcond` side goals; GAP 1–3, 6, 7) | done |
+| 869–1124 | section `Collision` | `A`, `A_ll`; the local lemmas again | as in `SecondPreimage` | def |
+| 1126 | lemma | `Sponge_coll_resistant` | `Collision.Sponge_coll_resistant` (EC's script, as the second-preimage one) | done |
+| 1241, 1249 | module | `X`, `AdvCollisionSHA3` | same names (`A` a Lean parameter of `AdvCollisionSHA3`) | def |
+| 1263 | lemma | `SHA3_coll_resistant` | `SHA3_Collision.SHA3_coll_resistant` (EC's two lines; `Sponge_coll_resistant` at `AdvCollisionSHA3 A`, E14) | done |
 
 ## `proof/SHA3OSecurity.ec`
 

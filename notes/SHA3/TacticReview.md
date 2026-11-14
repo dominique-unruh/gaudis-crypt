@@ -589,6 +589,13 @@ changes (1–3 and 8) were made in one batch, each with a golden test (`Syntax/C
    and after: `Pilot/SHA3Security` 1026 → 74, `Pilot/SHA3_OIndiff` 1473 → 147,
    `Pilot/SHA3Indiff` 171 → 81, `Pilot/Gconcl_list` 630 → 502, `Pilot/Gconcl` 488 → 398,
    `Pilot/Gext` 374 → 269, `Pilot/Gcol` 205 → 150.
+9. **The Hoare `call` had no frame** (the pHL and pRHL ones do).  EC's
+   `rcondt{i} n; first by auto; inline*; auto; conseq (: _ ==> true); auto` asks, after a call
+   to a procedure with loops, a condition on a counter the procedure does not write; with
+   `hoare_call (: True ==> True)` the condition was asked of every final memory.  Added
+   `hoare_call (: P ==> Q) / x₁, …, glob A` (`Logic/ECCallFrame.lean`, rules
+   `hoareProc_and_frame`, `hoare_call_wp_frame`; golden test in `Logic/ECProcInvTest.lean`);
+   eight uses in sections `SecondPreimage` and `Collision`.
 8. **pHL `seq n : P` on a lossless goal** was missing (EC: `seq 1 : true; auto.` in each
    section's losslessness of `DSetSize(D(A))`): `phoare_seq_lossless n : (P)`
    (`Logic/PHoareSeq.lean`, rule `phoareStmt_seq_eq_one`).  A new name: `phoare_seq n : (P)`

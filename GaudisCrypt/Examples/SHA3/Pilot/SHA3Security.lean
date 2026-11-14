@@ -6,12 +6,12 @@ import GaudisCrypt.Examples.SHA3.SHA3Security
 set_option ec.strict true
 
 /-!
-# Top-level proof of SHA-3 security (EasyCrypt `proof/SHA3Security.ec`) — EC-fidelity port, in
-progress
+# Top-level proof of SHA-3 security (EasyCrypt `proof/SHA3Security.ec`) — EC-fidelity port
 
-Ported so far: the file's modules, the clone `S` of `IndifRO_is_secure`, and section `Preimage`
-(`equiv_sponge_perm`, EC l. 168; `equiv_ro_iro`, EC l. 213; `Sponge_preimage_resistant`,
-EC l. 397).
+All of `SHA3Security.ec`: the file's modules, the clone `S` of `IndifRO_is_secure`, and the
+sections `Preimage` (`Sponge_preimage_resistant`), `SecondPreimage`
+(`Sponge_second_preimage_resistant`), `Collision` (`Sponge_coll_resistant`), `SHA3_Collision`
+(`SHA3_coll_resistant`).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list` and
@@ -26,7 +26,9 @@ Translation:
   in a call (exception E5); `CSetSize`'s `F` and `DSetSize`'s `D` are Lean parameters;
   `SimSetSize(S)(F) = S(FGetSize(F))` is `Module.comp S FGetSize`;
 * the sections' local lemmas about values (`invm_dom_rng`, `invmC'`, `invmC`, `useful`) are the
-  first port's (`SHA3Security.Preimage.*`).
+  first port's (`SHA3Security.Preimage.*`).  EC states and proves them, and the local
+  `equiv_sponge_perm`, `equiv_ro_iro`, again in each section, word for word: here once, in
+  `Preimage`, and opened in `SecondPreimage` and `Collision`.
 * EC's theory `Program` (`Sample`, `LoopSnoc`, `Sample_LoopSnoc_eq`) is not ported as modules:
   the first port has `LoopSnoc.sample` and its run (`LoopSnoc.sample_denotation`).  EC's two
   `transitivity` steps of `equiv_ro_iro`, through `Sample.sample` and through `LoopSnoc.sample`,
@@ -197,6 +199,58 @@ set_option maxHeartbeats 4000000 in
       (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder DPre.h)).footprint := by
     fp_module (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder DPre.h))
   simpa only [Footprint.lens_pair] using h
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the nest of `D2Pre`, `SecondPreimage`, `Bounder`
+/-- `DSetSize(D2Pre(A))` touches `A`'s variables, `SRO.Counter.c`, `SRO.Bounder.bounder` and
+`D2Pre.m2` (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_DSetSize_D2Pre (A : SRO.AdvSecondPreimage) :
+    FVP.fvP (DSetSize (D2Pre A)) ≤ FVP.fvP A ⊔
+      (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ D2Pre.m2.footprint)) := by
+  have h : FVP.fvP (DSetSize (D2Pre A)) ≤ FVP.fvP A ⊔
+      (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder D2Pre.m2)).footprint := by
+    fp_module (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder D2Pre.m2))
+  simpa only [Footprint.lens_pair] using h
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob DSetSize(D2Pre(A))`: `glob A` (the region given for `A`), `SRO.Counter.c`,
+`SRO.Bounder.bounder` and `D2Pre.m2`. -/
+instance instECGlobDSetSizeD2Pre (A : SRO.AdvSecondPreimage) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob A R] : Module.ECGlob (DSetSize (D2Pre A))
+      (R ⊔ (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ D2Pre.m2.footprint))) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_DSetSize_D2Pre A),
+    (fvP_DSetSize_D2Pre A).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ D2Pre.m2.footprint)),
+      hGF.sup (by fp_finite),
+      sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
+        (Footprint.le_glob_of_le le_sup_right)⟩⟩
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the nest of `DColl`, `Collision`, `Bounder`
+/-- `DSetSize(DColl(A))` touches `A`'s variables, `SRO.Counter.c` and `SRO.Bounder.bounder` (EC
+reads the globals off the code). -/
+@[fp_bound] theorem fvP_DSetSize_DColl (A : SRO.AdvCollision) :
+    FVP.fvP (DSetSize (DColl A)) ≤ FVP.fvP A ⊔
+      (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint) := by
+  have h : FVP.fvP (DSetSize (DColl A)) ≤ FVP.fvP A ⊔
+      (Lens.pair SRO.Counter.c SRO.Bounder.bounder).footprint := by
+    fp_module (Lens.pair SRO.Counter.c SRO.Bounder.bounder)
+  simpa only [Footprint.lens_pair] using h
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob DSetSize(DColl(A))`: `glob A` (the region given for `A`), `SRO.Counter.c` and
+`SRO.Bounder.bounder`. -/
+instance instECGlobDSetSizeDColl (A : SRO.AdvCollision) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob A R] : Module.ECGlob (DSetSize (DColl A))
+      (R ⊔ (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint)) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_DSetSize_DColl A),
+    (fvP_DSetSize_DColl A).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint),
+      hGF.sup (by fp_finite),
+      sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
+        (Footprint.le_glob_of_le le_sup_right)⟩⟩
 
 set_option synthInstance.checkSynthOrder false in
 /-- EC's `glob DSetSize(DPre(A))`: `glob A` (the region given for `A`), `SRO.Counter.c`,
@@ -901,5 +955,952 @@ theorem Sponge_preimage_resistant (m : VariableAssignment) (ha : f_out) :
 end
 
 end Preimage
+
+/-! ## Section `SecondPreimage` (EC l. 479–865) -/
+
+namespace SecondPreimage
+
+open GaudisCrypt.SHA3.SLCommon.Prefix (invm)
+open GaudisCrypt.SHA3.SHA3Security.Preimage (invm_dom_rng invmC' invmC useful)
+-- EC proves the section's local `equiv_sponge_perm`, `equiv_ro_iro` again, word for word
+open Preimage (equiv_sponge_perm equiv_ro_iro)
+
+section
+
+-- (the restriction as in section `Preimage`, and the variables of `SRO`'s section-local
+-- modules, as in the clone's theory)
+-- EC: declare module A <: SRO.AdvSecondPreimage {-SRO.RO.RO, -SRO.RO.FRO, -SRO.Bounder, -Perm,
+--   -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -BIRO.IRO, -F.RO, -F.FRO, -Redo, -C, -Gconcl.S,
+--   -BlockSponge.BIRO.IRO, -BlockSponge.C, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
+--   -Gconcl_list.Simulator, -D2Pre}.
+declare module A <: SRO.AdvSecondPreimage {-SRO.RO, -SRO.FRO, -SRO.Bounder, -Perm,
+  -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -IRO, -SLCommon.F.RO, -SLCommon.F.FRO,
+  -SLCommon.Redo, -SLCommon.C, -Gconcl.S, -BlockSponge.BIRO.IRO, -BlockSponge.C,
+  -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO, -Gconcl_list.Simulator, -D2Pre,
+  -SRO.SecondPreimage.SecondPreimage2, -SRO.SecondPreimage.D1,
+  -Gconcl_list.SimLast,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
+
+-- EC: declare axiom A_ll (F <: SRO.Oracle {-A}) : islossless F.get => islossless A(F).guess.
+variable (A_ll : ∀ (F <: SRO.Oracle {-R}), islossless F.get → islossless A(F).guess)
+
+include R A_ll
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: EC's two `have`s, each a `byequiv` through the adversary's oracle
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`A` against the modules of the lemmas applied)
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma Sponge_second_preimage_resistant &m mess :
+(D2Pre.m2{m} = mess) =>
+Pr[SRO.SecondPreimage(A, FM(CSetSize(Sponge), Perm)).main(mess) @ &m : res] <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r +
+(sigma + 1)%r / (2%r ^ size_out)`. -/
+theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List Bool) :
+    D2Pre.m2.get m = mess →
+    Pr[ SRO.SecondPreimage(A, FM(CSetSize(Sponge), Perm)).main (mess) @ &m : §res ] ≤
+      ((GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 - GaudisCrypt.SHA3.SHA3Indiff.limit : ℤ) : ℝ) /
+          ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
+  -- EC: move=> init_mess.
+  intro init_mess
+  -- EC: rewrite -(doutE1 witness).
+  rw [div_eq_mul_inv ((sigma + 1 : ℤ) : ℝ), ← doutE1 default]
+  -- EC: rewrite(second_preimage_resistant_if_indifferentiable A A_ll (CSetSize(Sponge)) Perm &m
+  --       mess init_mess).
+  refine S.second_preimage_resistant_if_indifferentiable A (CSetSize Sponge) Perm m mess
+    init_mess ?_
+  -- EC: exists (SimSetSize(Simulator)); split.
+  refine ⟨SimSetSize Simulator, inferInstance, ?_, ?_⟩
+  -- EC: + by move=> F _; proc; inline*; auto.
+  · intro F _
+    rw [SimSetSize_init_eq]
+    phoare_proc; phoare_inline*; phoare_auto
+  -- EC: have->:Pr[Indiff0.Indif(CSetSize(Sponge, Perm), Perm, D2Pre(A)).main() @ &m : res] =
+  --       Pr[RealIndif(Sponge, Perm, DRestr(DSetSize(D2Pre(A)))).main() @ &m : res].
+  have h1 : Pr[ Indiff0.GReal(CSetSize(Sponge), Perm, D2Pre(A)).main () @ &m : §res ] =
+      Pr[ RealIndif(Sponge, Perm, DRestr(DSetSize(D2Pre(A)))).main () @ &m : §res ] := by
+    -- EC: byequiv=>//=; proc.
+    byequiv; equiv_proc
+    --     (GAP 6: `CSetSize(Sponge)` applied to `Perm` at the clone's module types)
+    erw [CSetSize_Sponge_Perm_init _ _ rfl rfl, CSetSize_Sponge_Perm_f _ _ rfl rfl]
+    repeat stmt_inline{1} 0
+    repeat stmt_inline{2} 0
+    stmt_sp; stmt_wp
+    -- EC: seq 1 1 : (={m1, m2, glob SRO.Counter, glob Perm}
+    --       /\ invm Perm.m{1} Perm.mi{1}
+    --       /\ ={c}(SRO.Counter,Cntr)); last first.
+    equiv_seq 1 1 : (={m1, m2, SRO.Counter.c, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1} ∧
+      §SRO.Counter.c{1} = §Cntr.c{2})
+    swap
+    -- EC: - if; auto; sp.
+    · stmt_if
+      · ec_close
+      · stmt_sp
+        -- EC: case(SRO.Counter.c{1} + ((size m2{1} + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0 < limit); last first.
+        equiv_case (§SRO.Counter.c{1} + ((size §m2{1} + 1) / r + 1) +
+          max ((size_out + r - 1) / r - 1) 0 < GaudisCrypt.SHA3.SHA3Indiff.limit)
+        swap
+        -- EC: * rcondf{1} 2; 1: by auto; inline*; auto; conseq(: _ ==> true); auto.
+        · stmt_rcondf{1} 2
+          · intro σ₂
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto
+          -- EC: rcondf{2} 2; 1: by auto; inline*; auto; conseq(: _ ==> true); auto.
+          stmt_rcondf{2} 2
+          · intro σ₁
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto; ec_progress
+            have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+              (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+            rw [e]
+            exact ‹GaudisCrypt.SHA3.SHA3Indiff.limit ≤ _›
+          -- EC: auto; inline*; auto; sp; conseq(: _ ==> true); auto.
+          stmt_wp
+          --     (GAP 1: `Perm.f` behind the first port's view is opened first)
+          simp only [Indifferentiability.PRIMITIVE.view, Perm, PRP.RP.RP, PRP.StrongPRP.PRP.mk]
+          stmt_inline*
+          stmt_sp
+          equiv_conseq (: _ ==> True)
+          · ec_close
+          -- EC: if{2}; sp; auto; sim.
+          stmt_if{2}
+          --     (EC's `sim` through the two loops is the `while` rule on each)
+          · stmt_sp; stmt_wp
+            equiv_while (={i, sa, sc, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
+            --     (GAP 2: the pair `x3` back from its components)
+            · stmt_sp; stmt_if
+              · ec_close
+              · stmt_sp; stmt_if
+                · ec_progress
+                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  simp [e]
+                · ec_auto; ec_prep
+                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  subst e
+                  exact fun a _ => ⟨rfl, rfl, rfl, rfl⟩
+                · ec_auto; ec_prep
+                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  subst e
+                  exact ⟨rfl, rfl⟩
+              · ec_auto; ec_close
+            equiv_while (={xs, sa, sc, i, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
+            · stmt_sp; stmt_if
+              · ec_close
+              · ec_auto
+              · ec_auto
+            ec_auto; ec_close
+          · stmt_wp
+            -- EC: while{1}(invm Perm.m{1} Perm.mi{1}) (((size_out + r - 1) %/ r)-i{1}).
+            equiv_while{1} (invm §Perm.m{1} §Perm.mi{1}) ((((§n{1} + r - 1) / r) - §i{1}).toNat)
+            · while_ll_phoare
+              -- EC: + auto; sp; if; auto.
+              --       - sp; if ;auto; progress.
+              --         * exact (useful _ _ _ H H2).
+              intro σ₂
+              ec_auto
+              intro Perm_m mi i n sa sc hI
+              split_ifs with h1 h2
+              · exact (is_lossless_iff_expected _).mp (useful _ _ _ hI.1 (of_decide_eq_false h2))
+              · rfl
+              · rfl
+            --         * rewrite invm_set=>//=.
+            --           by move:H4; rewrite  supp_dexcepted.
+            --         * smt().
+            --         smt().
+            --       smt().
+            · intro σ₂ k
+              hoare_auto; ec_progress
+              exact SLCommon.Prefix.invm_set _ _ _ _ ‹¬Perm_m.dom (sa, sc)›
+                (EC.not_of_mem_support_dexcepted ‹a ∈ _›) ‹invm Perm_m mi› _ _
+            -- EC: conseq(:_==> invm Perm.m{1} Perm.mi{1}); 1:smt().
+            equiv_conseq (: _ ==> invm §Perm.m{1} §Perm.mi{1})
+            · ec_close
+            -- EC: while{1}(invm Perm.m{1} Perm.mi{1})(size xs{1}).
+            equiv_while{1} (invm §Perm.m{1} §Perm.mi{1}) ((size §xs{1}).toNat)
+            · while_ll_phoare
+              intro σ₂
+              -- EC: + move=> _ z; auto; sp; if; auto; progress.
+              --       * exact (useful _ _ _ H H1).
+              ec_auto
+              intros; split_ifs
+              · exact (is_lossless_iff_expected _).mp
+                  (useful _ _ _ (‹invm _ _ ∧ _›).1 (of_decide_eq_false ‹_›))
+              · rfl
+            · intro σ₂ k
+              hoare_auto; ec_progress
+              --       smt().
+              · cases xs with
+                | nil => exact absurd ‹([] : List block).isEmpty = false› (by simp)
+                | cons a l => simp [size, behead]
+              --       * rewrite invm_set=>//=.
+              --         by move:H3; rewrite supp_dexcepted.
+              · exact SLCommon.Prefix.invm_set _ _ _ _ ‹¬Perm_m.dom _›
+                  (EC.not_of_mem_support_dexcepted ‹a ∈ _›) ‹invm Perm_m mi› _ _
+              --       * smt().
+              · cases xs with
+                | nil => exact absurd ‹([] : List block).isEmpty = false› (by simp)
+                | cons a l => simp [size, behead]
+            -- EC: auto; smt(size_ge0 size_eq0).
+            · ec_auto
+        -- EC: rcondt{1} 2; first by auto; inline*; auto; conseq(:_==> true); auto.
+        stmt_rcondt{1} 2
+        · intro σ₂
+          hoare_call (: True ==> True) / SRO.Counter.c
+          ec_auto
+        -- EC: rcondt{2} 2; first by auto; inline*; auto; conseq(:_==> true); auto.
+        stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_call (: True ==> True) / SRO.Counter.c
+          --     (the two sides' counters are equal, by the clone's `increase_counter`)
+          ec_auto; ec_progress
+          have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+            (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+          rw [e]
+          exact ‹SRO.Counter.c.get σ₁.globals + _ + _ < _›
+        -- EC: sim 3 3.
+        stmt_wp
+        -- EC: exists* m1{1}, m2{1}; elim* => a1 a2 c1 c2.
+        equiv_exists* §m1{1}, §m2{1}, §Cntr.c{2}
+        intro a1 a2 c2
+        -- EC: call (equiv_sponge_perm (c2 + ((size a1 + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0) a2).
+        equiv_call (equiv_sponge_perm
+          (c2 + ((size a1 + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0) a2)
+        -- EC: auto; call (equiv_sponge_perm c2 a1); auto; progress.
+        ec_auto
+        equiv_call (equiv_sponge_perm c2 a1)
+        ec_auto; ec_progress
+        -- EC: smt(List.size_ge0 divz_ge0 gt0_r).
+        · exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ < SecureRO.bound_counter›
+        -- EC: smt(List.size_ge0 divz_ge0 gt0_r).
+        · rw [‹Cntr.c.get g₂ = _›]
+          exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ + _ + _ < _›
+      · ec_auto
+    -- EC: call(: ={glob SRO.Counter, glob Perm, glob SRO.Bounder}
+    --       /\ invm Perm.m{1} Perm.mi{1} /\ ={c}(SRO.Counter,Cntr)).
+    equiv_call (_ : ={SRO.Counter.c, Perm.m, Perm.mi, SRO.Bounder.bounder} ∧
+      invm §Perm.m{1} §Perm.mi{1} ∧ §SRO.Counter.c{1} = §Cntr.c{2})
+    -- EC: + proc; sp; if; auto; sp; if; auto; sp.
+    · equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_sp
+          -- EC: exists * x{1}; elim* => m c1 c2 b1 b2.
+          equiv_exists* §x{1}, §Cntr.c{2}
+          intro m' c1
+          -- EC: by call(equiv_sponge_perm c1 m); auto; smt().
+          equiv_call (equiv_sponge_perm c1 m')
+          ec_auto; ec_progress
+          · exact le_of_lt ‹SecureRO.increase_counter _ _ < _›
+          · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
+        · ec_auto; ec_close
+      · ec_auto
+    -- EC: inline*; auto; progress.
+    --     by rewrite /invm=> x y; rewrite 2!emptyE.
+    --     (GAP 7: `D2Pre.m2` and `glob A` past the initializations' writes)
+    ec_auto; ec_progress
+    · have h := congrArg D2Pre.m2.get ‹Perm.m.set _ _ = _›
+      simp_reads_all; exact h
+    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
+      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+      exact h
+    · have h := congrArg D2Pre.m2.get ‹Perm.m.set _ _ = _›
+      simp_reads_all; exact h
+  -- EC: have->:Pr[Indiff0.Indif(RO, SimSetSize(Simulator, RO), D2Pre(A)).main() @ &m : res] =
+  --       Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(D2Pre(A)))).main() @ &m : res].
+  have h2 : Pr[ Indiff0.GIdeal(RO, SimSetSize(Simulator), D2Pre(A)).main () @ &m : §res ] =
+      Pr[ IdealIndif(IRO.asF, Simulator, DRestr(DSetSize(D2Pre(A)))).main () @ &m : §res ] := by
+    -- EC: byequiv=>//=; proc.
+    byequiv; equiv_proc
+    --     (GAP 6: `SimSetSize(Simulator, RO).init` is `Simulator.init`)
+    rw [SimSetSize_init_eq]
+    repeat stmt_inline{1} 0
+    repeat stmt_inline{2} 0
+    stmt_sp; stmt_wp
+    -- EC: seq 1 1 : (={m1, m2, glob SRO.Counter}
+    --       /\ ={c}(SRO.Counter,Cntr)
+    --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); last first.
+    equiv_seq 1 1 : (={m1, m2, SRO.Counter.c} ∧ §SRO.Counter.c{1} = §Cntr.c{2} ∧
+      same_ro §SRO.RO.m{1} §IRO.mp{2})
+    swap
+    -- EC: - if; auto; sp.
+    · stmt_if
+      · ec_close
+      · stmt_sp
+        -- EC: case: (SRO.Counter.c{1} + ((size m2{1} + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0 < limit); last first.
+        equiv_case (§SRO.Counter.c{1} + ((size §m2{1} + 1) / r + 1) +
+          max ((size_out + r - 1) / r - 1) 0 < GaudisCrypt.SHA3.SHA3Indiff.limit)
+        swap
+        -- EC: * rcondf{1} 2; first by auto; inline*; auto.
+        · stmt_rcondf{1} 2
+          · intro σ₂
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto
+          -- EC: rcondf{2} 2; first auto; inline*; auto; sp.
+          --     + rcondt 1; 1:by auto=> |> &0 /#.
+          --       by sp; rcondt 1; auto; conseq(:_==> true); auto.
+          stmt_rcondf{2} 2
+          · intro σ₁
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto; ec_progress
+            have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+              (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+            rw [e]
+            exact ‹GaudisCrypt.SHA3.SHA3Indiff.limit ≤ _›
+          -- EC: inline*;sp; auto.
+          stmt_inline*; stmt_sp; stmt_wp
+          -- EC: rcondt{2} 1; first by auto; smt().
+          stmt_rcondt{2} 1
+          · hoare_auto; ec_progress
+            exact le_of_lt ‹SecureRO.increase_counter _ _ < SecureRO.bound_counter›
+          -- EC: conseq(:_==> true); first smt(dout_ll).
+          --     sp; rcondt{2} 1; auto; conseq(:_==> true); auto.
+          stmt_sp
+          stmt_rcondt{2} 1
+          · hoare_auto
+          -- EC: by while{2}(true)(n0{2}-i{2}); auto; 1:(sp; if; auto); smt(dbool_ll).
+          stmt_wp
+          equiv_while{2} True ((§n0{2} - §i{2}).toNat)
+          · while_ll_phoare
+            intro σ₁
+            ec_auto
+            intros; split_ifs
+            · exact (is_lossless_iff_expected _).mp dbool_ll
+            · rfl
+          · intro σ₁ k
+            hoare_auto
+          · ec_auto; ec_progress
+            exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3Security.Params.dout_ll
+        -- EC: rcondt{1} 2; first by auto; inline*; auto.
+        stmt_rcondt{1} 2
+        · intro σ₂
+          hoare_call (: True ==> True) / SRO.Counter.c
+          ec_auto
+        -- EC: rcondt{2} 2; first auto; inline*; auto; sp.
+        --     + rcondt 1; first by auto; smt().
+        --       by sp; rcondt 1; auto; conseq(:_==> true); auto.
+        stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_call (: True ==> True) / SRO.Counter.c
+          ec_auto; ec_progress
+          have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+            (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+          rw [e]
+          exact ‹SRO.Counter.c.get σ₁.globals + _ + _ < _›
+        -- EC: sim 3 3.
+        stmt_wp
+        -- EC: exists* m1{1}, m2{1}; elim*=> a1 a2 c1 c2.
+        equiv_exists* §m1{1}, §m2{1}, §Cntr.c{2}
+        intro a1 a2 c2
+        -- EC: call(equiv_ro_iro (c2 + ((size a1 + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0) a2).
+        equiv_call (equiv_ro_iro
+          (c2 + ((size a1 + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0) a2)
+        -- EC: auto; call(equiv_ro_iro c2 a1); auto; smt().
+        ec_auto
+        equiv_call (equiv_ro_iro c2 a1)
+        ec_auto; ec_progress
+        · exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ < SecureRO.bound_counter›
+        · rw [‹Cntr.c.get g₂ = _›]
+          exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ + _ + _ < _›
+      · ec_auto
+    -- EC: call(: ={glob SRO.Counter, glob SRO.Bounder} /\ ={c}(SRO.Counter,Cntr)
+    --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); auto.
+    equiv_call (_ : ={SRO.Counter.c, SRO.Bounder.bounder} ∧ §SRO.Counter.c{1} = §Cntr.c{2} ∧
+      same_ro §SRO.RO.m{1} §IRO.mp{2})
+    -- EC: + proc; sp; if; auto; sp; if; auto; sp.
+    · equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp
+        stmt_if
+        · ec_close
+        · -- EC: exists* x{1}; elim* => a c1 c2 b1 b2.
+          equiv_exists* §x{1}, §Cntr.c{2}
+          intro a c1
+          -- EC: call(equiv_ro_iro c1 a); auto; smt().
+          equiv_call (equiv_ro_iro c1 a)
+          ec_auto; ec_progress
+          · exact le_of_lt ‹SecureRO.increase_counter _ _ < _›
+          · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
+        · ec_auto; ec_close
+      · ec_auto
+    -- EC: smt(mem_empty).
+    --     (GAP 7: `D2Pre.m2` and `glob A` past the initializations' writes)
+    ec_auto; ec_progress
+    · have h := congrArg D2Pre.m2.get ‹Simulator.m.set _ _ = _›
+      simp_reads_all; exact h
+    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
+      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+      exact h
+    · have h := ‹(SRO.RO.m.get globals₁).dom m›
+      rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
+      exact absurd h (FMap.mem_empty _)
+    · have h := ‹(IRO.mp.get globals₂).dom _›
+      rw [‹IRO.mp.get globals₂ = FMap.empty›] at h
+      exact absurd h (FMap.mem_empty _)
+    · have h := ‹(SRO.RO.m.get globals₁).dom m›
+      rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
+      exact absurd h (FMap.mem_empty _)
+    · have h := congrArg D2Pre.m2.get ‹Simulator.m.set _ _ = _›
+      simp_reads_all; exact h
+  rw [h1, h2]
+  -- EC: have->//=:= SHA3Indiff (DSetSize(D2Pre(A))) &m _.
+  refine @Pilot.SHA3Indiff.SHA3Indiff _ _ _ (DSetSize (D2Pre A)) ⟨by fp_finite, by fp_disjoint⟩
+    (R ⊔ (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ D2Pre.m2.footprint)))
+    inferInstance ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ m ?_
+  -- EC: move=> F P P_f_ll P_fi_ll F_ll; proc; inline*; auto; sp.
+  intro F _ P _ P_f_ll P_fi_ll F_ll
+  phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+  -- EC: seq 1 : true; auto.
+  phoare_seq_lossless 1 : (True)
+  -- EC: + call (A_ll (SRO.Bounder(FInit(DFSetSize(F)))) _); auto.
+  · phoare_call (@A_ll _ ?_ ?_)
+    · phoare_auto
+    -- EC: by proc; inline*; sp; if; auto; sp; if; auto; sp; call F_ll; auto.
+    · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+      · stmt_sp; stmt_if
+        · phoare_auto; phoare_call F_ll; phoare_auto
+        · phoare_auto
+      · phoare_auto
+  -- EC: if; auto; sp.
+  · stmt_if
+    · stmt_sp
+      -- EC: seq 1 : true; auto.
+      phoare_seq_lossless 1 : (True)
+      -- EC: + by call F_ll; auto.
+      · phoare_call F_ll; phoare_auto
+      -- EC: sp; if; auto; sp; call F_ll; auto.
+      · stmt_sp; stmt_if
+        · phoare_auto; phoare_call F_ll; phoare_auto
+        · phoare_auto
+    · phoare_auto
+
+end
+
+end SecondPreimage
+
+/-! ## Section `Collision` (EC l. 869–1239) -/
+
+namespace Collision
+
+open GaudisCrypt.SHA3.SLCommon.Prefix (invm)
+open GaudisCrypt.SHA3.SHA3Security.Preimage (invm_dom_rng invmC' invmC useful)
+-- EC proves the section's local `equiv_sponge_perm`, `equiv_ro_iro` again, word for word
+open Preimage (equiv_sponge_perm equiv_ro_iro)
+
+section
+
+-- EC: declare module A <: SRO.AdvCollision {-SRO.RO.RO, -SRO.RO.FRO, -SRO.Bounder, -Perm,
+--   -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -BIRO.IRO, -F.RO, -F.FRO, -Redo, -C, -Gconcl.S,
+--   -BlockSponge.BIRO.IRO, -BlockSponge.C, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
+--   -Gconcl_list.Simulator}.
+declare module A <: SRO.AdvCollision {-SRO.RO, -SRO.FRO, -SRO.Bounder, -Perm,
+  -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -IRO, -SLCommon.F.RO, -SLCommon.F.FRO,
+  -SLCommon.Redo, -SLCommon.C, -Gconcl.S, -BlockSponge.BIRO.IRO, -BlockSponge.C,
+  -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO, -Gconcl_list.Simulator,
+  -Gconcl_list.SimLast,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
+
+-- EC: declare axiom A_ll (F <: SRO.Oracle {-A}) : islossless F.get => islossless A(F).guess.
+variable (A_ll : ∀ (F <: SRO.Oracle {-R}), islossless F.get → islossless A(F).guess)
+
+include R A_ll
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: EC's two `have`s, each a `byequiv` through the adversary's oracle
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`A` against the modules of the lemmas applied)
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma Sponge_coll_resistant &m :
+Pr[SRO.Collision(A, FM(CSetSize(Sponge), Perm)).main() @ &m : res] <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r +
+(sigma * (sigma - 1) + 2)%r / 2%r / (2%r ^ size_out)`. -/
+theorem Sponge_coll_resistant (m : VariableAssignment) :
+    Pr[ SRO.Collision(A, FM(CSetSize(Sponge), Perm)).main () @ &m : §res ] ≤
+      ((GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 - GaudisCrypt.SHA3.SHA3Indiff.limit : ℤ) : ℝ) /
+          ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma * (sigma - 1) + 2 : ℤ) : ℝ) / 2 / (2 : ℝ) ^ size_out := by
+  -- EC: rewrite -(doutE1 witness).
+  rw [div_eq_mul_inv (((sigma * (sigma - 1) + 2 : ℤ) : ℝ) / 2), ← doutE1 default]
+  -- EC: rewrite (coll_resistant_if_indifferentiable A A_ll (CSetSize(Sponge)) Perm &m).
+  refine S.coll_resistant_if_indifferentiable A (CSetSize Sponge) Perm m ?_
+  -- EC: exists (SimSetSize(Simulator)); split.
+  refine ⟨SimSetSize Simulator, inferInstance, ?_, ?_⟩
+  -- EC: + by move=> F _; proc; inline*; auto.
+  · intro F _
+    rw [SimSetSize_init_eq]
+    phoare_proc; phoare_inline*; phoare_auto
+  -- EC: have->:Pr[Indiff0.Indif(CSetSize(Sponge, Perm), Perm, DColl(A)).main() @ &m : res] =
+  --       Pr[RealIndif(Sponge, Perm, DRestr(DSetSize(DColl(A)))).main() @ &m : res].
+  have h1 : Pr[ Indiff0.GReal(CSetSize(Sponge), Perm, DColl(A)).main () @ &m : §res ] =
+      Pr[ RealIndif(Sponge, Perm, DRestr(DSetSize(DColl(A)))).main () @ &m : §res ] := by
+    -- EC: byequiv=>//=; proc.
+    byequiv; equiv_proc
+    --     (GAP 6: `CSetSize(Sponge)` applied to `Perm` at the clone's module types)
+    erw [CSetSize_Sponge_Perm_init _ _ rfl rfl, CSetSize_Sponge_Perm_f _ _ rfl rfl]
+    repeat stmt_inline{1} 0
+    repeat stmt_inline{2} 0
+    stmt_sp; stmt_wp
+    -- EC: seq 2 2 : (={m1, m2, glob SRO.Counter, glob Perm}
+    --       /\ invm Perm.m{1} Perm.mi{1}
+    --       /\ ={c}(SRO.Counter,Cntr)); last first.
+    --     (EC's `(m1, m2) <@ A.guess()` is two statements, here one)
+    equiv_seq 1 1 : (={m1, m2, SRO.Counter.c, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1} ∧
+      §SRO.Counter.c{1} = §Cntr.c{2})
+    swap
+    -- EC: - if; auto; sp.
+    · stmt_if
+      · ec_close
+      · stmt_sp
+        -- EC: case(SRO.Counter.c{1} + ((size m2{1} + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0 < limit); last first.
+        equiv_case (§SRO.Counter.c{1} + ((size §m2{1} + 1) / r + 1) +
+          max ((size_out + r - 1) / r - 1) 0 < GaudisCrypt.SHA3.SHA3Indiff.limit)
+        swap
+        -- EC: * rcondf{1} 2; 1: by auto; inline*; auto; conseq(: _ ==> true); auto.
+        · stmt_rcondf{1} 2
+          · intro σ₂
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto
+          -- EC: rcondf{2} 2; 1: by auto; inline*; auto; conseq(: _ ==> true); auto.
+          stmt_rcondf{2} 2
+          · intro σ₁
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto; ec_progress
+            have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+              (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+            rw [e]
+            exact ‹GaudisCrypt.SHA3.SHA3Indiff.limit ≤ _›
+          -- EC: auto; inline*; auto; sp; conseq(: _ ==> true); auto.
+          stmt_wp
+          --     (GAP 1: `Perm.f` behind the first port's view is opened first)
+          simp only [Indifferentiability.PRIMITIVE.view, Perm, PRP.RP.RP, PRP.StrongPRP.PRP.mk]
+          stmt_inline*
+          stmt_sp
+          equiv_conseq (: _ ==> True)
+          · ec_close
+          -- EC: if{2}; sp; auto; sim.
+          stmt_if{2}
+          --     (EC's `sim` through the two loops is the `while` rule on each)
+          · stmt_sp; stmt_wp
+            equiv_while (={i, sa, sc, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
+            --     (GAP 2: the pair `x3` back from its components)
+            · stmt_sp; stmt_if
+              · ec_close
+              · stmt_sp; stmt_if
+                · ec_progress
+                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  simp [e]
+                · ec_auto; ec_prep
+                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  subst e
+                  exact fun a _ => ⟨rfl, rfl, rfl, rfl⟩
+                · ec_auto; ec_prep
+                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  subst e
+                  exact ⟨rfl, rfl⟩
+              · ec_auto; ec_close
+            equiv_while (={xs, sa, sc, i, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
+            · stmt_sp; stmt_if
+              · ec_close
+              · ec_auto
+              · ec_auto
+            ec_auto; ec_close
+          · stmt_wp
+            -- EC: while{1}(invm Perm.m{1} Perm.mi{1}) (((size_out + r - 1) %/ r)-i{1}).
+            equiv_while{1} (invm §Perm.m{1} §Perm.mi{1}) ((((§n{1} + r - 1) / r) - §i{1}).toNat)
+            · while_ll_phoare
+              -- EC: + auto; sp; if; auto.
+              --       - sp; if ;auto; progress.
+              --         * exact (useful _ _ _ H H2).
+              intro σ₂
+              ec_auto
+              intro Perm_m mi i n sa sc hI
+              split_ifs with h1 h2
+              · exact (is_lossless_iff_expected _).mp (useful _ _ _ hI.1 (of_decide_eq_false h2))
+              · rfl
+              · rfl
+            --         * rewrite invm_set=>//=.
+            --           by move:H4; rewrite  supp_dexcepted.
+            --         * smt().
+            --         smt().
+            --       smt().
+            · intro σ₂ k
+              hoare_auto; ec_progress
+              exact SLCommon.Prefix.invm_set _ _ _ _ ‹¬Perm_m.dom (sa, sc)›
+                (EC.not_of_mem_support_dexcepted ‹a ∈ _›) ‹invm Perm_m mi› _ _
+            -- EC: conseq(:_==> invm Perm.m{1} Perm.mi{1}); 1:smt().
+            equiv_conseq (: _ ==> invm §Perm.m{1} §Perm.mi{1})
+            · ec_close
+            -- EC: while{1}(invm Perm.m{1} Perm.mi{1})(size xs{1}).
+            equiv_while{1} (invm §Perm.m{1} §Perm.mi{1}) ((size §xs{1}).toNat)
+            · while_ll_phoare
+              intro σ₂
+              -- EC: + move=> _ z; auto; sp; if; auto; progress.
+              --       * exact (useful _ _ _ H H1).
+              ec_auto
+              intros; split_ifs
+              · exact (is_lossless_iff_expected _).mp
+                  (useful _ _ _ (‹invm _ _ ∧ _›).1 (of_decide_eq_false ‹_›))
+              · rfl
+            · intro σ₂ k
+              hoare_auto; ec_progress
+              --       smt().
+              · cases xs with
+                | nil => exact absurd ‹([] : List block).isEmpty = false› (by simp)
+                | cons a l => simp [size, behead]
+              --       * rewrite invm_set=>//=.
+              --         by move:H3; rewrite supp_dexcepted.
+              · exact SLCommon.Prefix.invm_set _ _ _ _ ‹¬Perm_m.dom _›
+                  (EC.not_of_mem_support_dexcepted ‹a ∈ _›) ‹invm Perm_m mi› _ _
+              --       * smt().
+              · cases xs with
+                | nil => exact absurd ‹([] : List block).isEmpty = false› (by simp)
+                | cons a l => simp [size, behead]
+            -- EC: auto; smt(size_ge0 size_eq0).
+            · ec_auto
+        -- EC: rcondt{1} 2; first by auto; inline*; auto; conseq(:_==> true); auto.
+        stmt_rcondt{1} 2
+        · intro σ₂
+          hoare_call (: True ==> True) / SRO.Counter.c
+          ec_auto
+        -- EC: rcondt{2} 2; first by auto; inline*; auto; conseq(:_==> true); auto.
+        stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_call (: True ==> True) / SRO.Counter.c
+          --     (the two sides' counters are equal, by the clone's `increase_counter`)
+          ec_auto; ec_progress
+          have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+            (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+          rw [e]
+          exact ‹SRO.Counter.c.get σ₁.globals + _ + _ < _›
+        -- EC: sim 3 3.
+        stmt_wp
+        -- EC: exists* m1{1}, m2{1}; elim* => a1 a2 c1 c2.
+        equiv_exists* §m1{1}, §m2{1}, §Cntr.c{2}
+        intro a1 a2 c2
+        -- EC: call (equiv_sponge_perm (c2 + ((size a1 + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0) a2).
+        equiv_call (equiv_sponge_perm
+          (c2 + ((size a1 + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0) a2)
+        -- EC: auto; call (equiv_sponge_perm c2 a1); auto; progress.
+        ec_auto
+        equiv_call (equiv_sponge_perm c2 a1)
+        ec_auto; ec_progress
+        -- EC: smt(List.size_ge0 divz_ge0 gt0_r).
+        · exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ < SecureRO.bound_counter›
+        -- EC: smt(List.size_ge0 divz_ge0 gt0_r).
+        · rw [‹Cntr.c.get g₂ = _›]
+          exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ + _ + _ < _›
+      · ec_auto
+    -- EC: call(: ={glob SRO.Counter, glob Perm, glob SRO.Bounder}
+    --       /\ invm Perm.m{1} Perm.mi{1} /\ ={c}(SRO.Counter,Cntr)).
+    equiv_call (_ : ={SRO.Counter.c, Perm.m, Perm.mi, SRO.Bounder.bounder} ∧
+      invm §Perm.m{1} §Perm.mi{1} ∧ §SRO.Counter.c{1} = §Cntr.c{2})
+    -- EC: + proc; sp; if; auto; sp; if; auto; sp.
+    · equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_sp
+          -- EC: exists * x{1}; elim* => m c1 c2 b1 b2.
+          equiv_exists* §x{1}, §Cntr.c{2}
+          intro m' c1
+          -- EC: by call(equiv_sponge_perm c1 m); auto; smt().
+          equiv_call (equiv_sponge_perm c1 m')
+          ec_auto; ec_progress
+          · exact le_of_lt ‹SecureRO.increase_counter _ _ < _›
+          · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
+        · ec_auto; ec_close
+      · ec_auto
+    -- EC: inline*; auto; progress.
+    --     by rewrite /invm=> x y; rewrite 2!emptyE.
+    --     (GAP 7: `glob A` past the initializations' writes)
+    ec_auto; ec_progress
+    have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+    exact h
+  -- EC: have->:Pr[Indiff0.Indif(RO, SimSetSize(Simulator, RO), DColl(A)).main() @ &m : res] =
+  --       Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(DColl(A)))).main() @ &m : res].
+  have h2 : Pr[ Indiff0.GIdeal(RO, SimSetSize(Simulator), DColl(A)).main () @ &m : §res ] =
+      Pr[ IdealIndif(IRO.asF, Simulator, DRestr(DSetSize(DColl(A)))).main () @ &m : §res ] := by
+    -- EC: byequiv=>//=; proc.
+    byequiv; equiv_proc
+    --     (GAP 6: `SimSetSize(Simulator, RO).init` is `Simulator.init`)
+    rw [SimSetSize_init_eq]
+    repeat stmt_inline{1} 0
+    repeat stmt_inline{2} 0
+    stmt_sp; stmt_wp
+    -- EC: seq 1 1 : (={m1, m2, glob SRO.Counter}
+    --       /\ ={c}(SRO.Counter,Cntr)
+    --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); last first.
+    equiv_seq 1 1 : (={m1, m2, SRO.Counter.c} ∧ §SRO.Counter.c{1} = §Cntr.c{2} ∧
+      same_ro §SRO.RO.m{1} §IRO.mp{2})
+    swap
+    -- EC: - if; auto; sp.
+    · stmt_if
+      · ec_close
+      · stmt_sp
+        -- EC: case: (SRO.Counter.c{1} + ((size m2{1} + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0 < limit); last first.
+        equiv_case (§SRO.Counter.c{1} + ((size §m2{1} + 1) / r + 1) +
+          max ((size_out + r - 1) / r - 1) 0 < GaudisCrypt.SHA3.SHA3Indiff.limit)
+        swap
+        -- EC: * rcondf{1} 2; first by auto; inline*; auto.
+        · stmt_rcondf{1} 2
+          · intro σ₂
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto
+          -- EC: rcondf{2} 2; first auto; inline*; auto; sp.
+          --     + rcondt 1; 1:by auto=> |> &0 /#.
+          --       by sp; rcondt 1; auto; conseq(:_==> true); auto.
+          stmt_rcondf{2} 2
+          · intro σ₁
+            hoare_call (: True ==> True) / SRO.Counter.c
+            ec_auto; ec_progress
+            have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+              (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+            rw [e]
+            exact ‹GaudisCrypt.SHA3.SHA3Indiff.limit ≤ _›
+          -- EC: inline*;sp; auto.
+          stmt_inline*; stmt_sp; stmt_wp
+          -- EC: rcondt{2} 1; 1:by auto=> |> &0 /#.
+          stmt_rcondt{2} 1
+          · hoare_auto; ec_progress
+            exact le_of_lt ‹SecureRO.increase_counter _ _ < SecureRO.bound_counter›
+          -- EC: conseq(:_==> true); first smt(dout_ll).
+          --     sp; rcondt{2} 1; auto; conseq(:_==> true); auto.
+          stmt_sp
+          stmt_rcondt{2} 1
+          · hoare_auto
+          -- EC: by while{2}(true)(n0{2}-i{2}); auto; 1:(sp; if; auto); smt(dbool_ll).
+          stmt_wp
+          equiv_while{2} True ((§n0{2} - §i{2}).toNat)
+          · while_ll_phoare
+            intro σ₁
+            ec_auto
+            intros; split_ifs
+            · exact (is_lossless_iff_expected _).mp dbool_ll
+            · rfl
+          · intro σ₁ k
+            hoare_auto
+          · ec_auto; ec_progress
+            exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3Security.Params.dout_ll
+        -- EC: rcondt{1} 2; first by auto; inline*; auto.
+        stmt_rcondt{1} 2
+        · intro σ₂
+          hoare_call (: True ==> True) / SRO.Counter.c
+          ec_auto
+        -- EC: rcondt{2} 2; first auto; inline*; auto; sp.
+        --     + rcondt 1; 1:by auto=> |> &0 /#.
+        --       by sp; rcondt 1; auto; conseq(:_==> true); auto.
+        stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_call (: True ==> True) / SRO.Counter.c
+          ec_auto; ec_progress
+          have e : SecureRO.Counter.c.get g = SecureRO.Counter.c.get σ₁.globals :=
+            (‹SecureRO.Counter.c.get g = _›).trans (‹SecureRO.Counter.c.get σ₁.globals = _›).symm
+          rw [e]
+          exact ‹SRO.Counter.c.get σ₁.globals + _ + _ < _›
+        -- EC: sim 3 3.
+        stmt_wp
+        -- EC: exists* m1{1}, m2{1}; elim*=> a1 a2 c1 c2.
+        equiv_exists* §m1{1}, §m2{1}, §Cntr.c{2}
+        intro a1 a2 c2
+        -- EC: call(equiv_ro_iro (c2 + ((size a1 + 1) %/ r + 1) +
+        --       max ((size_out + r - 1) %/ r - 1) 0) a2).
+        equiv_call (equiv_ro_iro
+          (c2 + ((size a1 + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0) a2)
+        -- EC: auto; call(equiv_ro_iro c2 a1); auto; smt().
+        ec_auto
+        equiv_call (equiv_ro_iro c2 a1)
+        ec_auto; ec_progress
+        · exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ < SecureRO.bound_counter›
+        · rw [‹Cntr.c.get g₂ = _›]
+          exact le_of_lt ‹SecureRO.increase_counter Cntr_c₂ m1₂ + _ + _ < _›
+      · ec_auto
+    -- EC: call(: ={glob SRO.Counter, glob SRO.Bounder} /\ ={c}(SRO.Counter,Cntr)
+    --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); auto.
+    equiv_call (_ : ={SRO.Counter.c, SRO.Bounder.bounder} ∧ §SRO.Counter.c{1} = §Cntr.c{2} ∧
+      same_ro §SRO.RO.m{1} §IRO.mp{2})
+    -- EC: + proc; sp; if; auto; sp; if; auto; sp.
+    · equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp
+        stmt_if
+        · ec_close
+        · -- EC: exists* x{1}; elim* => a c1 c2 b1 b2.
+          equiv_exists* §x{1}, §Cntr.c{2}
+          intro a c1
+          -- EC: call(equiv_ro_iro c1 a); auto; smt().
+          equiv_call (equiv_ro_iro c1 a)
+          ec_auto; ec_progress
+          · exact le_of_lt ‹SecureRO.increase_counter _ _ < _›
+          · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
+        · ec_auto; ec_close
+      · ec_auto
+    -- EC: smt(mem_empty).
+    --     (GAP 7: `glob A` past the initializations' writes)
+    ec_auto; ec_progress
+    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
+      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+      exact h
+    · have h := ‹(SRO.RO.m.get globals₁).dom m›
+      rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
+      exact absurd h (FMap.mem_empty _)
+    · have h := ‹(IRO.mp.get globals₂).dom _›
+      rw [‹IRO.mp.get globals₂ = FMap.empty›] at h
+      exact absurd h (FMap.mem_empty _)
+    · have h := ‹(SRO.RO.m.get globals₁).dom m›
+      rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
+      exact absurd h (FMap.mem_empty _)
+  rw [h1, h2]
+  -- EC: have->//=:= SHA3Indiff (DSetSize(DColl(A))) &m _.
+  refine @Pilot.SHA3Indiff.SHA3Indiff _ _ _ (DSetSize (DColl A)) ⟨by fp_finite, by fp_disjoint⟩
+    (R ⊔ (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint))
+    inferInstance ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ m ?_
+  -- EC: move=> F P P_f_ll P_fi_ll F_ll; proc; inline*; auto; sp.
+  intro F _ P _ P_f_ll P_fi_ll F_ll
+  phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+  -- EC: seq 1 : true; auto.
+  phoare_seq_lossless 1 : (True)
+  -- EC: + call (A_ll (SRO.Bounder(FInit(DFSetSize(F)))) _); auto.
+  · phoare_call (@A_ll _ ?_ ?_)
+    · phoare_auto
+    -- EC: by proc; inline*; sp; if; auto; sp; if; auto; sp; call F_ll; auto.
+    · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+      · stmt_sp; stmt_if
+        · phoare_auto; phoare_call F_ll; phoare_auto
+        · phoare_auto
+      · phoare_auto
+  -- EC: if; auto; sp.
+  · stmt_if
+    · stmt_sp
+      -- EC: seq 1 : true; auto.
+      phoare_seq_lossless 1 : (True)
+      -- EC: + by call F_ll; auto.
+      · phoare_call F_ll; phoare_auto
+      -- EC: sp; if; auto; sp; call F_ll; auto.
+      · stmt_sp; stmt_if
+        · phoare_auto; phoare_call F_ll; phoare_auto
+        · phoare_auto
+    · phoare_auto
+
+end
+
+end Collision
+
+/-! ## The modules `X`, `AdvCollisionSHA3`, and section `SHA3_Collision` (EC l. 1241–1274) -/
+
+-- EC's `module X (F : SRO.Oracle)`
+module X using (F : SRO.Oracle) : SRO.Oracle {
+  proc get (bl : List Bool) : f_out {
+    var r : f_out;
+    r <- call F.get ($bl ++ [false, true]);
+    return $r
+  };
+}
+
+-- EC's `module AdvCollisionSHA3 (A : SRO.AdvCollision) (F : SRO.Oracle)`, with `A` a Lean
+-- parameter so that `AdvCollisionSHA3 A` is an `SRO.AdvCollision`
+set_option linter.gaudisCrypt.using false in
+module AdvCollisionSHA3 (A : SRO.AdvCollision) using (F : SRO.Oracle) {
+  proc guess () : (List Bool × List Bool) {
+    var m1 : List Bool, m2 : List Bool;
+    m1, m2 <- call A(X(F)).guess ();
+    return ($m1 ++ [false, true], $m2 ++ [false, true])
+  };
+}
+
+/-- `AdvCollisionSHA3(A)` touches `A`'s variables only (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_AdvCollisionSHA3 (A : SRO.AdvCollision) :
+    FVP.fvP (AdvCollisionSHA3 A) ≤ FVP.fvP A := by
+  (fp_module)
+
+/-- EC's `glob AdvCollisionSHA3(A)`: `glob A`. -/
+instance instECGlobAdvCollisionSHA3 (A : SRO.AdvCollision) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob A R] : Module.ECGlob (AdvCollisionSHA3 A) R :=
+  ⟨h.finite.mono (fvP_AdvCollisionSHA3 A), (fvP_AdvCollisionSHA3 A).trans h.le, h.base⟩
+
+namespace SHA3_Collision
+
+section
+
+-- EC: declare module A <: SRO.AdvCollision {-SRO.RO.RO, -SRO.RO.FRO, -SRO.Bounder, -Perm,
+--   -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -BIRO.IRO, -F.RO, -F.FRO, -Redo, -C, -Gconcl.S,
+--   -BlockSponge.BIRO.IRO, -BlockSponge.C, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
+--   -Gconcl_list.Simulator}.
+declare module A <: SRO.AdvCollision {-SRO.RO, -SRO.FRO, -SRO.Bounder, -Perm,
+  -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -IRO, -SLCommon.F.RO, -SLCommon.F.FRO,
+  -SLCommon.Redo, -SLCommon.C, -Gconcl.S, -BlockSponge.BIRO.IRO, -BlockSponge.C,
+  -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO, -Gconcl_list.Simulator,
+  -Gconcl_list.SimLast,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
+
+-- EC: declare axiom A_ll (F <: SRO.Oracle {-A}) : islossless F.get => islossless A(F).guess.
+variable (A_ll : ∀ (F <: SRO.Oracle {-R}), islossless F.get → islossless A(F).guess)
+
+include R A_ll
+
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`AdvCollisionSHA3(A)` against the modules of
+-- `Sponge_coll_resistant`)
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma SHA3_coll_resistant &m :
+Pr[SRO.Collision(AdvCollisionSHA3(A), FM(CSetSize(Sponge), Perm)).main() @ &m : res] <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r +
+(sigma * (sigma - 1) + 2)%r / 2%r / (2%r ^ size_out)`. -/
+theorem SHA3_coll_resistant (m : VariableAssignment) :
+    Pr[ SRO.Collision(AdvCollisionSHA3(A), FM(CSetSize(Sponge), Perm)).main () @ &m : §res ] ≤
+      ((GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 - GaudisCrypt.SHA3.SHA3Indiff.limit : ℤ) : ℝ) /
+          ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma * (sigma - 1) + 2 : ℤ) : ℝ) / 2 / (2 : ℝ) ^ size_out := by
+  -- EC: apply (Sponge_coll_resistant (AdvCollisionSHA3(A)) _ &m).
+  refine @Collision.Sponge_coll_resistant _ _ _ _ (AdvCollisionSHA3 A)
+    ⟨by fp_finite, by fp_disjoint⟩ R inferInstance inferInstance ?_ m
+  -- EC: by move=> F F_ll; proc; inline*; call(A_ll (X(F)) _); auto; proc; call F_ll; auto.
+  intro F _ F_ll
+  phoare_proc
+  phoare_call (@A_ll _ ?_ ?_)
+  · phoare_auto
+  · phoare_proc; phoare_call F_ll; phoare_auto
+
+end
+
+end SHA3_Collision
 
 end GaudisCrypt.SHA3.Pilot.SHA3Security
