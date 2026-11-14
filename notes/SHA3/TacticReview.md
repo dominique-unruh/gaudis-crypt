@@ -600,3 +600,41 @@ changes (1–3 and 8) were made in one batch, each with a golden test (`Syntax/C
    section's losslessness of `DSetSize(D(A))`): `phoare_seq_lossless n : (P)`
    (`Logic/PHoareSeq.lean`, rule `phoareStmt_seq_eq_one`).  A new name: `phoare_seq n : (P)`
    would be read as the start of the five-bound form.
+
+## `SHA3OSecurity.ec`, section `Preimage` up to `rw_ideal_2` (2026-11-14): findings, no tactic change
+
+Nothing was changed in the tactics for this stretch; these are the items for the next batch.
+
+1. **`equiv_call (_ : ={x₁, …})` on a declared adversary puts `={glob A}` into the oracles'
+   judgments** (`Logic/ECCallAbstract.lean`: "`glob A` … is always part of the invariant").
+   EC's oracle judgments do not have it: the oracles cannot touch `glob A`.  With short oracle
+   proofs (`sim`) it does not matter.  In `rw_ideal_2` the oracles' proofs are long: every
+   `wp`/`sim n m` then carries `glob A` read over the written memory
+   (`(FVP.fvP A).touched_getter.get (Counter.c.set … (Simulator.paths.set … allGlobals))`), the
+   read is never simplified, and `stmt_inline` on such a goal ran out of 40M heartbeats (the
+   `simp` after the unfolding goes through the postcondition).  Written instead in the general
+   form, the same invariant in two parts, `(_ : ={x₁, …} ∧ ={y₁, …})`: EC's oracle judgments,
+   and the whole first `have` in five minutes.  To do: either the `={…}` form gives EC's oracle
+   judgments too (the abstract rule's invariant without the `glob A` part, which the rule
+   already keeps by the adversary's restriction), or `wp` simplifies a `glob A` read over a
+   write outside `A` (`touched_set_of_le_compl`, by `fp_disjoint`).
+2. **Names across the two sides** (`eq_eager_ideal2`): `§x0{2}` is "Unknown identifier" when
+   `x0` is also a variable of the other side, or of the precondition, at another type, and
+   `splitwhile{1} 1 : i < k` cannot name `k` once no statement mentions it.  Written with the
+   lenses.  To do: resolve `§x{i}` among side `i`'s variables first, and let conditions name
+   every variable the precondition reads.
+3. **Structural module types across clones** (`SH.AdvPreimage` given the sponge's primitive by
+   the first port's `ODRestr`): `equiv_proc` does not see through the other module type's
+   constructor.  One projection lemma per procedure, stated at the clone's name, and
+   `simp only` in front of `proc`.  It goes away with the first port's `ODRestr` (the pilot's
+   own would build the primitive at the clone's type), or with reducible module types.
+4. **Speed.** `rw_ideal_2` takes about 18 minutes (measured: the first `have` 5, the last
+   `byequiv` 3; the `eq_extend` hop is the rest, not measured by itself); in the last part `simp` is 96 s of 150 and instance search
+   30 s.  `have h : Pr[…] = Pr[…]; rw [h]` leaves the equation among the hypotheses, where every
+   closing `simp_all` goes through its two games: `clear h` after the `rw` (EC's `have ->:`
+   consumes it) took 20% off the last part.  To do: profile the `eq_extend` hop; a `have ->`
+   form (`ec_have_rw`?) that does not keep the equation.
+5. **`rnd f g`** (next lemma, `rw_ideal`): `equiv_rnd f` asks the push-forward equation
+   `d₁ >>= pure ∘ f = d₂`, which for `f = oget ∘ of_list` is the first port's `dlist_dout`; EC's
+   three bijection conditions are not asked.  If that goes through, `rnd f g` stays
+   `equiv_rnd f` with one lemma per pair of distributions.

@@ -627,6 +627,53 @@ Document each in the docstring when it applies.
 * **`omega` after a loop fails with two atoms that print the same** (the guard's read of a
   local and the invariant's): combine the two hypotheses by a lemma instead
   (`le_antisymm t2 hg`), which works up to `rfl`.
+* **A name that is not a variable of the side** (`SHA3OSecurity` `eq_eager_ideal2`): the
+  tactics resolve `§x{i}` from the statement and the conditions; a callee's local whose name is
+  also a variable of the other side or of the precondition at another type (`x1`{1}, `x0`{2}
+  after `inline*; sp`), and a variable the statement no longer mentions (`k` after `wp`, in
+  `splitwhile{1} 1 : i < k`), give "Unknown identifier".  Write them with their lenses:
+  `§(localVarLens "x0" (List Bool)){2}`, `§(localVarLens "k" ℤ)`.
+* **An adversary of one clone given a module of another's module type** (EC's module types are
+  structural; `SH.AdvPreimage` given the sponge's primitive by the first port's `ODRestr`):
+  `equiv_proc` on the oracle says "no concrete procedure body: nothing to unfold at the head of
+  `ODPRIMITIVE.f (… .mk …)`".  State the projection once at the clone's name, by the clone's
+  own `mk_simp` (`theorem ODPRIMITIVE_f_mk (f fi) : SH.OIndif.ODPRIMITIVE.f (….mk … {f, fi}) = f
+  := SH.OIndif.ODPRIMITIVE.f.mk_simp {f, fi}`; `rfl` does not prove it, the two `Structure`s
+  differ), and use it by `simp only [ODPRIMITIVE_f_mk]` in front of `equiv_proc`.  `rw`/`erw`
+  do not find it: the clone's name is a reducible alias of the theory's constant, which `simp`
+  unfolds and `rw`'s matching does not.
+* **EC's chains `inline{1} 1; inline{2} 1; sp` down to an adversary's call**:
+  `repeat stmt_inline{1} 0; repeat stmt_inline{2} 0; stmt_sp` (each stops at the abstract call);
+  one `stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp` per EC line where swaps come in between.
+  `stmt_swap [a..b] k` on a relational goal takes a side (`stmt_swap{1} [1..2] 3;
+  stmt_swap{2} [1..2] 3` for EC's two-sided `swap[1..2] 3`); `stmt_swap k` does not.
+* **EC's `call (RO_LRO_D D _)`** for a clone of `FullRO`: state the clone's `RO_LRO_D` once,
+  its side conditions as auto-params (`hD := by ec_module`, `hdisj := by fp_disjoint`), as in
+  `Pilot/SecureRO.lean` and `SHA3OSecurity`'s `Eager.RO_LRO_D`; then
+  `equiv_call (Eager.RO_LRO_D (Dist A))`, with `Dist A` taking `RO_Distinguisher`'s `unit`.
+* **`equiv_call (_ : ={x₁, …})` on a declared adversary with long oracle proofs**: the form
+  puts `={glob A}` into the oracles' judgments; after a `wp` or `sim n m` the postcondition
+  reads `glob A` over the written memory and `stmt_inline` on it does not end (40M heartbeats,
+  "timeout at `whnf`" inside `simp`).  Write the invariant in two parts,
+  `equiv_call (_ : ={x₁, …} ∧ ={y₁, …})`: the general form, EC's oracle judgments
+  (`SHA3OSecurity` `rw_ideal_2`, GAP 5).  Where the oracle is closed by `sim`, the one-part
+  form is fine.
+* **A call keeps the other variables only if the callee's footprint is known at the call's
+  spelling**: after `equiv_call H` the goals `X.get g₁ = X.get g₂` for arbitrary final `g₁`,
+  `g₂` mean the frame was empty.  State `@[fp_bound] theorem … : FVP.fvP (SORO.RF_T.get
+  RFList) ≤ RFList.m.footprint := by fp_module RFList.m` for the callee as the call prints it,
+  and for the modules a framed `hoare_call` goes through (`fvP_SORO_Bounder`, `fvP_RFWhile`);
+  "fp_disjoint: no restriction hypothesis for FVP.fvP {…}" names the module that lacks one.
+* **EC's `have ->: Pr[…] = Pr[…]`**: `have h : … := by …` then `rw [h]; clear h`.  Left in
+  context, the equation costs every later `simp_all` a pass through its two games.
+* **`byequiv` on `Pr[…] ≤ Pr[…]`**: goals `judgment`, then `hE` (the event's implication):
+  `byequiv` / `case hE => exact fun _ _ _ _ h => h` / `equiv_proc`.
+* **Probing leaves under a stubbed context**: a lemma made of several `have`s is compiled one
+  part at a time with the others' proofs replaced by `sorry` (saved to files and put back by
+  script); heartbeat budgets are per declaration, so the assembled lemma needs the sum.
+* **The scratch checker under `timeout`**: when the limit kills it, the filtered log is the
+  *previous* run's (the raw log is empty).  Check the raw log's size before reading results;
+  run long compiles in the background.
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

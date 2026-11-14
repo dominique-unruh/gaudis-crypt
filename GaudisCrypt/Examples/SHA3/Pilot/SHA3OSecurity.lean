@@ -13,7 +13,8 @@ EC-fidelity port, in progress
 Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and the local modules
 of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While` (EC l. 301),
 `eq_IRO_RFWhile` (EC l. 337), `eq_extend` (EC l. 430), `of_listK`, `Fill_In`, `eq_eager_ideal`
-(EC l. 492), `eq_eager_ideal2` (EC l. 512), `Dist`, `Game` and `eager_ideal` (EC l. 574).
+(EC l. 492), `eq_eager_ideal2` (EC l. 512), `Dist`, `Game`, `eager_ideal` (EC l. 574) and
+`rw_ideal_2` (EC l. 652).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -53,6 +54,14 @@ Translation:
   procedures;
 * GAP 4: after `sp` through a game's initializations, `glob A` is equal in the two memories by
   the memories' equation, taken out by hand (GAP 7 of `Pilot/SHA3Security.lean`);
+* GAP 5: `equiv_call (_ : ={x₁, …})` on the adversary puts `={glob A}` into the oracles'
+  judgments (EC's do not have it), and the `wp`s below then carry `glob A` read over written
+  memories, on which `inline` does not end (40M heartbeats).  Where the oracles' proofs are
+  long, the invariant is written in two parts, `(_ : ={x₁, …} ∧ ={y₁, …})`: the general form,
+  with EC's oracle judgments;
+* a call behind the module type's record (`(SORO.RF_T.get RFList)`) keeps the other variables
+  only with its footprint stated at that spelling (`fvP_RF_T_get_RFList`, `fvP_SORO_Bounder`,
+  `fvP_RFWhile`: EC reads them off the code);
 * EC's chains `inline{1} 1; inline{2} 1; sp` down to the adversary's call are
   `repeat stmt_inline{1} 0; repeat stmt_inline{2} 0; stmt_sp`; `sim n n` in front of a call or a
   conditional is `stmt_wp` (`sim n n` where a sampling is left);
@@ -1087,6 +1096,26 @@ module Game (A : SH.AdvPreimage) using (F : Eager.RO_T) {
   };
 }
 
+/-- `RFList`'s `get` as the oracle games call it (behind the module type's record) touches
+`RFList.m` only (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_RF_T_get_RFList :
+    FVP.fvP (SORO.RF_T.get RFList) ≤ RFList.m.footprint := by
+  fp_module RFList.m
+
+/-- `RFWhile`'s `get` as the oracle games call it touches `RFList.m` only. -/
+@[fp_bound] theorem fvP_RF_T_get_RFWhile :
+    FVP.fvP (SORO.RF_T.get RFWhile) ≤ RFList.m.footprint := by
+  fp_module RFList.m
+
+/-- The clone `SORO`'s `Bounder` touches `SORO.Bounder.bounder` only (EC reads the globals off
+the code). -/
+@[fp_bound] theorem fvP_SORO_Bounder : FVP.fvP SORO.Bounder ≤ SORO.Bounder.bounder.footprint := by
+  fp_module SORO.Bounder.bounder
+
+/-- `RFWhile` touches `RFList.m` only. -/
+@[fp_bound] theorem fvP_RFWhile : FVP.fvP RFWhile ≤ RFList.m.footprint := by
+  fp_module RFList.m
+
 section
 
 -- EC: declare module A <: SH.AdvPreimage {-Perm, -Counter, -Bounder, -F.RO, -F.FRO, -Redo, -C,
@@ -1289,6 +1318,469 @@ theorem eager_ideal (m : VariableAssignment) :
   equiv_call (Eager.RO_LRO_D (Dist A))
   -- EC: by inline*; auto=> />.
   stmt_inline*; ec_auto
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: EC's three `have`s and its last `byequiv`
+/-- EC's `local lemma rw_ideal_2 &m`. -/
+theorem rw_ideal_2 (m : VariableAssignment) :
+    Pr[ OIndif(FSome(IRO.asF), OSimulator(FSome(IRO.asF)),
+        ODRestr(Dist_of_P1Adv(A))).main () @ &m : §res ] ≤
+    Pr[ SORO.Preimage(SORO_P1(A), RFList).main () @ &m : §res ] := by
+  -- EC: have->:Pr[SORO.Preimage(SORO_P1(A), RFList).main() @ &m : res] =
+  --       Pr[SORO.Preimage(SORO_P1(A), RFWhile).main() @ &m : res].
+  have h1 : Pr[ SORO.Preimage(SORO_P1(A), RFList).main () @ &m : §res ] =
+      Pr[ SORO.Preimage(SORO_P1(A), RFWhile).main () @ &m : §res ] := by
+    -- EC: + byequiv(: ={glob A} ==> _)=>//=; proc.
+    byequiv; equiv_proc
+    -- EC: swap 1.
+    stmt_swap 1
+    -- EC: inline{1} 1; inline{2} 1; sp.
+    --     inline{1} 1; inline{2} 1; sp.
+    --     inline{1} 2; inline{2} 2; sp.
+    stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    stmt_inline{1} 0; stmt_inline{2} 0
+    -- EC: swap[1..2] 3; sp.
+    stmt_swap{1} [1..2] 3; stmt_swap{2} [1..2] 3; stmt_sp
+    -- EC: inline{1} 1; inline{2} 1; sp.
+    --     inline{1} 1; inline{2} 1; sp.
+    stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    -- EC: inline{1} 5; inline{2} 5; wp.
+    stmt_inline{1} 1; stmt_inline{2} 1; stmt_wp
+    -- EC: seq 3 3 : (={mi, h, hash, glob A, glob SORO.Bounder, glob RFList}); last first.
+    equiv_seq 3 3 : (={mi, h, hash, glob A, SORO.Bounder.bounder, RFList.m})
+    swap
+    -- EC: - sp; if; auto; call(rw_RF_List_While); auto.
+    · stmt_sp
+      stmt_if
+      · ec_close
+      · equiv_call rw_RF_List_While; ec_auto
+      · ec_auto
+    -- EC: call(: ={glob SORO.Bounder, glob RFList, glob OSimulator, glob OPC, glob Log}); auto.
+    --     (GAP 5: the invariant in two parts — the form `(_ : ={x₁, …})` puts `={glob A}` into
+    --     the oracles' judgments, where the steps below do not end)
+    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m} ∧ ={Simulator.m, Simulator.mi,
+      Simulator.paths, Gconcl_list.BIRO2.IRO.mp, Counter.c, Log.m})
+    -- EC: - proc; sp; if; auto.
+    · equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      -- EC: inline{1} 1; inline{2} 1; sp; if; [1,3:by auto]; sim 1 1.
+      · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+        stmt_if
+        · ec_close
+        · sim 1 1
+          -- EC: if; [1,3:by auto]; sim 4 4.
+          stmt_if
+          · ec_close
+          · sim 4 4
+            -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
+            stmt_sp
+            stmt_if
+            · ec_close
+            · sim 3 3
+              -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
+              --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
+              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
+              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+              stmt_if
+              · ec_close
+              --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
+              · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
+              --       by move=> /> &1 &2 <- /> <- />.
+              · ec_auto; ec_close
+            -- EC: by move=> /> &1 &2 <- /> <- />.
+            · sim; ec_close
+          · ec_auto
+        · ec_auto
+      · ec_auto
+    -- EC: - by sim.
+    · equiv_proc; sim
+    -- EC: proc; sim 1 1.
+    --     inline{1} 1; inline{2} 1; sp; if; auto.
+    · equiv_proc; sim 1 1
+      stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+      stmt_if
+      · ec_close
+      -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
+      --     inline{1} 1; inline{2} 1; sp; if; auto; sim 2 2.
+      --     by call(rw_RF_List_While); auto.
+      · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
+        stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+        stmt_if
+        · ec_close
+        · sim 2 2; equiv_call rw_RF_List_While; ec_auto
+        · ec_auto
+      · ec_auto
+    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
+    ec_auto; ec_progress
+    have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+    exact h
+  -- EC: rewrite (eager_ideal &m).
+  rw [h1, eager_ideal A m]; clear h1
+  -- EC: have->:Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
+  --         OSimulator(ExtendSample(FSome(BIRO.IRO))),
+  --          ODRestr(Dist_of_P1Adv(A))).main() @ &m : res] =
+  --       Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
+  --         OSimulator(ExtendOutputSize(FSetSize(FSome(BIRO.IRO)))),
+  --         ODRestr(Dist_of_P1Adv(A))).main() @ &m : res].
+  have h3 : Pr[ OIndif(ExtendSample(FSome(IRO.asF)), OSimulator(ExtendSample(FSome(IRO.asF))),
+        ODRestr(Dist_of_P1Adv(A))).main () @ &m : §res ] =
+      Pr[ OIndif(ExtendSample(FSome(IRO.asF)),
+        OSimulator(ExtendOutputSize(FSetSize(FSome(IRO.asF)))),
+        ODRestr(Dist_of_P1Adv(A))).main () @ &m : §res ] := by
+    -- EC: + byequiv=> //=; proc; inline*; sp.
+    byequiv; equiv_proc
+    stmt_inline*; stmt_sp
+    -- EC: seq 2 2 : (={m, hash, glob OSimulator, glob OFC} /\
+    --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}); last first.
+    equiv_seq 2 2 : (={m, hash, Simulator.m, Simulator.mi, Simulator.paths,
+      Gconcl_list.BIRO2.IRO.mp, Counter.c} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    swap
+    · stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_sp
+          stmt_rcondt{1} 1
+          · hoare_auto
+          stmt_rcondt{2} 1
+          · intro σ₁
+            hoare_auto
+          stmt_wp
+          equiv_while (={i, n, bs, x3} ∧ size §bs{1} = §i{1} ∧
+            eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2} ∧ §n{1} = size_out ∧ 0 ≤ §i{1} ∧
+            §i{1} ≤ §n{1})
+          · stmt_sp; stmt_if
+            · ec_progress
+              simp [GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_dom_lt
+                ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›]
+            · ec_auto; ec_progress
+              · rw [size_rcons]
+              · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+                  ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›).1 _ _
+                  ⟨‹0 ≤ j›, ‹j < size_out›⟩
+              · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+                  ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›).2.1 _ _
+                  ‹size_out ≤ j›
+              · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt
+                  (m2 := mp₂) a ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂›
+                  ‹size bs₂ < size_out›).2.2 _ _ ‹_›
+            · ec_auto; ec_progress
+              · rw [(‹eq_extend_size mp₁ mp₂ m₂›).1 _ _ ⟨‹0 ≤ size bs₂›, ‹size bs₂ < size_out›⟩]
+              · rw [size_rcons]
+          ec_auto; ec_progress
+          exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
+        · stmt_sp
+          stmt_rcondt{1} 1
+          · hoare_auto
+          stmt_rcondt{2} 1
+          · intro σ₁
+            hoare_auto
+          stmt_wp
+          equiv_while (={i0, n1})
+          · stmt_sp
+            stmt_if{1}
+            · stmt_if{2}
+              · ec_auto
+              · ec_auto; ec_progress
+                exact (is_lossless_iff_expected _).mp dbool_ll
+            · stmt_if{2}
+              · ec_auto; ec_progress
+                exact (is_lossless_iff_expected _).mp dbool_ll
+              · ec_auto
+          ec_auto
+      · ec_auto
+    -- EC: call(: ={glob OSimulator, glob OFC} /\
+    --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}); last first; auto.
+    equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
+      Counter.c} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    · simp only [ODPRIMITIVE_f_mk]
+      equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_if
+          · ec_close
+          · stmt_sp
+            stmt_if
+            · ec_close
+            · stmt_wp; equiv_rnd; stmt_wp
+              equiv_call eq_extend; ec_auto; ec_close
+            · sim; ec_close
+          · ec_auto
+        · ec_auto
+      · ec_auto
+    · simp only [ODPRIMITIVE_fi_mk]
+      equiv_proc; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+        stmt_if
+        · ec_close
+        · ec_auto
+        · ec_auto
+      · ec_auto
+    · equiv_proc
+      stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+      stmt_if
+      · ec_close
+      · stmt_inline*; stmt_sp
+        stmt_rcondt{1} 1
+        · hoare_auto
+        stmt_rcondt{2} 1
+        · intro σ₁
+          hoare_auto
+        stmt_sp
+        stmt_rcondt{1} 1
+        · hoare_auto
+        stmt_rcondt{2} 1
+        · intro σ₁
+          hoare_auto
+        stmt_wp
+        equiv_conseq (: _ ==> ={bs} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+        · ec_close
+        equiv_while (={i, n, x3, bs} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §n{1} = size_out ∧
+          eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+        · stmt_sp; stmt_if
+          · ec_progress
+            simp [GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_dom_lt
+              ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ n0₂› ‹n0₂ < size_out›]
+          · ec_auto; ec_progress
+            · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+                ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ n0₂› ‹n0₂ < size_out›).1 _ _
+                ⟨‹0 ≤ j›, ‹j < size_out›⟩
+            · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+                ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ n0₂› ‹n0₂ < size_out›).2.1 _ _
+                ‹size_out ≤ j›
+            · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt
+                (m2 := mp₂) a ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ n0₂›
+                ‹n0₂ < size_out›).2.2 _ _ ‹_›
+          · ec_auto; ec_progress
+            rw [(‹eq_extend_size mp₁ mp₂ m₂›).1 _ _ ⟨‹0 ≤ n0₂›, ‹n0₂ < size_out›⟩]
+        ec_auto; ec_progress
+        exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
+      · ec_auto
+    ec_auto; ec_progress
+    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
+      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+      exact h
+    · have hd := ‹(IRO.mp.get globals₁).dom (x, j)›
+      rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
+      exact absurd hd (FMap.mem_empty _)
+  rw [h3]; clear h3
+  -- EC: byequiv=> //=; proc.
+  byequiv
+  case hE => exact fun _ _ _ _ h => h
+  equiv_proc
+  -- EC: inline{1} 1; inline{2} 2; sp.
+  --     inline{1} 1; inline{2} 3; swap{2}[1..2]1; sp.
+  --     inline{1} 1; inline{2} 3; sp.
+  --     inline{1} 1; sp.
+  --     inline{1} 1; sp.
+  --     swap{2} 1 1; sp; swap{2}[1..2]3; sp.
+  --     inline{1} 1; sp; auto.
+  --     (the left game inlined down to the adversary's call; on the right the swaps of the first
+  --     `have`: the first port's `OIndif` runs the simulator's `init` first, so EC's positions
+  --     differ)
+  repeat stmt_inline{1} 0
+  stmt_swap{2} 1
+  stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+  stmt_inline{2} 0
+  stmt_swap{2} [1..2] 3; stmt_sp
+  stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
+  -- EC: seq 2 5 : (={glob A, glob OSimulator, glob Counter, glob Log, hash, m} /\
+  --       inv BIRO.IRO.mp{1} RFList.m{2} /\
+  --       SORO.Bounder.bounder{2} <= Counter.c{1}); last first.
+  equiv_seq 2 4 : (={glob A, Simulator.m, Simulator.mi, Simulator.paths,
+    Gconcl_list.BIRO2.IRO.mp, Counter.c, Log.m, m} ∧ §hash0{1} = §hash{2} ∧
+    inv §IRO.mp{1} §RFList.m{2} ∧ §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
+  swap
+  -- EC: + inline{1} 1; inline{2} 1; sp; inline{1} 1; sp; auto.
+  · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_inline{1} 0; stmt_sp; stmt_wp
+    -- EC: if{1}; sp; last first.
+    stmt_if{1}
+    swap
+    -- EC: - conseq(:_==> true)=> />.
+    --       inline*; if{2}; auto; sp; if{2}; auto.
+    --       by while{2}(true)(size_out - i{2}); auto=>/>; smt(dbool_ll).
+    · equiv_conseq (: _ ==> True)
+      · ec_close
+      stmt_inline*
+      stmt_if{2}
+      · stmt_sp
+        stmt_if{2}
+        · stmt_wp
+          equiv_while{2} (True) ((size_out - §i{2}).toNat)
+          · while_ll_phoare
+            intro σ₁
+            ec_auto; ec_progress
+            exact (is_lossless_iff_expected _).mp dbool_ll
+          · intro σ₁ k
+            hoare_auto
+          ec_auto
+        · ec_auto
+      · ec_auto
+    -- EC: rcondt{2} 1; 1: by auto=> />; smt(divz_ge0 gt0_r size_ge0).
+    --     (EC's `smt`: the first port's `lt_increase_counter`)
+    stmt_rcondt{2} 1
+    · intro σ₁
+      hoare_auto; ec_progress
+      exact lt_of_le_of_lt ‹bounder ≤ _› (lt_of_lt_of_le
+        (GaudisCrypt.SHA3.SHA3OSecurity.lt_increase_counter _ _ _) ‹_ ≤ SHA3Indiff.limit›)
+    -- EC: inline{1} 1; sp; auto.
+    --     rcondt{1} 1; auto=> /=.
+    stmt_inline{1} 0; stmt_sp; stmt_wp
+    stmt_rcondt{1} 1
+    · hoare_auto; ec_close
+    -- EC: inline{1} 1; sp; auto.
+    --     by call(eq_IRO_RFWhile); auto; smt(take_oversize).
+    stmt_inline{1} 0; stmt_sp; stmt_wp
+    equiv_call eq_IRO_RFWhile
+    ec_auto; ec_progress
+    have h := ‹(if _ then _ else _) = some hash₂›
+    simp only [Option.map_some, ne_eq, reduceCtorEq, not_false_eq_true, if_true, oget_some] at h
+    rwa [take_oversize _ _
+      (le_of_eq ((‹size r₁ = size_out›).trans (‹xk₁.2 = size_out›).symm))] at h
+  -- EC: auto; call(: ={glob OSimulator, glob Counter, glob Log} /\
+  --       inv BIRO.IRO.mp{1} RFList.m{2} /\
+  --       SORO.Bounder.bounder{2} <= Counter.c{1}); auto; last first.
+  stmt_wp
+  equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
+    Counter.c, Log.m} ∧ inv §IRO.mp{1} §RFList.m{2} ∧
+    §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
+  -- EC: + proc; sp; if; auto=> />; 1: smt().
+  --     (GAP 3 on the left: the primitive's `f` behind the first port's constructor)
+  · simp only [ODPRIMITIVE_f_mk]
+    equiv_proc; stmt_sp
+    stmt_if
+    · ec_close
+    -- EC: inline{1} 1; inline{2} 1; sp; auto.
+    --     if; 1, 3: auto; -1: smt().
+    · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+      stmt_if
+      · ec_close
+      -- EC: if; 1,3:auto=> /> + + + + + + + + + + + _ + _ /#.
+      · stmt_if
+        · ec_close
+        -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <-]; last first.
+        · stmt_sp
+          stmt_if
+          · ec_close
+          -- EC: inline{1} 1; inline{2} 1; sp.
+          --     inline{1} 1; inline{2} 1; sp.
+          --     rcondt{2} 1; 1: by auto; smt().
+          · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+            stmt_rcondt{2} 1
+            · intro σ₁
+              hoare_auto; ec_progress
+              exact lt_of_le_of_lt ‹bounder ≤ _› (Int.lt_of_add_one_le ‹_ + 1 ≤ SHA3Indiff.limit›)
+            -- EC: sp.
+            --     seq 3 2 : (={x0, x1, o1, k0, Log.m, suffix, glob OSimulator} /\
+            --       inv BIRO.IRO.mp{1} RFList.m{2} /\
+            --       SORO.Bounder.bounder{2} <= Counter.c{2} + 1); last first.
+            --     (and `={Counter.c}`, which the postcondition reads)
+            stmt_sp
+            equiv_seq 3 2 : (={x0, x1, o1, k0, Log.m, suffix, Simulator.m, Simulator.mi,
+              Simulator.paths, Gconcl_list.BIRO2.IRO.mp, Counter.c} ∧
+              inv §IRO.mp{1} §RFList.m{2} ∧ §SORO.Bounder.bounder{2} ≤ §Counter.c{2} + 1)
+            swap
+            -- EC: - by conseq(:_==> ={y, x1, glob OSimulator, Log.m}); 1: smt(); sim=> />.
+            · equiv_conseq (: _ ==> ={y, x1, Simulator.m, Simulator.mi, Simulator.paths,
+                Gconcl_list.BIRO2.IRO.mp, Log.m})
+              · ec_close
+              sim
+            -- EC: inline{1} 1; auto.
+            --     by call(eq_IRO_RFWhile); auto=> /> &1 &2 + <- /> <- /#.
+            stmt_inline{1} 0; stmt_wp
+            equiv_call eq_IRO_RFWhile; ec_auto; ec_close
+          -- EC: + by conseq (: ={y, glob OSimulator}); [|sim]=> /> &1 &2 <- /> <- /#.
+          · equiv_conseq (: _ ==> ={y, Simulator.m, Simulator.mi, Simulator.paths,
+              Gconcl_list.BIRO2.IRO.mp})
+            · ec_close
+            sim; ec_close
+        · ec_auto; ec_close
+      · ec_auto; ec_close
+    · ec_auto
+  -- EC: + by proc; inline*; sp; if; auto; sp; if; auto=> />; smt().
+  · simp only [ODPRIMITIVE_fi_mk]
+    equiv_proc; stmt_inline*; stmt_sp
+    stmt_if
+    · ec_close
+    · stmt_sp; stmt_if
+      · ec_close
+      · ec_auto; ec_close
+      · ec_auto; ec_close
+    · ec_auto
+  -- EC: proc.
+  --     inline{1} 1; inline{2} 1; sp; if; auto=> /=.
+  · equiv_proc
+    stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    stmt_if
+    · ec_close
+    -- EC: inline{1} 1; inline{2} 1; sp.
+    --     rcondt{1} 1; 1: auto.
+    · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+      stmt_rcondt{1} 1
+      · hoare_auto
+      -- EC: inline{1} 1; auto.
+      stmt_inline{1} 0; stmt_wp
+      -- EC: rcondf{2} 4; 1: auto.
+      --     + inline*; auto; sp; if; auto; sp; if; auto=> />; conseq(:_==> true); 1: smt().
+      --       by while(true); auto.
+      --     (the call does not write what the condition reads: the framed `hoare_call`)
+      stmt_rcondf{2} 4
+      · intro σ₁
+        stmt_wp; hoare_call (: True ==> True) / Log.m; ec_auto
+      -- EC: inline{2} 1; sp.
+      --     rcondt{2} 1; 1: by auto; smt(divz_ge0 gt0_r size_ge0).
+      stmt_inline{2} 0; stmt_sp
+      stmt_rcondt{2} 1
+      · intro σ₁
+        hoare_auto; ec_progress
+        exact lt_of_le_of_lt ‹bounder ≤ _› (lt_of_lt_of_le
+          (GaudisCrypt.SHA3.SHA3OSecurity.lt_increase_counter _ _ _) ‹_ ≤ SHA3Indiff.limit›)
+      -- EC: auto; call eq_IRO_RFWhile; auto=> />.
+      --     move=> /> &l &r H0 H1 H2 H3 H5 H6 result_L mp_L m_R H7 H8 H9 H10 H11; split;
+      --       2: smt(divz_ge0 gt0_r size_ge0).
+      --     rewrite cats0 take_oversize 1:/# take_oversize 1:spec_dout //=.
+      --     have h:=spec2_dout result_L H7.
+      --     have-> := some_oget _ h.
+      --     by rewrite /= eq_sym -to_listK.
+      --     (the first port's `to_list_oget_of_list`, `lt_increase_counter`)
+      stmt_wp
+      equiv_call eq_IRO_RFWhile
+      ec_auto; ec_progress
+      · have hk : to_list (oget (of_list r₁)) = r₁ :=
+          GaudisCrypt.SHA3.SHA3OSecurity.to_list_oget_of_list _ ‹size r₁ = size_out›
+        rw [hk, ‹xk₂.2 = size_out›, ‹xk₁.2 = size_out›, List.append_nil]
+        rfl
+      · have h1 := GaudisCrypt.SHA3.SHA3OSecurity.lt_increase_counter (Counter.c.get g₁)
+          xk₁.1 xk₁.2
+        have h2 := ‹bounder₂ ≤ Counter.c.get g₁›
+        rw [‹SORO.Bounder.bounder.get g₂ = bounder₂ + 1›]
+        omega
+    · ec_auto
+  -- EC: + by inline*; auto; smt(mem_empty).
+  --     (GAP 4: `glob A` past the initializations' writes; `inv` of the empty maps)
+  ec_auto; ec_progress
+  · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+    exact h
+  all_goals first
+    | (have hd := ‹(IRO.mp.get globals₁).dom (l, i)›
+       rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
+       exact absurd hd (FMap.mem_empty _))
+    | (have hd := ‹(RFList.m.get globals₂).dom l›
+       rw [‹RFList.m.get globals₂ = FMap.empty›] at hd
+       exact absurd hd (FMap.mem_empty _))
 
 end
 

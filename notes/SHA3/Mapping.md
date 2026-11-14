@@ -1548,7 +1548,8 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 559 | local module | `Dist` | `Preimage.Dist` (`A` a Lean parameter; alias call-wrapped, E5; takes `RO_Distinguisher`'s `unit`) | def |
 | 564 | local module | `Game` | `Preimage.Game` (`A` a Lean parameter) | def |
 | 574 | local lemma | `eager_ideal` | `Preimage.eager_ideal` (EC's script: two `have->` by `byequiv` through the adversary's oracles with `eq_eager_ideal`, `eq_eager_ideal2`, then `call (RO_LRO_D Dist _)` = `equiv_call (Eager.RO_LRO_D (Dist A))`) | done |
-| 652–916 | section `Preimage`, lemmas | `rw_ideal_2`, `rw_ideal`, `leq_ideal`, `rw_real`, `Sponge_preimage_resistant` | — | todo |
+| 652 | local lemma | `rw_ideal_2` | `Preimage.rw_ideal_2` (EC's script: `have->` for `RFList`/`RFWhile` by `byequiv` with `rw_RF_List_While`; `rewrite eager_ideal`; `have->` for the simulator's functionality by `byequiv` with `eq_extend`; the last `byequiv` with `eq_IRO_RFWhile`.  Call invariants in two parts, GAP 5; footprints `fvP_RF_T_get_RFList`, `fvP_RF_T_get_RFWhile`, `fvP_SORO_Bounder`, `fvP_RFWhile`) | done |
+| 792–916 | section `Preimage`, lemmas | `rw_ideal`, `leq_ideal`, `rw_real`, `Sponge_preimage_resistant` | — | todo |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 
