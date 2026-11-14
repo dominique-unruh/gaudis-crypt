@@ -1364,6 +1364,28 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 1261 | declare axiom | `A_ll` | section SHA3_Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
 | 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` (+ `AGext0Fresh A`, E13; `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` over `glob A`, E14: `glob AdvCollisionSHA3(A) = glob A` is syntactic in EC) | done (exc E13, E14) |
 
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3Security.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.SHA3Security`; in progress).  The clone `S` is `clone` over the *pilot*
+`IndifRO_is_secure`; the sponge-level modules (`Sponge`, `Perm`, `Simulator`, `FC`, …) are the
+first port's, which fit the clone's module types by definition; the file's own modules are
+declared at the clone's types.
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 8 | module | `SHA3` | `SHA3` | def |
+| 17–38 | ops, axioms | `size_out`, `sigma`, `f_out`, `dout`, `to_list`, `of_list`, … | the first port's class `SHA3Security.Params` | def |
+| 40 | lemma | `doutE1` | the first port's `doutE1` | first port |
+| 62, 71 | module | `CSetSize`, `FSetSize` | same names (`init` call-wrapped, E5) | def |
+| 80 | clone import | `IndifRO_is_secure as S` | `clone import … as S with …`, the six `realize`s as `proof *` | def |
+| 103–121 | module | `FGetSize`, `SimSetSize`, `DFSetSize` | same names | def |
+| 121 | module | `DSetSize` | — | todo |
+| 131–165 | local lemmas | `invm_dom_rng`, `invmC'`, `invmC`, `useful` | the first port's (`SHA3Security.Preimage.*`) | first port |
+| 168 | local equiv | `equiv_sponge_perm` | `Preimage.equiv_sponge_perm` (EC's script; GAP 1–3 of the file) | done |
+| 199–475 | section `Preimage` | `same_ro`, `same_ro2`, `Prog`, `equiv_ro_iro`, …, `SHA3_preimage_resistant` | — | todo |
+| 479–865 | section `SecondPreimage` | | — | todo |
+| 869–1239 | section `Collision` | | — | todo |
+| 1241–1274 | modules, section `SHA3_Collision` | `X`, `AdvCollisionSHA3`, `SHA3_coll_resistant` | — | todo |
+
 ## `proof/SHA3OSecurity.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA3.SHA3OSecurity`.

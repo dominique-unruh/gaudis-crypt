@@ -32,6 +32,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.SHA3Indiff
+import GaudisCrypt.Examples.SHA3.Pilot.SHA3Security
 import GaudisCrypt.Examples.SHA3.Pilot.SHA3_OIndiff
 import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
 import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
