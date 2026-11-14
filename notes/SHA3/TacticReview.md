@@ -529,3 +529,58 @@ Smaller findings from `RealIndif_Sponge_BlockSponge`:
   `BlockSim`'s after `simp only [RaiseSim, Module.app_comp]`.
 * A declaration restricted against another module's region (`{-R}`) is an instance that mentions
   `R`: `include R`, or lemmas that do not mention the other module lose the instance.
+
+## `SHA3Security.ec`, section `Preimage` (2026-11-14): findings and one batch of changes
+
+Decisions taken alone while porting `Sponge_preimage_resistant` (EC l. 392–475).  The low-level
+changes (1–3 and 8) were made in one batch, each with a golden test (`Syntax/CloneTest.lean`,
+`Logic/ECProcInvTest.lean`, `Logic/PHoareSeqTest.lean`).
+
+1. **`clone` copies the theory's `*.congr_simp` theorems** (`Syntax/Clone.lean`, `Clone.skip`):
+   `S.DPre.h.congr_simp` is an alias whose statement is about the theory's `DPre.h`.  When simp
+   wants the congruence lemma of the clone's constant it finds that name in the environment,
+   without the entry of Lean's own table, and prints `PANIC at Lean.Meta.mkCongrSimpForConst?
+   … unreachable code` (hundreds of lines with backtraces; the proofs still check).  Seen with
+   `fp_module` through `DPre(A)` and in every `byequiv` of the section.  Fix: `skip` also skips
+   `isReservedName env n` (Lean's auto-generated names: `congr_simp`, `eq_def`, `eq_unfold`, …),
+   and each alias of a definition is registered for them (`enableRealizationsForConst`), so
+   that `C.x.congr_simp` is Lean's own lemma about `C.x`, in the clone's file too.
+2. **A module without globals** (`CSetSize(Sponge)`, bound `⊥`) has no `Footprint.Outside ⊥ S`
+   instance, so `Module.Declared.ofGlobBound` does not apply: instance `Footprint.Outside.bot`
+   in `Logic/DeclareModule.lean`.  With `Module.GlobBound`
+   instances for `CSetSize Sponge`, `Perm`, `SimSetSize Simulator` *at the clone's module types*
+   (`@Module.GlobBound Indiff0.PRIMITIVE _ Perm …`), EC's
+   `rewrite (preimage_resistant_if_indifferentiable A A_ll (CSetSize(Sponge)) Perm &m ha init_ha)`
+   is `refine S.preimage_resistant_if_indifferentiable A (CSetSize Sponge) Perm m ha init_ha ?_`
+   and `exists (SimSetSize(Simulator))` is `refine ⟨SimSetSize Simulator, inferInstance, ?_, ?_⟩`:
+   the restrictions are found by instance search, as EC checks them.
+3. **`call H` where the calls spell the callees differently from `H`** (the game calls
+   `(RF.mk { get := FInit(…).get }).get`, a functor has unfolded a view): `equiv_call (H)`
+   compared the two up to definitional unfolding, which does not decide it for modules.  New
+   fallback for `equiv_call (H)` only where the old rule fails: `H` is taken to the callees as
+   the calls spell them by `ECProcInv.alignProc` (the same bodies), then the call is by that
+   judgment (`Logic/ECProcInv.lean`).
+4. **First-port modules under the clone's module types.**  `Indiff0.GReal(CSetSize(Sponge), Perm,
+   D)` applies `CSetSize(Sponge)` at the clone's `DPRIMITIVE`; `inline` and the call lemmas
+   (stated at the sponge's types) do not see through it.  Stated once as equations that hold by
+   `rfl` (`CSetSize_Sponge_Perm_init`, `CSetSize_Sponge_Perm_f`, `SimSetSize_init_eq`) and
+   rewritten right after `proc` (`erw`, one line; GAP 6 of the file).  The alternative, declaring
+   the file's modules over the clone's types throughout, would re-open `equiv_sponge_perm`.
+5. **`byequiv`'s inferred precondition** is `={glob}` when both runs start in the same memory; EC's
+   also knows the memory (`DPre.h{1} = DPre.h{m} = ha`).  Written
+   `byequiv (_ : §allGlobals{1} = §allGlobals{2} ∧ §DPre.h{1} = ha ==> ={res})`; a candidate
+   change of the inferred form (always `g₁ = m ∧ g₂ = m`) is not made.
+6. **EC's per-procedure `inline` lists** before an adversary's call: paths over the first port's
+   views do not elaborate (GAP 3), so the calls before the adversary's are inlined by call site,
+   `repeat stmt_inline{i} 0` (it stops at the abstract call).
+7. **Cost.**  `Sponge_preimage_resistant` needs `maxHeartbeats 40000000` and takes about 17
+   minutes to check.  The profiler (`set_option profiler true`) on its ideal half: 398 s in
+   `simp` over 83 calls of 4–5 s each, 100 s in typeclass inference, 45 s in "congr simp thm"
+   (the panics of item 1, with their backtraces).  The 4–5 s per `simp` call is the same for
+   every step of the script (`stmt_inline`, `stmt_sp`, `ec_auto`, …), so it is a fixed cost of
+   the context rather than of the goal; the declared adversary's restriction (a join of some
+   sixty footprints in an instance hypothesis) is the first suspect.  Not investigated further.
+8. **pHL `seq n : P` on a lossless goal** was missing (EC: `seq 1 : true; auto.` in each
+   section's losslessness of `DSetSize(D(A))`): `phoare_seq_lossless n : (P)`
+   (`Logic/PHoareSeq.lean`, rule `phoareStmt_seq_eq_one`).  A new name: `phoare_seq n : (P)`
+   would be read as the start of the five-bound form.

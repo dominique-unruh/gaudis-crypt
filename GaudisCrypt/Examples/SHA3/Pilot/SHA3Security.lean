@@ -9,8 +9,9 @@ set_option ec.strict true
 # Top-level proof of SHA-3 security (EasyCrypt `proof/SHA3Security.ec`) — EC-fidelity port, in
 progress
 
-Ported so far: the file's modules, the clone `S` of `IndifRO_is_secure`, and, of section
-`Preimage`, `equiv_sponge_perm` (EC l. 168) and `equiv_ro_iro` (EC l. 213).
+Ported so far: the file's modules, the clone `S` of `IndifRO_is_secure`, and section `Preimage`
+(`equiv_sponge_perm`, EC l. 168; `equiv_ro_iro`, EC l. 213; `Sponge_preimage_resistant`,
+EC l. 397).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list` and
@@ -39,9 +40,20 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 2: the closers split `={sa, sc}` at `x <- (sa, sc)` into components; the pair's equation is
   put back by hand before the leaf is closed (as in `Pilot/SHA3_OIndiff.lean`).
 * GAP 3: `FInit(F).get` is `F.f` in EC (an alias); here a call (E5), inlined first.  EC's path
-  `inline FC(Sponge(Perm)).f` does not elaborate over the first port's views: by index.
+  `inline FC(Sponge(Perm)).f` does not elaborate over the first port's views: by index.  EC's
+  lists of procedures to inline in front of an adversary's call are `repeat stmt_inline{i} 0`
+  (the calls before the abstract one, by call site).
 * GAP 4: the exit goal of a one-sided `while` does not frame a variable of the other side that
   only the invariant reads: the conjunct is added to the invariant (GAP 7 of `Pilot/Sponge.lean`).
+* GAP 6: the clone's games apply `CSetSize(Sponge)`, `SimSetSize(Simulator)` at the clone's
+  module types, where `inline` and the lemmas stated at the sponge's types do not see them:
+  rewritten right after `proc` by `CSetSize_Sponge_Perm_init`, `CSetSize_Sponge_Perm_f`,
+  `SimSetSize_init_eq` (they hold by `rfl`).
+* GAP 7: after `sp` through a game's initializations, `DPre.h` and `glob A` are equal in the
+  two memories by the memories' equation, taken out by hand (`congrArg` of the getter,
+  `simp_reads_all` / `touched_set_of_le_compl`); GAP 14 of `Pilot/Gconcl_list.lean`.
+* GAP 8: `conseq (: _ ==> Q)` in front of the adversary's call does not keep `DPre.h`, which the
+  adversary does not write (EC's does): `DPre.h{1} = ha` goes through the call's invariant.
 * GAP 5: the strict `auto` runs out of recursion depth on a goal with quantified invariant
   conjuncts over a map being set (GAP 6 of `Pilot/Sponge.lean`): `rnd`, the plain `skip` and
   `progress` (or EC's argument by hand) instead.
@@ -155,7 +167,118 @@ module DFSetSize using (F : DFUNCTIONALITY) : Indiff0.DFUNCTIONALITY {
   };
 }
 
-/-! ## Section `Preimage` (EC l. 125–475), in progress -/
+/-! ## The globals of the file's modules, and the modules under the clone's module types
+
+EC reads a concrete module's globals off its code, and a module of a sponge module type is one
+of the clone's.  Here the bounds are stated (`@[fp_bound]`, `Module.GlobBound` at the clone's
+module types: what the clone's lemmas ask), and the modules that the clone's games apply at its
+types are the file's by equations that hold by definition (GAP 6). -/
+
+-- EC's `module (DSetSize (D : Indiff0.DISTINGUISHER) : DISTINGUISHER) (F : DFUNCTIONALITY)
+-- (P : DPRIMITIVE) = D(DFSetSize(F),P)`, with `D` a Lean parameter; the alias is wrapped in a
+-- call (E5)
+set_option linter.gaudisCrypt.using false in
+module DSetSize (D : Indiff0.DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
+  proc distinguish () : Bool {
+    var b : Bool;
+    b <- call D(DFSetSize(F), P).distinguish ();
+    return $b
+  };
+}
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the nest of `DPre`, `Preimage`, `Bounder`
+/-- `DSetSize(DPre(A))` touches `A`'s variables, `SRO.Counter.c`, `SRO.Bounder.bounder` and
+`DPre.h` (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_DSetSize_DPre (A : SRO.AdvPreimage) :
+    FVP.fvP (DSetSize (DPre A)) ≤ FVP.fvP A ⊔
+      (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ DPre.h.footprint)) := by
+  have h : FVP.fvP (DSetSize (DPre A)) ≤ FVP.fvP A ⊔
+      (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder DPre.h)).footprint := by
+    fp_module (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder DPre.h))
+  simpa only [Footprint.lens_pair] using h
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob DSetSize(DPre(A))`: `glob A` (the region given for `A`), `SRO.Counter.c`,
+`SRO.Bounder.bounder` and `DPre.h`. -/
+instance instECGlobDSetSizeDPre (A : SRO.AdvPreimage) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob A R] : Module.ECGlob (DSetSize (DPre A))
+      (R ⊔ (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ DPre.h.footprint))) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_DSetSize_DPre A),
+    (fvP_DSetSize_DPre A).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ DPre.h.footprint)),
+      hGF.sup (by fp_finite),
+      sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
+        (Footprint.le_glob_of_le le_sup_right)⟩⟩
+
+/-- `CSetSize(Sponge)` has no globals (EC reads it off the code), at the clone's module type. -/
+@[fp_bound] theorem fvP_CSetSize_Sponge :
+    @FVP.fvP Indiff0.CONSTRUCTION _ (CSetSize Sponge) ≤ ⊥ := by
+  (fp_module)
+
+instance : @Module.GlobBound Indiff0.CONSTRUCTION _ (CSetSize Sponge) ⊥ :=
+  ⟨fvP_CSetSize_Sponge, by fp_finite⟩
+
+/-- `FGetSize` has no globals. -/
+@[fp_bound] theorem fvP_FGetSize : FVP.fvP FGetSize ≤ ⊥ := by
+  (fp_module)
+
+set_option maxHeartbeats 2000000 in
+-- `fp_module` through `Perm`'s procedures
+/-- `Perm` touches `Perm.m`, `Perm.mi`, at the clone's module type (`Perm` is an
+`Indiff0.PRIMITIVE` by definition). -/
+@[fp_bound] theorem fvP_Perm :
+    @FVP.fvP Indiff0.PRIMITIVE _ Perm ≤ Perm.m.footprint ⊔ Perm.mi.footprint := by
+  rw [← Footprint.lens_pair]
+  fp_module (Lens.pair Perm.m Perm.mi)
+
+instance : @Module.GlobBound Indiff0.PRIMITIVE _ Perm (Perm.m.footprint ⊔ Perm.mi.footprint) :=
+  ⟨fvP_Perm, by fp_finite⟩
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the simulator's three procedures
+/-- `SimSetSize(Simulator)` touches `Simulator`'s maps and `Gconcl_list.BIRO2.IRO.mp` (EC reads
+it off the code), at the clone's module type. -/
+@[fp_bound] theorem fvP_SimSetSize_Simulator :
+    @FVP.fvP Indiff0.SIMULATOR _ (SimSetSize Simulator) ≤ Simulator.m.footprint ⊔
+      Simulator.mi.footprint ⊔ Simulator.paths.footprint ⊔
+      Gconcl_list.BIRO2.IRO.mp.footprint := by
+  refine (FVP.fvP_comp_le _ _).trans (sup_le
+    (GaudisCrypt.SHA3.SHA3Security.fvP_Simulator.trans ?_) (fvP_FGetSize.trans bot_le))
+  simp only [sup_assoc, le_refl]
+
+instance : @Module.GlobBound Indiff0.SIMULATOR _ (SimSetSize Simulator)
+    (Simulator.m.footprint ⊔ Simulator.mi.footprint ⊔ Simulator.paths.footprint ⊔
+      Gconcl_list.BIRO2.IRO.mp.footprint) :=
+  ⟨fvP_SimSetSize_Simulator, by fp_finite⟩
+
+/-- `SimSetSize(Simulator, F).init` is `Simulator.init`: the simulator is the first port's
+module, which `proc` does not open behind the clone's accessor (GAP 6). -/
+theorem SimSetSize_init_eq (F : Indiff0.FUNCTIONALITY) :
+    SimSetSize(Simulator, F).init = Simulator.init := by
+  unfold SimSetSize
+  rw [Module.app_comp]
+  erw [Simulator.apply_simp]
+  exact Module.fst_pair _ _
+
+/-- `CSetSize(Sponge)` applied to `Perm` at the clone's module types (in `Indiff0.GReal`) is
+`CSetSize(Sponge, Perm)` at the sponge's, by definition: `init`. -/
+theorem CSetSize_Sponge_Perm_init (C : Indiff0.CONSTRUCTION) (P : Indiff0.PRIMITIVE)
+    (hC : C = CSetSize Sponge) (hP : P = Perm) :
+    «C»(P).init = CSetSize(Sponge, Perm).init := by
+  subst hC hP
+  rfl
+
+/-- As `CSetSize_Sponge_Perm_init`: `f`. -/
+theorem CSetSize_Sponge_Perm_f (C : Indiff0.CONSTRUCTION) (P : Indiff0.PRIMITIVE)
+    (hC : C = CSetSize Sponge) (hP : P = Perm) :
+    «C»(P).f = CSetSize(Sponge, Perm).f := by
+  subst hC hP
+  rfl
+
+
+/-! ## Section `Preimage` (EC l. 125–475) -/
 
 namespace Preimage
 
@@ -525,6 +648,257 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
       ec_auto
       ec_progress
       exact GaudisCrypt.SHA3.SHA3Security.Params.size_out_gt0.le
+
+section
+
+-- (the restriction as for `Dist` in `Pilot/SHA3Indiff.lean`: EC's, and the variables of the
+-- sections' local modules, which are fresh in EC)
+-- EC: declare module A <: SRO.AdvPreimage {-SRO.RO.RO, -SRO.RO.FRO, -SRO.Bounder, -Perm,
+--   -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -BIRO.IRO, -F.RO, -F.FRO, -Redo, -C, -Gconcl.S,
+--   -BlockSponge.BIRO.IRO, -BlockSponge.C, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
+--   -Gconcl_list.Simulator, -DPre}.
+declare module A <: SRO.AdvPreimage {-SRO.RO, -SRO.FRO, -SRO.Bounder, -Perm,
+  -Gconcl_list.BIRO2.IRO, -Simulator, -Cntr, -IRO, -SLCommon.F.RO, -SLCommon.F.FRO,
+  -SLCommon.Redo, -SLCommon.C, -Gconcl.S, -BlockSponge.BIRO.IRO, -BlockSponge.C,
+  -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO, -Gconcl_list.Simulator, -DPre,
+  -Gconcl_list.SimLast,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
+
+-- EC: declare axiom A_ll (F <: SRO.Oracle {-A}) : islossless F.get => islossless A(F).guess.
+variable (A_ll : ∀ (F <: SRO.Oracle {-R}), islossless F.get → islossless A(F).guess)
+
+include R A_ll
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: EC's two `have`s, each a `byequiv` through the adversary's oracle
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`A` against the modules of the lemmas applied)
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma Sponge_preimage_resistant &m ha :
+(DPre.h{m} = ha) =>
+Pr[SRO.Preimage(A, FM(CSetSize(Sponge), Perm)).main(ha) @ &m : res] <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r +
+(sigma + 1)%r / (2%r ^ size_out)`. -/
+theorem Sponge_preimage_resistant (m : VariableAssignment) (ha : f_out) :
+    DPre.h.get m = ha →
+    Pr[ SRO.Preimage(A, FM(CSetSize(Sponge), Perm)).main (ha) @ &m : §res ] ≤
+      ((GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 - GaudisCrypt.SHA3.SHA3Indiff.limit : ℤ) : ℝ) /
+          ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * GaudisCrypt.SHA3.SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
+  intro init_ha
+  -- EC: rewrite -(doutE1 ha).
+  rw [div_eq_mul_inv ((sigma + 1 : ℤ) : ℝ), ← doutE1 ha]
+  -- EC: rewrite(preimage_resistant_if_indifferentiable A A_ll (CSetSize(Sponge)) Perm &m ha
+  --       init_ha).
+  refine S.preimage_resistant_if_indifferentiable A (CSetSize Sponge) Perm m ha init_ha ?_
+  -- EC: exists (SimSetSize(Simulator))=>//=; split.
+  refine ⟨SimSetSize Simulator, inferInstance, ?_, ?_⟩
+  -- EC: + by move=> F _; proc; inline*; auto.
+  · intro F _
+    rw [SimSetSize_init_eq]
+    phoare_proc; phoare_inline*; phoare_auto
+  -- EC: have->//:Pr[Indiff0.Indif(CSetSize(Sponge, Perm), Perm, DPre(A)).main() @ &m : res] =
+  --       Pr[RealIndif(Sponge, Perm, DRestr(DSetSize(DPre(A)))).main() @ &m : res].
+  have h1 : Pr[ Indiff0.GReal(CSetSize(Sponge), Perm, DPre(A)).main () @ &m : §res ] =
+      Pr[ RealIndif(Sponge, Perm, DRestr(DSetSize(DPre(A)))).main () @ &m : §res ] := by
+    -- EC: byequiv=>//=; proc.
+    byequiv (_ : §allGlobals{1} = §allGlobals{2} ∧ §DPre.h{1} = ha ==> ={res})
+    case judgment =>
+      equiv_proc
+      --     (GAP 6: `CSetSize(Sponge)` applied to `Perm` at the clone's module types)
+      erw [CSetSize_Sponge_Perm_init _ _ rfl rfl, CSetSize_Sponge_Perm_f _ _ rfl rfl]
+      -- EC: inline DPre(A, CSetSize(Sponge, Perm), Perm).distinguish.
+      --     inline SRO.Preimage(A, FInit(CSetSize(Sponge, Perm))).main.
+      --     (GAP 3: the paths do not elaborate over the first port's views: by call site)
+      stmt_inline{1} 2; stmt_inline{1} 2
+      -- EC: inline DRestr(DSetSize(DPre(A)), Sponge(Perm), Perm).distinguish
+      --       DSetSize(DPre(A), FC(Sponge(Perm)), PC(Perm)).distinguish
+      --       SRO.Preimage(A, FInit(DFSetSize(FC(Sponge(Perm))))).main.
+      stmt_inline{2} 2; stmt_inline{2} 3; stmt_inline{2} 3; stmt_inline{2} 3
+      -- EC: inline Perm.init CSetSize(Sponge, Perm).init Sponge(Perm).init
+      --       FC(Sponge(Perm)).init SRO.Counter.init Cntr.init
+      --       SRO.Bounder(FInit(CSetSize(Sponge, Perm))).init
+      --       SRO.Bounder(FInit(DFSetSize(FC(Sponge(Perm))))).init
+      --       FInit(CSetSize(Sponge, Perm)).init
+      --       FInit(DFSetSize(FC(Sponge(Perm)))).init; sp.
+      repeat stmt_inline{1} 0
+      repeat stmt_inline{2} 0
+      stmt_sp
+      -- EC: wp; sp; sim 2 2.
+      stmt_wp
+      -- EC: seq 1 1 : (={m, hash, glob DPre, glob SRO.Counter, glob Perm}
+      --       /\ invm Perm.m{1} Perm.mi{1} /\ DPre.h{1} = ha
+      --       /\ ={c}(SRO.Counter,Cntr)); last first.
+      equiv_seq 1 1 : (={m, hash, DPre.h, SRO.Counter.c, Perm.m, Perm.mi} ∧
+        invm §Perm.m{1} §Perm.mi{1} ∧ §DPre.h{1} = ha ∧ §SRO.Counter.c{1} = §Cntr.c{2})
+      swap
+      -- EC: - if; auto; sp.
+      · stmt_if
+        · ec_close
+        · -- EC: exists* m{1}, SRO.Counter.c{1}; elim* => mess c.
+          equiv_exists* §m{1}, §SRO.Counter.c{1}
+          intro mess c
+          -- EC: by call(equiv_sponge_perm c mess); auto; smt().
+          stmt_wp
+          equiv_call (equiv_sponge_perm c mess)
+          --     (the clone's `increase_counter`, `bound_counter` are the file's by definition)
+          ec_auto; ec_progress
+          exact le_of_lt ‹_›
+        · ec_auto
+      -- EC: call(: ={glob SRO.Counter, glob Perm, glob DPre, glob SRO.Bounder}
+      --       /\ DPre.h{1} = ha
+      --       /\ invm Perm.m{1} Perm.mi{1} /\ ={c}(SRO.Counter,Cntr)).
+      equiv_call (_ : ={SRO.Counter.c, Perm.m, Perm.mi, DPre.h, SRO.Bounder.bounder} ∧
+        §DPre.h{1} = ha ∧ invm §Perm.m{1} §Perm.mi{1} ∧ §SRO.Counter.c{1} = §Cntr.c{2})
+      -- EC: + proc; sp; if; auto; sp; if; auto; sp.
+      · equiv_proc; stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_sp
+          stmt_if
+          · ec_close
+          · stmt_sp
+            -- EC: exists * x{1}; elim* => m c1 c2 b1 b2.
+            equiv_exists* §x{1}, §Cntr.c{2}
+            intro m' c1
+            -- EC: by call(equiv_sponge_perm c1 m); auto; smt().
+            equiv_call (equiv_sponge_perm c1 m')
+            ec_auto; ec_progress
+            · exact le_of_lt ‹SecureRO.increase_counter _ _ < _›
+            · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
+          · ec_auto; ec_close
+        · ec_auto
+      -- EC: auto; progress.
+      --     by rewrite /invm=> x y; rewrite 2!emptyE.
+      --     (GAP 7: `DPre.h` and `glob A` past the initializations' writes, from the two
+      --     memories' equation, by hand)
+      ec_auto; ec_progress
+      · have h := congrArg DPre.h.get ‹Perm.m.set _ _ = _›
+        simp_reads_all; exact h
+      · have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
+        simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+        exact h
+      · have h := congrArg DPre.h.get ‹Perm.m.set _ _ = _›
+        simp_reads_all; exact h
+      · have h := congrArg DPre.h.get ‹Perm.m.set _ _ = _›
+        simp_reads_all; exact h
+  -- EC: have->//:Pr[Indiff0.Indif(RO, SimSetSize(Simulator, RO), DPre(A)).main() @ &m : res] =
+  --       Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(DPre(A)))).main() @ &m : res].
+  have h2 : Pr[ Indiff0.GIdeal(RO, SimSetSize(Simulator), DPre(A)).main () @ &m : §res ] =
+      Pr[ IdealIndif(IRO.asF, Simulator, DRestr(DSetSize(DPre(A)))).main () @ &m : §res ] := by
+    -- EC: byequiv=>//=; proc.
+    byequiv (_ : §allGlobals{1} = §allGlobals{2} ∧ §DPre.h{1} = ha ==> ={res})
+    case judgment =>
+      equiv_proc
+      --     (GAP 6: `SimSetSize(Simulator, RO).init` is `Simulator.init`)
+      rw [SimSetSize_init_eq]
+      repeat stmt_inline{1} 0
+      repeat stmt_inline{2} 0
+      stmt_sp; stmt_wp
+      -- EC: seq 1 1 : (={m, glob SRO.Counter, glob DPre, hash}
+      --       /\ ={c}(SRO.Counter,Cntr) /\ DPre.h{1} = hash{1}
+      --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); last first.
+      equiv_seq 1 1 : (={m, SRO.Counter.c, DPre.h, hash} ∧ §SRO.Counter.c{1} = §Cntr.c{2} ∧
+        §DPre.h{1} = §hash{1} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2})
+      swap
+      -- EC: - if; auto; sp.
+      · stmt_if
+        · ec_close
+        · -- EC: exists * m{1}, SRO.Counter.c{1}; elim* => mess c.
+          equiv_exists* §m{1}, §SRO.Counter.c{1}
+          intro mess c
+          -- EC: by call(equiv_ro_iro c mess); auto; smt().
+          stmt_wp
+          equiv_call (equiv_ro_iro c mess)
+          ec_auto
+          ec_progress
+          exact le_of_lt ‹_›
+        · ec_auto
+      -- EC: conseq(:_==> ={m, glob SRO.Counter, glob SRO.Bounder, glob DPre}
+      --       /\ ={c}(SRO.Counter,Cntr)
+      --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); progress.
+      --     (GAP 8: EC's `conseq` keeps `DPre.h`, which the adversary does not write; here the
+      --     fact `DPre.h{1} = ha` goes through the call's invariant, as on the real side)
+      equiv_conseq (: _ ==> ={m, SRO.Counter.c, SRO.Bounder.bounder, DPre.h} ∧
+        §SRO.Counter.c{1} = §Cntr.c{2} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §DPre.h{1} = ha)
+      · ec_progress
+        have h := congrArg DPre.h.get ‹Simulator.m.set _ _ = _›
+        simp_reads_all; exact h
+      -- EC: call(: ={glob SRO.Counter, glob SRO.Bounder, glob DPre}
+      --       /\ ={c}(SRO.Counter,Cntr)
+      --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); auto.
+      equiv_call (_ : ={SRO.Counter.c, SRO.Bounder.bounder, DPre.h} ∧
+        §SRO.Counter.c{1} = §Cntr.c{2} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §DPre.h{1} = ha)
+      -- EC: + proc; sp; if; auto; sp; if; auto; sp.
+      · equiv_proc; stmt_sp
+        stmt_if
+        · ec_close
+        · stmt_sp
+          stmt_if
+          · ec_close
+          · -- EC: exists* x{1}; elim* => a c1 c2 b1 b2.
+            equiv_exists* §x{1}, §Cntr.c{2}
+            intro a c1
+            -- EC: call(equiv_ro_iro c1 a); auto; smt().
+            equiv_call (equiv_ro_iro c1 a)
+            ec_auto; ec_progress
+            · exact le_of_lt ‹SecureRO.increase_counter _ _ < _›
+            · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
+          · ec_auto; ec_close
+        · ec_auto
+      --     (GAP 7: `DPre.h` and `glob A` past the initializations' writes)
+      ec_auto; ec_progress
+      · have h := congrArg DPre.h.get ‹Simulator.m.set _ _ = _›
+        simp_reads_all; exact h
+      · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
+        simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
+        exact h
+      · have h := congrArg DPre.h.get ‹Simulator.m.set _ _ = _›
+        simp_reads_all; exact h
+      -- EC: smt(mem_empty).
+      · have h := ‹(SRO.RO.m.get globals₁).dom m›
+        rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
+        exact absurd h (FMap.mem_empty _)
+      · have h := ‹(IRO.mp.get globals₂).dom _›
+        rw [‹IRO.mp.get globals₂ = FMap.empty›] at h
+        exact absurd h (FMap.mem_empty _)
+      · have h := ‹(SRO.RO.m.get globals₁).dom m›
+        rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
+        exact absurd h (FMap.mem_empty _)
+  rw [h1, h2]
+  -- EC: have->//=:= SHA3Indiff (DSetSize(DPre(A))) &m _.
+  refine @Pilot.SHA3Indiff.SHA3Indiff _ _ _ (DSetSize (DPre A)) ⟨by fp_finite, by fp_disjoint⟩
+    (R ⊔ (SRO.Counter.c.footprint ⊔ (SRO.Bounder.bounder.footprint ⊔ DPre.h.footprint)))
+    inferInstance ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ m ?_
+  -- EC: move=> F P P_f_ll P_fi_ll F_ll; proc; inline*; auto; sp; auto.
+  intro F _ P _ P_f_ll P_fi_ll F_ll
+  phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+  -- EC: seq 1 : true; auto.
+  phoare_seq_lossless 1 : (True)
+  -- EC: + call (A_ll (SRO.Bounder(FInit(DFSetSize(F)))) _); auto.
+  · phoare_call (@A_ll _ ?_ ?_)
+    · phoare_auto
+    -- EC: by proc; inline*; sp; if; auto; sp; if; auto; sp; call F_ll; auto.
+    · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+      · stmt_sp; stmt_if
+        · phoare_auto; phoare_call F_ll; phoare_auto
+        · phoare_auto
+      · phoare_auto
+  -- EC: if; auto; sp.
+  --     by call F_ll; auto.
+  · stmt_if
+    · phoare_auto; phoare_call F_ll; phoare_auto
+    · phoare_auto
+
+end
 
 end Preimage
 

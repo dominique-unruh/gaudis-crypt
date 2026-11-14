@@ -184,7 +184,8 @@ the `while` row.
 | `rcondt{i} n` / `rcondf{i} n` | `stmt_rcondt{i} n` / `stmt_rcondf{i} n`, EC's positions; side goal first: `· hoare_auto; …` |
 | `seq n m : P` (pRHL) | `equiv_seq n m : (P)` (leading counts, resets not counted). The old from-the-end cut is `equiv_seq_last` |
 | pHL `seq n : E p₁ p₂ p₃ p₄ I` (upper bound) | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged `invariant, first_E, second_E, first_notE, second_notE, bound` (bounds `1` closed on the spot), `_` bound allowed. `≤` goals only |
-| Hoare/pHL `seq n : P` (one condition) | **missing** as an EC-form tactic (8 uses: SHA3Security, Gconcl_list); `stmt_split k` cuts counting from the end |
+| pHL `seq n : P` on a lossless goal (`islossless`, `phoare[ … ==> 1 ] = 1`) | `phoare_seq_lossless n : (P)` (`Logic/PHoareSeq.lean`); goals `first` (the first `n` statements reach `P` with probability 1; for `seq n : true`, lossless), `second` |
+| Hoare `seq n : P` (one condition) | **missing** as an EC-form tactic (Gconcl_list); `stmt_split k` cuts counting from the end |
 | `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (EC positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k`.  A call moves past assignments, samplings, and deterministic `if`s/sequences of writes to globals outside the callee whose conditions read what the call keeps (`callDet`, Gcol's `swap{1}[1..2]3`).  Not yet: past an assignment whose value reads a global the callee only *reads* (Gcol GAP 4: inline the call first).  **When the moved block and what it moves past both read a variable** (footprints not disjoint), do EC's later `inline *` first (`stmt_inline{i} k`, last call first) so that one side is deterministic code, then `stmt_swap` at EC's positions *after* the inlining (a `reset_vars` counts with the statement after it); EC's later `seq`s then count the inlined statements (Gconcl `G2_G3` `S.f`) |
 | `call (: inv)` (abstract adversary, Hoare) | `hoare_call (: inv)`; goals oracle(s) first, then pre |
 | `call (_ : ={glob A, x…})` (abstract) | `equiv_call (_ : ={glob A, x, …})` |
@@ -192,7 +193,7 @@ the `while` row.
 | `call (_ : bad, I, J)` (up to bad) | `equiv_call (_ : bad, I, J)`; EC's goal order; `D_ll`'s goal: `exact D_ll` (E11: right oracles' `islossless` is one more goal each) |
 | `call (: P ==> Q)` (concrete callees, pRHL) | `equiv_call (_ : P ==> Q)`; callee's judgment first, then pre; the frame of unwritten variables is found |
 | `call (_ : ={glob P})` / `call (_: ={x})` (concrete callee) | `equiv_call (_ : ={glob P})` / `equiv_call (_ : ={x})`, with EC's frame (what the callee does not write keeps its value); the callee's judgment (EC's `1: by sim`) is closed by its footprint |
-| `call H` | `equiv_call (H)`; `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
+| `call H` | `equiv_call (H)` (also where the calls spell the callees differently from `H`: behind a record `(RF.mk { get := M.get }).get`, a view unfolded — `H` is taken to them by their bodies, `Logic/ECProcInv.lean`); `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; `phoare_call H / x, …` for lossless + frame |
 | `sim` / `sim n m` / `sim (_ : I)` / `sim` with `={glob A}` | `sim` / `sim n₁ n₂` / `sim (_ : I)` / `sim / x₁, …, xₙ` (equal except the listed globals).  Calls of different concrete procedures (EC's `sim` goes into them): where plain `sim` makes no progress it inlines the callees, runs again and closes the rest by `auto_close` — so EC's `by sim` stays `sim` (Gconcl `G4_Ideal`).  A partial `sim` is never changed that way.  Two loops: the invariant is the relation after them plus EC's equality set (computed backwards through the bodies, `ECSim.eqBack`: locals written before read are not in it); when that relation reads what the loops change, the equality set alone (Gconcl `G2_G3` `M.f`).  Why `sim` stops: `set_option debug.sim true in sim` (loops, calls, unfinished branches) |
@@ -390,7 +391,7 @@ Document each in the docstring when it applies.
   `call (: true)` on init code is `equiv_call (_ : ={glob D, glob P})`.
 * **`seq`/`proc` counts** match EC only with the EC tactics (`*_proc`, `equiv_seq`); the
   `*_proc_to_stmt` and `equiv_seq_last` forms are older and count differently.
-* **Missing** (counts over the files still to port): Hoare/pHL `seq n : P` (8); `rnd f g` (~14);
+* **Missing** (counts over the files still to port): Hoare `seq n : P`; `rnd f g` (~14);
   procedure-level `transitivity` (2) and `proc (I)` on abstract procedures (4); clone `realize` /
   `proof x by` (~20) and `rename` (6); multi-oracle `fel` (Gext); two-judgment
   `conseq (: _ ==> true) (: _ ==> Q)`; `sim` over abstract calls with differing oracles (use
@@ -525,6 +526,35 @@ Document each in the docstring when it applies.
 * **`Sample.sample` / `LoopSnoc.sample` of EC's theory `Program`**: not modules here.  A
   `transitivity` through them is one `equiv_trans{1}` through the first port's
   `Prog.LoopSnoc.sample` call, first leg `Pilot.SHA3Security.Preimage.dout_LoopSnoc` (E12).
+* **A theory's lemma applied to concrete modules** (`SHA3Security.ec`:
+  `rewrite (preimage_resistant_if_indifferentiable A A_ll (CSetSize(Sponge)) Perm &m ha init_ha)`,
+  `exists (SimSetSize(Simulator))`): give each concrete module its globals once, at the module
+  type the lemma asks for — `@[fp_bound] theorem fvP_M : @FVP.fvP T _ M ≤ x.footprint ⊔ …` and
+  `instance : @Module.GlobBound T _ M (x.footprint ⊔ …) := ⟨fvP_M, by fp_finite⟩` (a bound `⊥` for
+  a module without globals).  Then the restrictions are found by instance search:
+  `refine S.lemma A (CSetSize Sponge) Perm m ha init_ha ?_` and
+  `refine ⟨SimSetSize Simulator, inferInstance, ?_, ?_⟩`.  (`synthInstance.maxHeartbeats 400000`,
+  `synthInstance.maxSize 1024` on the lemma.)
+* **A clone's game over modules of another module type** (`Indiff0.GReal(CSetSize(Sponge), Perm,
+  D)`, the modules declared at the sponge's types): the game applies them at the clone's types,
+  where `inline` and call lemmas stated at the sponge's types do not see them.  State once that
+  the two are equal, by `rfl` (`theorem M_init (C : Indiff0.CONSTRUCTION) (P : Indiff0.PRIMITIVE)
+  (hC : C = CSetSize Sponge) (hP : P = Perm) : «C»(P).init = CSetSize(Sponge, Perm).init := by
+  subst hC hP; rfl`), and rewrite right after `proc`: `erw [M_init _ _ rfl rfl, M_f _ _ rfl rfl]`.
+* **`byequiv` where the proof needs a fact about `&m`** (EC's inferred precondition knows the
+  memory): `byequiv (_ : §allGlobals{1} = §allGlobals{2} ∧ §DPre.h{1} = ha ==> ={res})`; the
+  side goals are closed from the hypotheses.
+* **EC's list of procedures to `inline` in front of an adversary's call** (paths over the first
+  port's views do not elaborate): `repeat stmt_inline{1} 0; repeat stmt_inline{2} 0`, which
+  inline call site by call site and stop at the abstract call; then EC's `sp`, `wp`.
+* **`exists* x{1}; elim* => m c1 c2 b1 b2` after `sp`** (EC names `sp`'s old values): name what
+  the next step needs, `equiv_exists* §x{1}, §Cntr.c{2}; intro m c1`.
+* **`conseq (: _ ==> Q)` in front of an abstract call** does not keep a global that the callee
+  does not write (EC's does, from the restriction): carry the fact through the call's invariant.
+* **`islossless` of a game with the adversary's call in the middle** (EC: `seq 1 : true; auto.
+  + call (A_ll (O) _); auto. …`): `phoare_proc; phoare_inline*; stmt_sp; stmt_wp;
+  phoare_seq_lossless 1 : (True)`, then `phoare_call (@A_ll _ ?_ ?_)` (goals: the code before,
+  the oracle's `islossless`; the restriction hole is closed) and the rest (`stmt_if; …`).
 * **`inline M.f; sim` when `M.f` has a loop**: `sim` does not pass the copies of the
   parameters; `stmt_inline{i} (M.f); stmt_sp; stmt_wp; equiv_while (…)` with the equalities
   between the caller's variables and the copies (`§xs{1} = §xs0{2} ∧ …`).

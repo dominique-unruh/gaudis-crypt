@@ -1378,13 +1378,15 @@ declared at the clone's types.
 | 62, 71 | module | `CSetSize`, `FSetSize` | same names (`init` call-wrapped, E5) | def |
 | 80 | clone import | `IndifRO_is_secure as S` | `clone import … as S with …`, the six `realize`s as `proof *` | def |
 | 103–121 | module | `FGetSize`, `SimSetSize`, `DFSetSize` | same names | def |
-| 121 | module | `DSetSize` | — | todo |
+| 121 | module | `DSetSize` | `DSetSize` (alias call-wrapped, E5) | def |
+| — | (EC reads globals off the code; the clone's module types) | — | `fvP_DSetSize_DPre`, `fvP_CSetSize_Sponge`, `fvP_FGetSize`, `fvP_Perm`, `fvP_SimSetSize_Simulator` with `Module.GlobBound`/`Module.ECGlob` instances; `SimSetSize_init_eq`, `CSetSize_Sponge_Perm_init`, `CSetSize_Sponge_Perm_f` (by `rfl`; GAP 6) | exc |
 | 131–165 | local lemmas | `invm_dom_rng`, `invmC'`, `invmC`, `useful` | the first port's (`SHA3Security.Preimage.*`) | first port |
 | 168 | local equiv | `equiv_sponge_perm` | `Preimage.equiv_sponge_perm` (EC's script; GAP 1–3 of the file) | done |
 | 199–211 | ops, clone | `same_ro`, `same_ro2`, `Program as Prog` | the first port's `same_ro`, `same_ro2`, `Preimage.Prog` | first port |
 | — | (EC: `Sample_LoopSnoc_eq` of theory `Program`, under `rnd to_list (…)`) | — | `Preimage.dout_LoopSnoc`: `dout` against the call of `LoopSnoc.sample` (E12; first port's rule) | exc |
 | 213 | local equiv | `equiv_ro_iro` | `Preimage.equiv_ro_iro` (EC's script; EC's two `transitivity` steps through `Sample`, `LoopSnoc` are one; GAP 4, 5 of the file) | done |
-| 392–475 | section `Preimage` | `Sponge_preimage_resistant`, `SHA3_preimage_resistant` | — | todo |
+| 392 | declare | `A`, `A_ll` | `declare module A <: SRO.AdvPreimage {…} with glob R`, `A_ll` over `{-R}` (E14) | def |
+| 397 | lemma | `Sponge_preimage_resistant` | `Preimage.Sponge_preimage_resistant` (EC's script; GAP 3, 6–8 of the file; `phoare_seq_lossless`, `equiv_call (H)` aligned) | done |
 | 479–865 | section `SecondPreimage` | | — | todo |
 | 869–1239 | section `Collision` | | — | todo |
 | 1241–1274 | modules, section `SHA3_Collision` | `X`, `AdvCollisionSHA3`, `SHA3_coll_resistant` | — | todo |
