@@ -10,7 +10,8 @@ set_option ec.strict true
 # Top-level proof of SHA-3 security, with failing oracles (EasyCrypt `proof/SHA3OSecurity.ec`) —
 EC-fidelity port, in progress
 
-Ported so far: the clones `SORO`, `SH` and the file's modules (EC l. 1–175).
+Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and the local modules
+of section `Preimage` (EC l. 194–300).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -25,6 +26,13 @@ Translation:
   `SH.OIndif.…`, as EC's `OIndif.OFUNCTIONALITY` after the clone;
 * `FSetSize(F)` aliases `init`: wrapped in a call (exception E5);
   `OSponge(P) = FSetSize(CSome(Sponge, P))` is `Module.comp FSetSize (CSome Sponge)`.
+* EC's module types are structural: a sponge-level `OFUNCTIONALITY` is an `ODFUNCTIONALITY`,
+  an `OPRIMITIVE` an `ODPRIMITIVE` of `SH.OIndif` too.  Here each such use is a coercion,
+  declared once (`module_subtype`);
+* the sections' local modules are modules of the namespace of their section (`Preimage.FInit`,
+  …); their variables (`Log.m`, `RFList.m`) are `global_var`s, which the section's adversary
+  is restricted against (fresh in EC); a local module that takes the section's adversary has
+  it as a Lean parameter (`Dist_of_P1Adv A`, `SORO_P1 A`).
 -/
 
 -- the clones contain modules named like their theories; kept (exception E1)
@@ -134,5 +142,182 @@ module FIgnoreSize using (F : SH.OIndif.ODFUNCTIONALITY) : OFUNCTIONALITY {
 /-- EC's `module (OSponge : OIndif.OCONSTRUCTION) (P : OIndif.ODPRIMITIVE) =
 FSetSize(CSome(Sponge,P))`. -/
 noncomputable def OSponge : SH.OIndif.OCONSTRUCTION := Module.comp FSetSize (CSome Sponge)
+
+-- EC's subtyping of the sponge's module types (`SHA3_OIndiff`'s `OIndif`), as coercions
+module_subtype OFUNCTIONALITY <: ODFUNCTIONALITY
+module_subtype OPRIMITIVE <: ODPRIMITIVE
+-- … and of the clone `SH`'s: a sponge-level primitive is one of `SH.OIndif`'s (EC's module types
+-- are structural)
+module_subtype OPRIMITIVE <: SH.OIndif.ODPRIMITIVE
+
+/-! ## Section `Preimage` (EC l. 190–916), in progress: its local modules -/
+
+namespace Preimage
+
+-- EC's local `module FInit (F : OIndif.ODFUNCTIONALITY) : OIndif.OFUNCTIONALITY`; `proc f = F.f`
+-- is wrapped in a call (E5)
+module FInit using (F : SH.OIndif.ODFUNCTIONALITY) : SH.OIndif.OFUNCTIONALITY {
+  proc init () : Unit {
+    return ()
+  };
+  proc f (x : List Bool) : (Option f_out) {
+    var y : Option f_out;
+    y <- call F.f ($x);
+    return $y
+  };
+}
+
+-- EC's local `module PInit (P : ODPRIMITIVE) : OPRIMITIVE`; its aliases are wrapped in a call (E5)
+module PInit using (P : ODPRIMITIVE) : OPRIMITIVE {
+  proc init () : Unit {
+    return ()
+  };
+  proc f (x : GaudisCrypt.SHA3.SHA3Indiff.state) : (Option GaudisCrypt.SHA3.SHA3Indiff.state) {
+    var y : Option GaudisCrypt.SHA3.SHA3Indiff.state;
+    y <- call P.f ($x);
+    return $y
+  };
+  proc fi (x : GaudisCrypt.SHA3.SHA3Indiff.state) : (Option GaudisCrypt.SHA3.SHA3Indiff.state) {
+    var y : Option GaudisCrypt.SHA3.SHA3Indiff.state;
+    y <- call P.fi ($x);
+    return $y
+  };
+}
+
+-- EC's local `module OF (F : Oracle) : OIndif.ODFUNCTIONALITY`; `proc f = F.get` is wrapped in a
+-- call (E5)
+module OF using (F : SORO.Oracle) : SH.OIndif.ODFUNCTIONALITY {
+  proc f (x : List Bool) : (Option f_out) {
+    var y : Option f_out;
+    y <- call F.get ($x);
+    return $y
+  };
+}
+
+-- EC's local `module Log = { var m : (bool list * int, bool) fmap }`
+global_var Log.m : FMap (List Bool × ℤ) Bool
+
+-- EC's local `module ExtendOutputSize (F : Oracle) : ODFUNCTIONALITY`
+module ExtendOutputSize using (F : SORO.Oracle) : ODFUNCTIONALITY {
+  proc f (xk : List Bool × ℤ) : (Option (List Bool)) {
+    var x : List Bool, k : ℤ, o : Option f_out, l : Option (List Bool), suffix : List Bool,
+      «prefix» : List Bool, i : ℤ, r : Bool;
+    x, k <- $xk;
+    l <- (none : Option (List Bool));
+    «prefix» <- [];
+    suffix <- [];
+    o <- call F.get ($x);
+    «prefix» <- take $k (to_list (oget $o));
+    i <- size_out;
+    while (decide ($i < $k)) {
+      if (!(decide (FMap.dom $Log.m ($x, $i)))) {
+        r <$ dbool;
+        Log.m <- FMap.set $Log.m ($x, $i) $r;
+      }
+      suffix <- rcons $suffix (oget (FMap.get $Log.m ($x, $i)));
+      i <- $i + 1;
+    }
+    l <- some ($«prefix» ++ $suffix);
+    return $l
+  };
+}
+
+/-- EC's `local module OFC2 (F : Oracle) = OFC(ExtendOutputSize(F))`. -/
+noncomputable def OFC2 : SORO.Oracle →ₘ OFUNCTIONALITY := Module.comp OFC ExtendOutputSize
+
+-- EC's local `module ExtendOutput (F : RF)`; `proc f = ExtendOutputSize(F).f` is wrapped in a
+-- call (E5), `proc get = f` is `ExtendOutput.get`
+module ExtendOutput using (F : SORO.RF_T) {
+  proc init () : Unit {
+    Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
+    _ <- call F.init ();
+    return ()
+  };
+  proc f (xk : List Bool × ℤ) : (Option (List Bool)) {
+    var y : Option (List Bool);
+    y <- call ExtendOutputSize(F).f ($xk);
+    return $y
+  };
+}
+
+-- EC's local `module (Dist_of_P1Adv (A : SH.AdvPreimage) : ODISTINGUISHER) (F : ODFUNCTIONALITY)
+-- (P : ODPRIMITIVE)`, with `A` a Lean parameter
+open Classical in
+set_option linter.gaudisCrypt.using false in
+module Dist_of_P1Adv (A : SH.AdvPreimage) using (F : ODFUNCTIONALITY, P : ODPRIMITIVE) {
+  proc distinguish () : Bool {
+    var hash : f_out, hash' : Option f_out, m : List Bool;
+    Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
+    hash <$ dout;
+    m <- call A(DFSetSize(F), P).guess ($hash);
+    hash' <- call DFSetSize(F).f ($m);
+    return decide ($hash' = some $hash)
+  };
+}
+
+-- EC's local `module (SORO_P1 (A : SH.AdvPreimage) : SORO.AdvPreimage) (F : Oracle)`, with `A` a
+-- Lean parameter
+set_option maxHeartbeats 10000000 in
+-- the `module` command's typing proof of this nest of oracles
+set_option linter.gaudisCrypt.using false in
+module SORO_P1 (A : SH.AdvPreimage) using (F : SORO.Oracle) {
+  proc guess (h : f_out) : (List Bool) {
+    var mi : List Bool;
+    Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
+    Counter.c <- 0;
+    _ <- call OSimulator(ExtendOutputSize(F)).init ();
+    mi <- call A(DFSetSize(OFC(ExtendOutputSize(F))),
+      OPC(OSimulator(ExtendOutputSize(F)))).guess ($h);
+    return $mi
+  };
+}
+
+-- EC's local `module RFList`
+global_var RFList.m : FMap (List Bool) f_out
+
+module RFList : SORO.RF_T {
+  proc init () : Unit {
+    RFList.m <- (FMap.empty : FMap (List Bool) f_out);
+    return ()
+  };
+  proc get (x : List Bool) : (Option f_out) {
+    var z : List Bool;
+    if (!(decide (FMap.dom $RFList.m $x))) {
+      z <$ dlist dbool size_out;
+      RFList.m <- FMap.set $RFList.m $x (oget (of_list $z));
+    }
+    return FMap.get $RFList.m $x
+  };
+  proc sample (_x : List Bool) : Unit {
+    return ()
+  };
+}
+
+-- EC's local `module RFWhile`
+module RFWhile : SORO.RF_T {
+  proc init () : Unit {
+    RFList.m <- (FMap.empty : FMap (List Bool) f_out);
+    return ()
+  };
+  proc get (x : List Bool) : (Option f_out) {
+    var l : List Bool, i : ℤ, b : Bool;
+    if (!(decide (FMap.dom $RFList.m $x))) {
+      i <- 0;
+      l <- [];
+      while (decide ($i < size_out)) {
+        b <$ dbool;
+        l <- rcons $l $b;
+        i <- $i + 1;
+      }
+      RFList.m <- FMap.set $RFList.m $x (oget (of_list $l));
+    }
+    return FMap.get $RFList.m $x
+  };
+  proc sample (_x : List Bool) : Unit {
+    return ()
+  };
+}
+
+end Preimage
 
 end GaudisCrypt.SHA3.Pilot.SHA3OSecurity

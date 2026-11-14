@@ -1533,7 +1533,9 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 105 | clone import | `SecureHash as SH` | `clone import … as SH with …` | def |
 | 143–175 | module | `FSetSize`, `DFSetSize`, `FIgnoreSize`, `OSponge` | same names (`FSetSize.init` call-wrapped, E5; `OSponge` by `Module.comp`) | def |
 | 177–188 | clone import | `Program as PBool`, `FullRO as Eager` | — | todo |
-| 190–916 | section `Preimage` | | — | todo |
+| 192 | declare | `A` (section `Preimage`) | — | todo |
+| 194–300 | local modules | `FInit`, `PInit`, `OF`, `Log`, `ExtendOutputSize`, `OFC2`, `ExtendOutput`, `Dist_of_P1Adv`, `SORO_P1`, `RFList`, `RFWhile` | `Preimage.*`, same names (`Log.m`, `RFList.m` `global_var`s; aliases call-wrapped, E5; `A` a Lean parameter) | def |
+| 301–916 | section `Preimage`, lemmas | `rw_RF_List_While`, `eq_IRO_RFWhile`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 
