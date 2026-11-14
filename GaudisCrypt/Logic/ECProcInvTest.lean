@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.ECProcInv
+import GaudisCrypt.Logic.ECCallFrame
 import GaudisCrypt.Logic.ECClose
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.ECModuleBinders
@@ -63,6 +64,25 @@ theorem Inc_Inc2 : equiv[ Inc.get (x) ~ Inc2.get (x) :
   equiv_proc; equiv_auto
   rintro _ _ _ _ ⟨rfl, h⟩
   exact ⟨rfl, by rw [h]; ring⟩
+
+/-! ## `hoare_call (: P ==> Q) / x` -/
+
+-- EC's `call (: true ==> true)` in a Hoare triple, past `pOther`, which `Inc.get` does not write
+-- (EC, for the side goal of `rcondt`: `by auto; inline*; auto; conseq (: _ ==> true); auto`); the
+-- trivial triple about the callee is closed
+/--
+trace: ⊢ hoare[ §pOther = 0 ==> ∀ (r : ℤ) (g : VariableAssignment), pOther.get g = §pOther → pOther.get g = 0 ] {
+      skip;
+}
+-/
+#guard_msgs in
+example : hoare[ §pOther = 0 ==> §pOther = 0 ] {
+      var x : ℤ, r : ℤ;
+      r <- call (Inc.get).procedure (§x);
+    } := by
+  hoare_call (: True ==> True) / pOther
+  trace_state
+  ec_auto
 
 /-! ## `clear_decl_hyps` (what the closers do in front of `simp_all`) -/
 
