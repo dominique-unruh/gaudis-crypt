@@ -1381,7 +1381,10 @@ declared at the clone's types.
 | 121 | module | `DSetSize` | — | todo |
 | 131–165 | local lemmas | `invm_dom_rng`, `invmC'`, `invmC`, `useful` | the first port's (`SHA3Security.Preimage.*`) | first port |
 | 168 | local equiv | `equiv_sponge_perm` | `Preimage.equiv_sponge_perm` (EC's script; GAP 1–3 of the file) | done |
-| 199–475 | section `Preimage` | `same_ro`, `same_ro2`, `Prog`, `equiv_ro_iro`, …, `SHA3_preimage_resistant` | — | todo |
+| 199–211 | ops, clone | `same_ro`, `same_ro2`, `Program as Prog` | the first port's `same_ro`, `same_ro2`, `Preimage.Prog` | first port |
+| — | (EC: `Sample_LoopSnoc_eq` of theory `Program`, under `rnd to_list (…)`) | — | `Preimage.dout_LoopSnoc`: `dout` against the call of `LoopSnoc.sample` (E12; first port's rule) | exc |
+| 213 | local equiv | `equiv_ro_iro` | `Preimage.equiv_ro_iro` (EC's script; EC's two `transitivity` steps through `Sample`, `LoopSnoc` are one; GAP 4, 5 of the file) | done |
+| 392–475 | section `Preimage` | `Sponge_preimage_resistant`, `SHA3_preimage_resistant` | — | todo |
 | 479–865 | section `SecondPreimage` | | — | todo |
 | 869–1239 | section `Collision` | | — | todo |
 | 1241–1274 | modules, section `SHA3_Collision` | `X`, `AdvCollisionSHA3`, `SHA3_coll_resistant` | — | todo |

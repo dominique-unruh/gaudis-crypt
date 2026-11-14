@@ -509,6 +509,22 @@ Document each in the docstring when it applies.
   `refine prhlStmt_skip ?_`, `rintro σ₁ σ₂ ⟨…⟩` and build the conjunction with lemmas that work
   up to `rfl` (`hin.ge`, `congrArg₂ take hsz hbs`, …), since the conditions are not in read
   normal form there.
+* **`wp; rnd; auto; progress` where the strict `auto` fails with "maximum recursion depth"**
+  (two-sided loop body whose invariant has quantified conjuncts over a map that the body sets;
+  `Pilot/SHA3Security.lean`, `equiv_ro_iro`): `equiv_rnd; equiv_skip; ec_progress` gives EC's
+  bullets (the trivial ones closed).  The one-sided side goal of `rcondt{2} 1; 1:auto; progress`
+  there: `intro σ₁; hoare_skip; rintro … ⟨…⟩` and EC's argument by hand.
+* **Bullets after `ec_progress` have anonymous hypotheses**: cite them by statement
+  (`‹same_ro m₁ mp›`, `‹∀ l j, mp.dom (l, j) → mp₂.dom (l, j)› _ _ ‹_›`).  A witness left as `_`
+  in an anonymous constructor is not found by `‹0 ≤ _›` (the goal still has the metavariable):
+  `refine ⟨_, ?_, ?_, h⟩ <;> assumption`, the component that fixes it given as a term.
+* **`rw [lemma …]` whose instance is stated on a class field** (`Params.spec_dout r` is about
+  `Params.to_list`, the goal about the operator `to_list`): the pattern is not found; state the
+  fact first at the operators (`have ht : take size_out (to_list r) = to_list r :=
+  take_oversize _ _ (le_of_eq (Params.spec_dout r))`) and rewrite with `ht`.
+* **`Sample.sample` / `LoopSnoc.sample` of EC's theory `Program`**: not modules here.  A
+  `transitivity` through them is one `equiv_trans{1}` through the first port's
+  `Prog.LoopSnoc.sample` call, first leg `Pilot.SHA3Security.Preimage.dout_LoopSnoc` (E12).
 * **`inline M.f; sim` when `M.f` has a loop**: `sim` does not pass the copies of the
   parameters; `stmt_inline{i} (M.f); stmt_sp; stmt_wp; equiv_while (…)` with the equalities
   between the caller's variables and the copies (`§xs{1} = §xs0{2} ∧ …`).
