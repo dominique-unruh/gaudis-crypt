@@ -534,6 +534,17 @@ Document each in the docstring when it applies.
   §x{2})`, then `equiv_proc (§x{1} = §x{2}); equiv_proc; sim` for the simulator's oracles, and
   for a concrete oracle `have H : equiv[ F.f (x) ~ F.f (x) : ={x, X} ==> ={res, X} ] := by
   equiv_proc; sim` then `equiv_conseq_frame H`.
+* **`inline*; sim n m; sp` at the start of a game** (`SHA3_OIndiff`): EC's positions do not
+  count our inliner's `reset_vars` statements.  Use `stmt_inline*; stmt_wp` (the assignments
+  after the distinguisher's call), leave the initializations before the call, and close the
+  last goal with `ec_auto; simp (disch := fp_disjoint) only [touched_set_of_le_compl]; ec_close`.
+  `sim` in front of a conditional (EC: `sim; if; …`) is `sim 1 1` (the code after it).
+* **Probing a long script cheaply**: write every leaf as
+  `first | (ec_close; done) | (trace "name"; sorry)` (or with `ec_auto`, `ec_auto; ec_close`),
+  compile once, read which names were printed, then replace each `first` by the alternative
+  that worked.  Never `simp_all` on a goal after `sp`: it can eat the whole budget.  An operator
+  that EC's `auto` unfolds (`increase_counter`) is unfolded once after `inline*`
+  (`simp only [increase_counter]`); the closers do not unfold definitions.
 * **`equiv_call (_ : ={glob M} ∧ I)` must not be parenthesized**: `(_ : (={glob M} ∧ I))` is
   read as an invariant without a `glob` part and fails ("the conditions read … which is not a
   global variable").

@@ -1012,6 +1012,13 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean`, namespace `GaudisCrypt.SHA3
 | 196 | local module | `OD` | section . | `OD` (`D` a Lean parameter) | def |
 | 205 | lemma | `SHA3OIndiff` | section . | `SHA3OIndiff` (+ `OGext0Fresh`, E13). The two `have … byequiv` are `real_equiv`, `ideal_equiv`: equal-outside abstract calls over `ocL = (Counter.c, Cntr.c)` with `ocI`. Oracle steps: the counters `opc_f`, `opc_fi`, `ofc_f` (EC's `rcondt{2}` as `equiv_if{2}` + `prhlStmt_false`), and below them `SomeEquiv`: `real_F` (`Sponge_f_equiv`, `poget_psome_f`), `psome_f(i)`, `fsome_f`, `osim_f`, `osim_fi`. Then `security (OD(Dist))`: `fvP_OD`, `Counter_DistRestrictions`; `OD(Dist)` lossless by `h` and `OPC_DPSome_f(i)_ll`, `OFC_DFSome_f_ll` (pHL) | exc |
 
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3_OIndiff.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.SHA3_OIndiff`, over the first port's modules of the file; complete):
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 205 | lemma | `SHA3OIndiff` | `SHA3OIndiff` (EC's script: the two `have … byequiv` inline, each `call (: inv)` with its three oracle bullets, then `security (OD(Dist))`.  Deviations: `sim n m; sp` at the start of a game is `wp`, the initializations stay before the call, GAP 3; `sim` through loops is the `while` rule, GAP 2; `Perm` behind the first port's records opened by `simp only`, GAP 1; the hypothesis on `Dist` applied at the records `OD` passes on, GAP 4; `Dist` with a region for its `glob`, E14) | done |
+
 ## `proof/SecureHash.eca`
 
 Lean: `GaudisCrypt/Examples/SHA3/SecureHash.lean`, namespace `GaudisCrypt.SHA3.SecureHash`.
