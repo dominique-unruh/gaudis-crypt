@@ -233,7 +233,7 @@ macro_rules
         | (apply And.intro <;> auto_close)
         | (split_ifs <;> auto_close)
         | (intro _; auto_close)
-        | (simp_all; done)
+        | (clear_decl_hyps; simp_all; done)
         | fail "auto_close: a goal is left (state the lemmas EC's `smt` is given, or close it \
             by hand)"
       done))
@@ -244,7 +244,7 @@ into a runtime limit (a rewriting cycle among the hypotheses, e.g. the frames of
 reaching the recursion limit), which `try`/`first` would not catch. -/
 elab "simp_all_done_safe" : tactic => do
   let s ← saveState
-  tryCatchRuntimeEx (evalTactic (← `(tactic| (simp_all; done)))) fun _ => do
+  tryCatchRuntimeEx (evalTactic (← `(tactic| (clear_decl_hyps; simp_all; done)))) fun _ => do
     s.restore
     throwError "simp_all_done_safe: simp_all did not close the goal"
 

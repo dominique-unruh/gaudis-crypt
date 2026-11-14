@@ -59,9 +59,9 @@ elab "ec_auto" : tactic => do
       | rfl
       | trivial
       | exact le_rfl
-      | (simp_all; done)
+      | (clear_decl_hyps; simp_all; done)
       | ((try simp only [decide_eq_true_eq, decide_eq_false_iff_not] at *)
-         casesm* _ ∧ _; (try subst_vars); glob_reads; first | assumption | (simp_all; done)))))
+         casesm* _ ∧ _; (try subst_vars); glob_reads; first | assumption | (clear_decl_hyps; simp_all; done)))))
 
 open Lean Meta Elab Tactic in
 /-- **`ec_intro`**: introduce the values a strict `skip` generalized (the goal's leading binders

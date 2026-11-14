@@ -64,6 +64,22 @@ theorem Inc_Inc2 : equiv[ Inc.get (x) ~ Inc2.get (x) :
   rintro _ _ _ _ ⟨rfl, h⟩
   exact ⟨rfl, by rw [h]; ring⟩
 
+/-! ## `clear_decl_hyps` (what the closers do in front of `simp_all`) -/
+
+-- a declared module's restriction is cleared (`simp_all` would simplify it, at a cost); the
+-- other hypotheses stay
+/--
+trace: A : Orc
+p : Prop
+hp : p
+⊢ p
+-/
+#guard_msgs in
+example (A : Orc) [Module.Declared A pCount.footprint] (p : Prop) (hp : p) : p := by
+  clear_decl_hyps
+  trace_state
+  exact hp
+
 /-! ## `equiv_call (H)`, the callees spelled differently -/
 
 -- EC's `call Inc_Inc2` where the calls name the oracles behind a record (a game that passes its

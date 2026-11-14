@@ -154,7 +154,8 @@ elab "phoare_seq_lossless " n:num " : " P:term:max : tactic => do
     let (ms, _, ty) ← forallMetaTelescope (← inferType c)
     let names := (← inferType c).getForallBinderNames
     let idx (n : Name) : TacticM Nat := do
-      let some i := names.findIdx? (· == n) | throwError "phoare_seq_lossless: no argument `{n}`"
+      let some i := names.findIdx? (· == n)
+        | throwError "phoare_seq_lossless: no argument `{n}`"
       return i
     unless ← isDefEq ms[← idx `P]! Pe do
       throwError "phoare_seq_lossless: the condition does not fit"

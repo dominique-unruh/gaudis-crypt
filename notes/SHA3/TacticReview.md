@@ -573,13 +573,22 @@ changes (1–3 and 8) were made in one batch, each with a golden test (`Syntax/C
 6. **EC's per-procedure `inline` lists** before an adversary's call: paths over the first port's
    views do not elaborate (GAP 3), so the calls before the adversary's are inlined by call site,
    `repeat stmt_inline{i} 0` (it stops at the abstract call).
-7. **Cost.**  `Sponge_preimage_resistant` needs `maxHeartbeats 40000000` and takes about 17
-   minutes to check.  The profiler (`set_option profiler true`) on its ideal half: 398 s in
-   `simp` over 83 calls of 4–5 s each, 100 s in typeclass inference, 45 s in "congr simp thm"
-   (the panics of item 1, with their backtraces).  The 4–5 s per `simp` call is the same for
-   every step of the script (`stmt_inline`, `stmt_sp`, `ec_auto`, …), so it is a fixed cost of
-   the context rather than of the goal; the declared adversary's restriction (a join of some
-   sixty footprints in an instance hypothesis) is the first suspect.  Not investigated further.
+7. **Cost: the closers' `simp_all` on a declared module's restrictions.**
+   `Sponge_preimage_resistant` took 17 minutes to check.  The profiler (`set_option profiler
+   true`) on its ideal half: 398 s in `simp` over 83 calls of 4–5 s each.  The cost does not
+   depend on the goal: `equiv[ ={Cntr.c} ==> ={Cntr.c} ] { Cntr.c <- §Cntr.c + 1; } ~ { … }` by
+   `ec_auto` takes 3.7 s inside the section that declares the adversary and no measurable time
+   outside it.  The cause is the closing attempt of `auto` (`simp_all; done`): `simp_all`
+   simplifies every hypothesis, and the adversary's restriction (`Module.Declared A S`, `S` a
+   join of some sixty footprints; `Footprint.Restricted R S`) is one, which the default simp set
+   can do nothing with but tries on every subterm.  Fix: `clear_decl_hyps` (`Logic/ECAuto.lean`)
+   clears these hypotheses in front of `simp_all` in the closers of `equiv_auto`, `hoare_auto`,
+   `ec_auto`, `auto_close`, `auto_progress` — only where the goal is then closed or the step
+   undone, since the footprint tactics need them.  (`sim`'s closer is left alone: one of its
+   alternatives discharges by `fp_disjoint`.)  Effect on the full build, seconds per file before
+   and after: `Pilot/SHA3Security` 1026 → 74, `Pilot/SHA3_OIndiff` 1473 → 147,
+   `Pilot/SHA3Indiff` 171 → 81, `Pilot/Gconcl_list` 630 → 502, `Pilot/Gconcl` 488 → 398,
+   `Pilot/Gext` 374 → 269, `Pilot/Gcol` 205 → 150.
 8. **pHL `seq n : P` on a lossless goal** was missing (EC: `seq 1 : true; auto.` in each
    section's losslessness of `DSetSize(D(A))`): `phoare_seq_lossless n : (P)`
    (`Logic/PHoareSeq.lean`, rule `phoareStmt_seq_eq_one`).  A new name: `phoare_seq n : (P)`
