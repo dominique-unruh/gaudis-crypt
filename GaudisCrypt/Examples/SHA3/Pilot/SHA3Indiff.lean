@@ -1,11 +1,12 @@
-import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
+import GaudisCrypt.Examples.SHA3.Pilot.Gconcl_list
+import GaudisCrypt.Examples.SHA3.Pilot.Sponge
 import GaudisCrypt.Examples.SHA3.SHA3Indiff
 
 -- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
 set_option ec.strict true
 
 /-!
-# Indifferentiability of the sponge (EasyCrypt `proof/SHA3Indiff.ec`) — EC-fidelity port
+# Indifferentiability of the sponge (EasyCrypt `proof/SHA3Indiff.ec`) — EC-fidelity port, complete
 
 The lemmas of `SHA3Indiff.ec` in EC's scripts, over the old port's declarations of `Simulator`,
 `Cntr`, `FC`, `PC`, `DRestr` (`SHA3Indiff.lean`), as `Pilot/Gconcl.lean` over the old `Gconcl`.
@@ -14,7 +15,9 @@ Translation:
 * `require import Common Sponge. import BIRO.` is the `open` below.
 * EC's section `declare module Dist <: DISTINGUISHER {-…}` and `declare axiom Dist_lossless` are a
   `declare module` and a variable; the restriction also names the modules of the files whose
-  lemmas the proofs use (fresh in EC).
+  lemmas the proofs use (fresh in EC).  `Dist` has a region for its `glob` (`with glob R`,
+  exception E14): `security` applies `Sponge.conclusion` and `Gconcl_list.Real_Ideal` to
+  `DRestr(Dist)` and `LowerDist(Dist)`, and `Dist_lossless` restricts its oracles against `R`.
 -/
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
@@ -30,6 +33,9 @@ Translation:
 * GAP 2: our inliner renames a callee's locals per side (`x3, n0` against `x0, n` in
   `equiv_sim_f`'s IRO loops), so `sim` cannot relate loops by name where EC's does: `while` with
   the renamed variables' equalities.
+* GAP 6: the first port's `LowerDist(D, F, P)` passes `P` on as the record of its procedures
+  (the bit-level module type's view of a block-level primitive), where EC's alias passes `P`:
+  in `security`, `Dist_lossless` is applied at that record.
 * GAP 1: inline by name: EC's paths over `Perm` (`BlockSponge.FC(BlockSponge.Sponge(Perm)).f`) do
   not elaborate over the old declarations (`Perm` is not a `BlockSponge.DPRIMITIVE`; Gcol's GAP 2):
   by index.
@@ -53,15 +59,44 @@ variable [SLCommon.Params] [BlockSponge.Params] [Gconcl_list.Params]
     FVP.fvP (RaiseSim S) ≤ FVP.fvP S ⊔ FVP.fvP LowerFun := by
   unfold RaiseSim; exact FVP.fvP_comp_le _ _
 
+-- EC reads the globals of `DRestr(Dist)` and `LowerDist(Dist)` off their code
+attribute [local fp_bound] GaudisCrypt.SHA3.SHA3Indiff.fvP_DRestr
+  GaudisCrypt.SHA3.SHA3Indiff.fvP_LowerDist
+
+/-- EC's `glob Gconcl_list.SimLast(Gconcl.S)`: the variables of `Gconcl.S` and
+`Gconcl_list.BIRO2.IRO.mp`. -/
+instance instECGlobSimLast : Module.ECGlob (Gconcl_list.SimLast Gconcl.S)
+    (Gconcl.S.m.footprint ⊔ Gconcl.S.mi.footprint ⊔ Gconcl.S.paths.footprint ⊔
+      Gconcl_list.BIRO2.IRO.mp.footprint) :=
+  ⟨by fp_finite, by fp_le, ⟨_, by fp_finite, Footprint.le_glob _⟩⟩
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob LowerDist(Dist)`: `glob Dist` (`LowerDist` has no variables). -/
+instance instECGlobLowerDist (D : DISTINGUISHER) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob D R] : Module.ECGlob (LowerDist D) R :=
+  ⟨h.finite.mono (GaudisCrypt.SHA3.SHA3Indiff.fvP_LowerDist D),
+    (GaudisCrypt.SHA3.SHA3Indiff.fvP_LowerDist D).trans h.le, h.base⟩
+
 section
 
+-- (after EC's list: the modules of the files `security` goes through, fresh for `Dist` in EC,
+-- where they are local to their sections or defined after `Dist`'s restriction is checked;
+-- `with glob R`, exception E14)
 declare module Dist <: DISTINGUISHER {-Perm, -Gconcl_list.SimLast, -IRO, -Cntr,
   -BlockSponge.BIRO.IRO, -Simulator, -BlockSponge.C, -Gconcl.S, -SLCommon.F.RO, -SLCommon.F.FRO,
   -SLCommon.Redo, -SLCommon.C, -Gconcl_list.BIRO2.IRO, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
-  -Gconcl_list.Simulator}
+  -Gconcl_list.Simulator,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
 
--- EC's `declare axiom Dist_lossless`
-variable (Dist_lossless : ∀ (F <: DFUNCTIONALITY {-Dist}), ∀ (P <: DPRIMITIVE {-Dist}),
+-- EC's `declare axiom Dist_lossless` (`glob Dist` as the region `R`)
+variable (Dist_lossless : ∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
   islossless P.f → islossless P.fi → islossless F.f → islossless Dist(F, P).distinguish)
 
 set_option maxHeartbeats 4000000 in
@@ -315,6 +350,107 @@ theorem replace_simulator (m : VariableAssignment) :
     have h := congrArg (FVP.fvP Dist).touched_getter.get ‹Gconcl_list.BIRO2.IRO.mp.set _ _ = _›
     simp (disch := fp_disjoint) only [touched_set_of_le_compl] at h
     auto_close
+
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`Dist` against the modules of the lemmas used)
+set_option synthInstance.maxSize 1024 in
+include Dist_lossless in
+/-- EC's `lemma security &m :
+`|Pr[RealIndif(Sponge, Perm, DRestr(Dist)).main() @ &m : res] -
+Pr[IdealIndif(IRO, Simulator, DRestr(Dist)).main() @ &m : res]| <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r`. -/
+theorem security (m : VariableAssignment) :
+    |Pr[ RealIndif(Sponge, Perm, DRestr(Dist)).main () @ &m : §res ] -
+      Pr[ IdealIndif(IRO.asF, Simulator, DRestr(Dist)).main () @ &m : §res ]| ≤
+    ((limit ^ 2 - limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+      ((4 * limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) := by
+  -- EC: rewrite -(replace_simulator &m).
+  rw [← replace_simulator Dist m]
+  -- EC: rewrite exprSr 1:addz_ge0 1:ge0_r 1:ge0_c mulrC exprD_nneg 1:ge0_r 1:ge0_c.
+  --     have -> : … by rewrite (fromintM 2); smt().
+  --     rewrite/=.
+  --     have -> : … rewrite exprS // expr1 /#.
+  --     rewrite -/SLCommon.dstate /limit.
+  --     (the bound as `Gconcl_list.Real_Ideal` states it: the first port's `bound_eq`)
+  refine le_of_le_of_eq ?_ GaudisCrypt.SHA3.SHA3Indiff.bound_eq
+  -- EC: have->:=conclusion (Gconcl_list.SimLast(Gconcl.S)) (DRestr(Dist)) &m.
+  rw [@Pilot.Sponge.conclusion _ _ (Gconcl_list.SimLast Gconcl.S) ⟨by fp_finite, by fp_disjoint⟩ _
+    instECGlobSimLast ⟨by fp_finite, by fp_disjoint⟩ (DRestr Dist) ⟨by fp_finite, by fp_disjoint⟩
+    GaudisCrypt.SHA3.SHA3Indiff.SimLast_ECModule.1 m]
+  -- EC: have//=:=(Gconcl_list.Real_Ideal (LowerDist(Dist))  _ &m).
+  have h := @Pilot.Gconcl_list.Real_Ideal _ _ _ (LowerDist Dist) ⟨by fp_finite, by fp_disjoint⟩ R
+    inferInstance inferInstance ?_ m
+  -- EC: + move=>F P hp hpi hf'//=.
+  --       have hf:islossless RaiseFun(F).f.
+  --       - proc;call hf';auto.
+  --       exact(Dist_lossless (RaiseFun(F)) P hp hpi hf).
+  swap
+  · intro F _ P _ hp hpi hf'
+    have hf : islossless RaiseFun(F).f := by
+      phoare_proc; phoare_call hf'; phoare_auto
+    --     (E5: `LowerDist(Dist)` wraps EC's alias in a call; EC checks `RaiseFun(F)`'s
+    --     restriction, here its declaration by `fp_finite`, `fp_disjoint`)
+    --     (GAP 6: the first port's `LowerDist` passes `P` on as the record of its procedures,
+    --     at the bit-level module type: `Dist_lossless` at that record)
+    phoare_proc
+    phoare_call (@Dist_lossless (Module.app RaiseFun F) ⟨by fp_finite, by fp_disjoint⟩
+      (SHA3.Indifferentiability.DPRIMITIVE.mk (block × capacity) (List Bool × ℤ) (List Bool)
+        { f := SHA3.Indifferentiability.DPRIMITIVE.f (block × capacity) (List block × ℤ)
+            (List block) P
+          fi := SHA3.Indifferentiability.DPRIMITIVE.fi (block × capacity) (List block × ℤ)
+            (List block) P })
+      ⟨by fp_finite, by fp_disjoint⟩
+      (by simpa only [SHA3.Indifferentiability.DPRIMITIVE.f.mk_simp] using hp)
+      (by simpa only [SHA3.Indifferentiability.DPRIMITIVE.fi.mk_simp] using hpi) hf)
+    phoare_auto
+  -- EC: rewrite(drestr_commute1 &m) (drestr_commute2 &m).
+  rw [drestr_commute1 Dist m, drestr_commute2 Dist m]
+  -- EC: have->:=Gconcl_list.Simplify_simulator (LowerDist(Dist)) _ &m.
+  rw [@Pilot.Gconcl_list.Simplify_Simulator.Simplify_simulator _ _ _ (LowerDist Dist)
+    ⟨by fp_finite, by fp_disjoint⟩ m] at h
+  -- EC: smt().
+  exact h
+
+end
+
+section
+
+declare module Dist <: DISTINGUISHER {-Perm, -Gconcl_list.SimLast, -IRO, -Cntr,
+  -BlockSponge.BIRO.IRO, -Simulator, -BlockSponge.C, -Gconcl.S, -SLCommon.F.RO, -SLCommon.F.FRO,
+  -SLCommon.Redo, -SLCommon.C, -Gconcl_list.BIRO2.IRO, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
+  -Gconcl_list.Simulator,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
+
+set_option synthInstance.maxHeartbeats 400000 in
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma SHA3Indiff (Dist <: DISTINGUISHER{-Perm, -IRO, -BlockSponge.BIRO.IRO, -Cntr,
+-Simulator, -Gconcl_list.SimLast(Gconcl.S), -BlockSponge.C, -Gconcl.S, -SLCommon.F.RO,
+-SLCommon.F.FRO, -SLCommon.Redo, -SLCommon.C, -Gconcl_list.BIRO2.IRO, -Gconcl_list.F2.RO,
+-Gconcl_list.F2.FRO, -Gconcl_list.Simulator}) &m :
+(forall (F <: DFUNCTIONALITY {-Dist}) (P <: DPRIMITIVE {-Dist}), islossless P.f =>
+islossless P.fi => islossless F.f => islossless Dist(F,P).distinguish) =>
+`|Pr[RealIndif(Sponge, Perm, DRestr(Dist)).main() @ &m : res] -
+Pr[IdealIndif(IRO, Simulator, DRestr(Dist)).main() @ &m : res]| <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r`.
+
+The restriction and `glob Dist` as in the section above. -/
+theorem SHA3Indiff (m : VariableAssignment) :
+    (∀ (F <: DFUNCTIONALITY {-R}), ∀ (P <: DPRIMITIVE {-R}),
+      islossless P.f → islossless P.fi → islossless F.f → islossless Dist(F, P).distinguish) →
+    |Pr[ RealIndif(Sponge, Perm, DRestr(Dist)).main () @ &m : §res ] -
+      Pr[ IdealIndif(IRO.asF, Simulator, DRestr(Dist)).main () @ &m : §res ]| ≤
+    ((limit ^ 2 - limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+      ((4 * limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) := by
+  -- EC: move=>h;apply (security Dist h &m).
+  intro h
+  exact security Dist h m
 
 end
 

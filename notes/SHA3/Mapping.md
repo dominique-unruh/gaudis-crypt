@@ -975,7 +975,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 
 **EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3Indiff.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.SHA3Indiff`, over the old `Simulator`, `Cntr`, `FC`, `PC`, `DRestr`;
-calibration file, not in the barrel yet):
+complete):
 
 | EC line | kind | EC name | Lean name | status |
 |---:|---|---|---|---|
@@ -985,9 +985,9 @@ calibration file, not in the barrel yet):
 | 185 | lemma | `drestr_commute2` | `drestr_commute2` (EC's script) | done |
 | 225 | local equiv | `equiv_sim_f` | `equiv_sim_f` (EC's script; GAP 2: the IRO loops by `while` with renamed variables) | done |
 | 245 | local equiv | `equiv_sim_fi` | `equiv_sim_fi` (EC's script) | done |
-| 255 | local lemma | `replace_simulator` | `replace_simulator` (EC's script; the two oracle bullets `sorry`, GAP 3) | partial |
-| 270 | lemma | `security` | — (chains through `Sponge.conclusion`, `Gconcl_list.Real_Ideal`, `Simplify_simulator`: wait for their pilots) | todo |
-| 309 | lemma | `SHA3Indiff` | — | todo |
+| 255 | local lemma | `replace_simulator` | `replace_simulator` (EC's script) | done |
+| 270 | lemma | `security` | `security` (EC's script; the bound's arithmetic by the first port's `bound_eq`; `conclusion` and `Real_Ideal` at `DRestr(Dist)`, `LowerDist(Dist)` with EC's restriction checks as instances, E14; `Dist_lossless` at the record `LowerDist` passes on, GAP 6) | done |
+| 309 | lemma | `SHA3Indiff` | `SHA3Indiff` (its own section; `intro h; exact security Dist h m`) | done |
 
 ## `proof/SHA3_OIndiff.ec`
 
