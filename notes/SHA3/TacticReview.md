@@ -698,3 +698,15 @@ Items for the next batch (nothing else was changed):
 6. **Speed**: `rw_ideal_2` 24 min, `rw_ideal` 12, `rw_real` 10, the final lemma 4 (its `sim /`
    2.5); the module takes about 55 minutes.
 
+## `SHA3OSecurity.ec`, section `Collision` (2026-11-15): no tactic change
+
+The section is `SecondPreimage`'s with the fixed message removed; its Lean text was generated
+from that section's proofs.  One finding for the batch:
+
+1. **Inlining renames a callee's locals against the *other* side's variables** (`m1` → `m10`
+   on the left because the right game has an `m1`).  EC keeps the names (its memories are
+   separate), so EC's `={m1, m2}` cannot be written as is, and `§m1{1}` for a variable the
+   left side does not have is accepted silently (it reads an unrelated local).  To do: fresh
+   names per side only; and an error (or a warning) when a relational condition reads a
+   local that the side's statement does not declare.
+

@@ -904,7 +904,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 2153 | lemma | `conclusion` |  | `conclusion` | done |
 
 **EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Sponge.lean`, namespace
-`GaudisCrypt.SHA3.Pilot.Sponge`, over the first port's modules; in progress, EC's order):
+`GaudisCrypt.SHA3.Pilot.Sponge`, over the first port's modules; complete, EC's order):
 
 | EC line | kind | EC name | Lean name | status |
 |---:|---|---|---|---|
@@ -1365,7 +1365,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` (+ `AGext0Fresh A`, E13; `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` over `glob A`, E14: `glob AdvCollisionSHA3(A) = glob A` is syntactic in EC) | done (exc E13, E14) |
 
 **EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3Security.lean`, namespace
-`GaudisCrypt.SHA3.Pilot.SHA3Security`; in progress).  The clone `S` is `clone` over the *pilot*
+`GaudisCrypt.SHA3.Pilot.SHA3Security`; complete).  The clone `S` is `clone` over the *pilot*
 `IndifRO_is_secure`; the sponge-level modules (`Sponge`, `Perm`, `Simulator`, `FC`, …) are the
 first port's, which fit the clone's module types by definition; the file's own modules are
 declared at the clone's types.
@@ -1522,7 +1522,7 @@ Status (2026-11-06): complete, no `sorry`.
 
 
 **EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3OSecurity.lean`, namespace
-`GaudisCrypt.SHA3.Pilot.SHA3OSecurity`; in progress).  The clones `SORO`, `SH` are `clone` over
+`GaudisCrypt.SHA3.Pilot.SHA3OSecurity`; complete, 2026-11-15).  The clones `SORO`, `SH` are `clone` over
 the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (`OSimulator`,
 `OFC`, `CSome`, …) are the first port's `SHA3_OIndiff`.
 
@@ -1566,7 +1566,14 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 1738–1770 | local lemma | `rw_real` | `SecondPreimage.rw_real`: EC's script; the judgment of `byequiv` written out (parameter, fact about `&m`), GAP 6–8 as in `Preimage` | done |
 | 1772–1779 | local module | `TOTO` | `SecondPreimage.TOTO (A)` | done |
 | 1781–1803 | lemma | `Sponge_second_preimage_resistant` | `SecondPreimage.Sponge_second_preimage_resistant`: EC's script, with the new `bypr`; the judgments of `byphoare` and `call` written out (GAP 9), `sim / Dist_of_P2Adv.m` with one hand step (GAP 10), EC's `sp` left to `auto` (GAP 11) | done |
-| 1808–2651 | section `Collision` | | — | todo |
+| 1808–2165 | section `Collision`, local modules and A-independent lemmas | `FInit` … `Fill_In`, `rw_RF_List_While`, `eq_IRO_RFWhile`, `eq_extend`, `of_listK`, `eq_eager_ideal`, `eq_eager_ideal2`; `toto`, `titi` | section `Preimage`'s (textually the same in EC), opened; `toto`, `titi` are `SecondPreimage`'s | done |
+| 1867–1890, 2165–2181 | local modules | `Dist_of_CollAdv`, `SORO_Coll`, `Dist`, `Game` | `Collision.Dist_of_CollAdv (A)`, `Collision.SORO_Coll (A)`, `Collision.Dist (A)`, `Collision.Game (A)` (the unused `var m` of `Dist_of_CollAdv` not declared) | done |
+| 2182–2309 | local lemma | `eager_ideal` | `Collision.eager_ideal`: EC's script | done |
+| 2359–2511 | local lemma | `rw_ideal_2` | `Collision.rw_ideal_2`: EC's script; the left game's inlined `m1`, `m2` are `m10`, `m20` | done |
+| 2512–2597 | local lemma | `rw_ideal` | `Collision.rw_ideal`: EC's script | done |
+| 2598–2606 | local lemma | `leq_ideal` | `Collision.leq_ideal`: EC's script; `fvP_SORO_Coll`, `Module.Declared (SORO_Coll A) …` | done |
+| 2608–2632 | local lemma | `rw_real` | `Collision.rw_real`: EC's script; the right game's inlined locals are `m10`, `m20`, `hash10`, `hash20` | done |
+| 2634–2651 | lemma | `Sponge_collision_resistant` | `Collision.Sponge_collision_resistant`: EC's script | done |
 
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
 

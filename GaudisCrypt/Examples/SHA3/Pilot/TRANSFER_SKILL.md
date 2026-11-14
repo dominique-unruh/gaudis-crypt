@@ -738,6 +738,18 @@ Document each in the docstring when it applies.
   `module` command's `apply_simp` proof is left unsolved on the clone's game).
 * **`Countable` side conditions** of the theory lemmas (`RO_is_second_preimage_resistant`):
   an instance, `Countable f_out` from `to_list_inj`.
+* **An inlined game's locals are renamed where the other side has variables of those
+  names** (`Collision`: `m1`, `m2`, `hash1`, `hash2` of `Dist_of_CollAdv` against the game's
+  own; they become `m10`, `m20`, `hash10`, `hash20` on the inlined side).  EC's `={m1, m2}`
+  written as is then relates a variable the side does not have: nothing fails at the `seq`,
+  the leaves do (a counter test about an unrelated value, `inv` goals with no hypothesis).
+  Write `§m10{1} = §m1{2} ∧ §m20{1} = §m2{2}`; `trace_state` after the inlining shows the
+  names.
+* **A section that repeats another one** (`Collision` after `SecondPreimage`: EC's text
+  differs in a few lines): diff the two EC sections lemma by lemma, generate the Lean text
+  from the finished section's by the same edits (a script with exact, asserted
+  replacements), and compile lemma by lemma with the others stubbed.  Five of six lemmas
+  compiled on the first run.
 * **The scratch file imports the pilot file**: it must not declare again what the pilot
   already has (after a splice: the section's header and the new lemma only), and it sees the
   pilot's *last built* `.olean` — lemmas spliced since then are stubbed in the scratch.
