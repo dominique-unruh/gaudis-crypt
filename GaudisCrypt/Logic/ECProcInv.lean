@@ -9,6 +9,7 @@ import GaudisCrypt.Logic.ECAutoStrict
     equiv_proc (I)           -- EC's `proc (I)` on `equiv[ A(O₁).f ~ A(O₂).f : P ==> Q ]`
     equiv_call (_ : I)       -- EC's `call (_ : I)` on a procedure with a rule (`@[proc_inv]`)
     equiv_conseq_frame H     -- EC's `conseq H` on a procedure judgment, with EC's frame
+    equiv_call (H)           -- EC's `call H`, also where the calls spell the callees differently
 
 ## `equiv_proc (I)`
 
@@ -410,6 +411,50 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
     let `(term| (_ : $I)) := h | Lean.Elab.throwUnsupportedSyntax
     unless ← ECProcInv.lastCallsHaveRule do Lean.Elab.throwUnsupportedSyntax
     ECProcInv.byRule I
+
+open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv ECProcInv in
+/-- **EC's `call H`** where the calls spell the callees differently from `H` (a procedure behind
+a record, `(RF.mk { get := M.get }).get`; a view that a functor has unfolded): `H` is taken to
+the callees as the calls spell them, the two having the same body (`ECProcInv.alignProc`), and
+the call is by that judgment (the rules of `Logic/ECCallEquiv.lean`, `Logic/PRHLWp.lean`).  Where
+`H` is about the callees as spelled, or is written with holes that the callees fill
+(`equiv_call (L _ _)`), those rules apply directly. -/
+elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
+  | `(tactic| equiv_call $h:term) => withMainContext do
+    if let `(term| (_ : $_)) := h then throwUnsupportedSyntax
+    let s ← saveState
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_call"
+    let g' ← HoareSplit.hoareSplit 1 g
+    let hJ? : Option Lean.Expr ← g'.withContext <|
+      tryCatchRuntimeEx (m := TacticM) (do
+        let ty ← prhlGoal g' "equiv_call"
+        let M₁ ← lastCallee (ty.getArg! 1)
+        let M₂ ← lastCallee (ty.getArg! 2)
+        let hJ ← Term.elabTerm h none
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let hJ ← instantiateMVars hJ
+        -- holes for the callees to fill: the other rules' business
+        if hJ.hasExprMVar then return none
+        let hty := (← instantiateMVars (← inferType hJ)).cleanupAnnotations
+        unless hty.isAppOfArity ``prhlProc 6 do return none
+        let p₁ := hty.getArg! 3
+        let p₂ := hty.getArg! 4
+        let q₁ ← mkAppM ``Module.Proc.procedure #[M₁]
+        let q₂ ← mkAppM ``Module.Proc.procedure #[M₂]
+        if (← withReducible (isDefEq p₁ q₁)) && (← withReducible (isDefEq p₂ q₂)) then
+          return none
+        let args := hty.getAppArgs
+        let m ← mkFreshExprSyntheticOpaqueMVar
+          (mkAppN hty.getAppFn ((args.set! 3 q₁).set! 4 q₂))
+        let g₁ ← alignProc m.mvarId! 3 p₁
+        let g₂ ← alignProc g₁ 4 p₂
+        g₂.assign hJ
+        return some (← instantiateMVars m))
+        (fun _ => pure none)
+    s.restore
+    let some hJ := hJ? | throwUnsupportedSyntax
+    evalTactic (← `(tactic| equiv_call $(← Term.exprToSyntax hJ)))
 
 open Lean Meta Elab Tactic GaudisCrypt ECCallEquiv ECProcInv in
 /-- **EC's `conseq H`** on a procedure judgment, with EC's frame: see the module docstring.

@@ -13,6 +13,7 @@ import GaudisCrypt.Logic.ECSpTest
 import GaudisCrypt.Logic.ECTransTest
 import GaudisCrypt.Logic.ECConseqHoareTest
 import GaudisCrypt.Logic.ECProcInvTest
+import GaudisCrypt.Syntax.CloneTest
 import GaudisCrypt.Logic.ECWhileRelTest
 import GaudisCrypt.Logic.GlobWritesTest
 import GaudisCrypt.Logic.InlineTest

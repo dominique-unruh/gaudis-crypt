@@ -64,6 +64,37 @@ theorem Inc_Inc2 : equiv[ Inc.get (x) ~ Inc2.get (x) :
   rintro _ _ _ _ ⟨rfl, h⟩
   exact ⟨rfl, by rw [h]; ring⟩
 
+/-! ## `equiv_call (H)`, the callees spelled differently -/
+
+-- EC's `call Inc_Inc2` where the calls name the oracles behind a record (a game that passes its
+-- oracle on as `Orc.mk { get := … }`): `H` is taken to the callees as the calls spell them
+/--
+trace: ⊢ equiv[ §x{1} = §x{2} ∧ §pCount{2} = 2 * §pCount{1} ==>
+      (§x{1} = §x{2} ∧ §pCount{2} = 2 * §pCount{1}) ∧
+        ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+          r₁ = r₂ ∧ pCount.get g₂ = 2 * pCount.get g₁ → r₁ = r₂ ∧ pCount.get g₂ = 2 * pCount.get g₁ ]
+      {
+      var x : ℤ;
+      skip;
+} ~
+    {
+      skip;
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ ={x} ∧ §pCount{2} = 2 * §pCount{1} ==> ={r} ∧ §pCount{2} = 2 * §pCount{1} ] {
+      var x : ℤ, r : ℤ;
+      r <- call ((Orc.mk { get := Inc.get }).get).procedure (§x);
+    } ~ {
+      var x : ℤ, r : ℤ;
+      r <- call ((Orc.mk { get := Inc2.get }).get).procedure (§x);
+    } := by
+  equiv_call (Inc_Inc2)
+  trace_state
+  sorry
+
 /-! ## `equiv_conseq_frame H` -/
 
 -- EC's `conseq H`: `pOther`, which the goal's postcondition reads and the procedures do not

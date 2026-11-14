@@ -144,6 +144,10 @@ instance Footprint.Outside.sup_right {B a b : Footprint VariableAssignment}
   ⟨(Footprint.le_compl_comm _ _).mpr (sup_le ((Footprint.le_compl_comm _ _).mp ha.le)
     ((Footprint.le_compl_comm _ _).mp hb.le))⟩
 
+/-- A module without globals (its bound is `⊥`) stays outside everything. -/
+instance Footprint.Outside.bot (S : Footprint VariableAssignment) : Footprint.Outside ⊥ S :=
+  ⟨bot_le⟩
+
 /-- Two `global_var`s: their `Lens.Disjoint` instance. -/
 instance Footprint.Outside.var {T U : Type} (x : Lens T VariableAssignment)
     (y : Lens U VariableAssignment) [Lens.Disjoint x y] :

@@ -177,6 +177,7 @@ import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 import GaudisCrypt.Syntax.CloneRegistry
 import GaudisCrypt.Syntax.Clone
+import GaudisCrypt.Syntax.CloneTest
 import GaudisCrypt.Syntax.ModuleSubtypeTest
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHL2Upto

@@ -50,10 +50,14 @@ syntax (name := cloneCmd) "clone " (&"import")? ident ppSpace &"as" ppSpace iden
 namespace Clone
 
 /-- Declarations of the theory that are not aliased: internal ones, the generated equations and
-auxiliary recursors, instances, and inductive types with their constructors and recursors (an
-alias of a structure would not have its constructor notation). -/
+auxiliary recursors, Lean's reserved names (`T.x.congr_simp`, `T.x.eq_def`, …: Lean makes them
+on demand for the alias `C.x` itself; a copy, a statement about `T.x`, would be found in their
+place, and `simp` panics on a `congr_simp` it did not make), instances, and inductive types with
+their constructors and recursors (an alias of a structure would not have its constructor
+notation). -/
 def skip (env : Environment) (n : Name) : Bool :=
   n.isInternalDetail || isPrivateName n || isAuxRecursor env n || isNoConfusion env n ||
+    isReservedName env n ||
     (match env.find? n with
      | some (.defnInfo _) | some (.thmInfo _) => false
      | _ => true)
@@ -242,6 +246,8 @@ elab_rules : command
                                    hints := ReducibilityHints.abbrev, safety := .safe })
               modifyEnv (addNoncomputable · aliasN)
               setReducibilityStatus aliasN .reducible
+              -- Lean's lemmas on demand (`C.x.congr_simp`, …) for the alias, as for a `def`
+              enableRealizationsForConst aliasN
             if let some doc ← findDocString? (← getEnv) c then addDocStringCore aliasN doc
           catch _ => s.restore
         pending := rest

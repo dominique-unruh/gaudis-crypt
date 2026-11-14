@@ -17,6 +17,13 @@ first `n` statements (EC's count), with `E` and `I` written like the judgment's 
 The goals, in EC's order: `I` (a Hoare triple about `c₁`), `c₁`'s bounds for `E`, `c₂`'s from
 `E ∧ I`, `c₁`'s for `¬E`, `c₂`'s from `¬E ∧ I`, the arithmetic.  A bound `1` on an event
 (EC's `1%r`) is closed on the spot.
+
+## `seq n : P` on a lossless goal
+
+For `phoare[ c₁; c₂ : A ==> 1 ] = 1` (`islossless`), EC's `seq n : P` asks that `c₁` reaches `P`
+with probability `1` and that `c₂` is lossless from `P` (`phoareStmt_seq_eq_one`):
+`phoare_seq_lossless n : (P)`, goals `first`, `second`.  With `P = True` (EC's `seq n : true`)
+the first goal is the losslessness of `c₁`.
 -/
 
 namespace GaudisCrypt
@@ -52,6 +59,25 @@ theorem phoareStmt_indicator_le_one (A : ProgramState → Prop) (s : Stmt) (E : 
   intro σ _
   refine (Stmt.ewp_mono s (G := fun _ => 1) (fun τ => ?_) σ).trans (Stmt.ewp_const_le s 1 σ)
   by_cases h : E τ <;> simp [h]
+
+/-- **pHL's `seq n : P` for a lossless goal** (`phoare[ c₁; c₂ : A ==> 1 ] = 1`): `c₁` reaches
+`P` with probability `1`, and from `P` the rest is lossless. -/
+theorem phoareStmt_seq_eq_one {A : ProgramState → Prop} {s₁ s₂ : Stmt} (P : ProgramState → Prop)
+    (h₁ : phoareStmt A s₁ (fun τ => indicatorE (P τ)) Eq (fun _ => 1))
+    (h₂ : phoareStmt P s₂ (fun _ => 1) Eq (fun _ => 1)) :
+    phoareStmt A (.seq s₁ s₂) (fun _ => 1) Eq (fun _ => 1) := by
+  classical
+  intro σ hA
+  rw [Stmt.ewp_seq]
+  refine le_antisymm ?_ ?_
+  · exact (Stmt.ewp_mono s₁ (G := fun _ => 1) (fun τ => Stmt.ewp_const_le s₂ 1 τ) σ).trans
+      (Stmt.ewp_const_le s₁ 1 σ)
+  · refine (h₁ σ hA).ge.trans (Stmt.ewp_mono s₁ (fun τ => ?_) σ)
+    by_cases hP : P τ
+    · rw [indicatorE_of hP]
+      exact (h₂ τ hP).ge
+    · rw [indicatorE_of_not hP]
+      exact bot_le
 
 namespace PHoareSeq
 
@@ -112,6 +138,42 @@ elab "phoare_seq " n:num " : " E:term:max p₁:term:max p₂:term:max p₃:term:
           else pure false
         catch _ => pure false
       unless closed do out := out ++ [m]
+    return out
+  replaceMainGoal gs
+
+open Lean Meta Elab Tactic PHoareSeq PHoareWp in
+/-- **EC's pHL `seq n : P`** on a lossless goal `phoare[ … ==> 1 ] = 1`: split after the first
+`n` statements (EC's count).  Goals: the first `n` statements reach `P` with probability `1`
+(`first`; for `P = True`, lossless), the rest is lossless from `P` (`second`). -/
+elab "phoare_seq_lossless " n:num " : " P:term:max : tactic => do
+  liftMetaTactic1 fun g => some <$> Judgment.onStmt (splitLeading n.getNat) g
+  let Pe ← elabGoalFunction P (mkSort Level.zero)
+  let g ← getMainGoal
+  let gs ← g.withContext do
+    let c ← mkConstWithFreshMVarLevels ``phoareStmt_seq_eq_one
+    let (ms, _, ty) ← forallMetaTelescope (← inferType c)
+    let names := (← inferType c).getForallBinderNames
+    let idx (n : Name) : TacticM Nat := do
+      let some i := names.findIdx? (· == n) | throwError "phoare_seq_lossless: no argument `{n}`"
+      return i
+    unless ← isDefEq ms[← idx `P]! Pe do
+      throwError "phoare_seq_lossless: the condition does not fit"
+    unless ← isDefEq ty (← g.getType) do
+      throwError "phoare_seq_lossless: not `phoare[ … ==> 1 ] = 1` about a sequence\
+        {indentExpr (← g.getType)}"
+    g.assign (mkAppN c ms)
+    let mut out := []
+    for (h, tag) in [(`h₁, `first), (`h₂, `second)] do
+      let m := ms[← idx h]!.mvarId!
+      m.setTag tag
+      let ty ← Core.betaReduce (← instantiateMVars (← m.getType))
+      let m ← m.replaceTargetDefEq ty
+      -- the condition `True`: the first part is lossless
+      let m ← if h == `h₁ then m.withContext do
+          let r ← Judgment.simpWithNames [``indicatorE_true] [] ty
+          if r.expr == ty then pure m else applySimpResultToTarget m ty r
+        else pure m
+      out := out ++ [m]
     return out
   replaceMainGoal gs
 
