@@ -1536,7 +1536,9 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 192 | declare | `A` (section `Preimage`) | — | todo |
 | 194–300 | local modules | `FInit`, `PInit`, `OF`, `Log`, `ExtendOutputSize`, `OFC2`, `ExtendOutput`, `Dist_of_P1Adv`, `SORO_P1`, `RFList`, `RFWhile` | `Preimage.*`, same names (`Log.m`, `RFList.m` `global_var`s; aliases call-wrapped, E5; `A` a Lean parameter) | def |
 | 301 | local equiv | `rw_RF_List_While` | `Preimage.rw_RF_List_While` (EC's script; the two `transitivity` steps through `Sample`, `LoopSnoc` are one, first leg `Preimage.dlist_LoopSnoc`, E12) | done |
-| 331–916 | section `Preimage`, lemmas | `inv`, `eq_IRO_RFWhile`, `eq_extend_size`, `ExtendSample`, `eq_extend`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
+| 331 | op | `inv` | the first port's `inv` | first port |
+| 337 | local equiv | `eq_IRO_RFWhile` | `Preimage.eq_IRO_RFWhile` (EC's script; the fresh case's `conseq` side goal by the first port's `inv_fresh`) | done |
+| 407–916 | section `Preimage`, lemmas | `eq_extend_size`, `ExtendSample`, `eq_extend`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 
