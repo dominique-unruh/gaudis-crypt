@@ -1532,7 +1532,7 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 88 | clone import | `SecureORO as SORO` | `clone import … as SORO with …`, the `realize`s as `proof *` | def |
 | 105 | clone import | `SecureHash as SH` | `clone import … as SH with …` | def |
 | 143–175 | module | `FSetSize`, `DFSetSize`, `FIgnoreSize`, `OSponge` | same names (`FSetSize.init` call-wrapped, E5; `OSponge` by `Module.comp`) | def |
-| 177–188 | clone import | `Program as PBool`, `FullRO as Eager` | — | todo |
+| 177–188 | clone import | `Program as PBool`, `FullRO as Eager` | the first port's `PBool.LoopSnoc.sample`; namespace `Eager` re-exporting the first port's clone (`RO_T`, `RO`, `LRO`, `Eager.RO.m`, `Eager.FRO.m`) | first port |
 | 192 | declare | `A` (section `Preimage`) | — | todo |
 | 194–300 | local modules | `FInit`, `PInit`, `OF`, `Log`, `ExtendOutputSize`, `OFC2`, `ExtendOutput`, `Dist_of_P1Adv`, `SORO_P1`, `RFList`, `RFWhile` | `Preimage.*`, same names (`Log.m`, `RFList.m` `global_var`s; aliases call-wrapped, E5; `A` a Lean parameter) | def |
 | 301 | local equiv | `rw_RF_List_While` | `Preimage.rw_RF_List_While` (EC's script; the two `transitivity` steps through `Sample`, `LoopSnoc` are one, first leg `Preimage.dlist_LoopSnoc`, E12) | done |
@@ -1541,7 +1541,11 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 407 | op | `eq_extend_size` | the first port's `eq_extend_size` | first port |
 | 415 | local module | `ExtendSample` | `Preimage.ExtendSample` | def |
 | 430 | local equiv | `eq_extend` | `Preimage.eq_extend` (EC's script; EC's `smt` on `eq_extend_size` by the first port's `eq_extend_size_set_lt/ge`, `_dom_lt/ge`) | done |
-| 469–916 | section `Preimage`, lemmas | `of_listK`, `Fill_In`, `eq_eager_ideal`, `eq_eager_ideal2`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
+| 469 | local lemma | `of_listK` | `Preimage.of_listK` | done |
+| 474 | local module | `Fill_In` | `Preimage.Fill_In` (`init` call-wrapped, E5) | def |
+| 492 | local equiv | `eq_eager_ideal` | `Preimage.eq_eager_ideal` (EC's script) | done |
+| 512 | local equiv | `eq_eager_ideal2` | `Preimage.eq_eager_ideal2` (EC's script; the list step of the second loop is `take_rcons_le`; names clashing across sides by their lenses, GAP 2) | done |
+| 559–916 | section `Preimage`, lemmas | `Dist`, `Game`, `eager_ideal`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 

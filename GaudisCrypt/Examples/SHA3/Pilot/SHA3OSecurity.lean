@@ -12,7 +12,8 @@ EC-fidelity port, in progress
 
 Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and the local modules
 of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While` (EC l. 301),
-`eq_IRO_RFWhile` (EC l. 337) and `eq_extend` (EC l. 430).
+`eq_IRO_RFWhile` (EC l. 337), `eq_extend` (EC l. 430), `of_listK`, `Fill_In`, `eq_eager_ideal`
+(EC l. 492) and `eq_eager_ideal2` (EC l. 512).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -40,6 +41,12 @@ Translation:
   a coercion of `SH.OIndif.OFUNCTIONALITY` to `SORO.Oracle` (`get` is `f`);
 * a loop that does not write a variable the condition after it reads (EC's `conseq (: _ ==>
   true)`): the variable's fact is kept in the Hoare loop's invariant (GAP 1);
+* `clone import FullRO as Eager with …` is the first port's namespace `SHA3OSecurity.Eager`
+  (`RO_T`, `RO`, `LRO`, the variables `Eager.RO.m`, `Eager.FRO.m`), re-exported under `Eager`;
+* a variable of an inlined callee whose name is also one of the other side, or of the
+  precondition at another type (`x1`{1}, `x0`{2}), and a variable the statement no longer
+  mentions (`k` after `wp`, in `splitwhile`'s condition) are written with their lenses,
+  `§(localVarLens "x0" (List Bool)){2}` (GAP 2);
 * EC's `alias{1} 1 mp = BIRO.IRO.mp` names the map before a loop: `equiv_exists* §IRO.mp{1}`;
 * the sections' local modules are modules of the namespace of their section (`Preimage.FInit`,
   …); their variables (`Log.m`, `RFList.m`) are `global_var`s, which the section's adversary
@@ -166,6 +173,15 @@ module_subtype OPRIMITIVE <: SH.OIndif.ODPRIMITIVE
 `f`.  (A coercion of the module type: EC's alias is outside the module type.) -/
 noncomputable instance : Coe SH.OIndif.OFUNCTIONALITY SORO.Oracle :=
   ⟨fun F => SORO.Oracle.mk { get := SH.OIndif.OFUNCTIONALITY.f F }⟩
+
+/-! ## `clone import Program as PBool`, `clone import FullRO as Eager` (EC l. 177–188)
+
+The first port's namespaces: `PBool.LoopSnoc.sample`, and the clone `Eager` of `PROM.FullRO` at
+`bool list * int`, `bool`, with its module variables `Eager.RO.m`, `Eager.FRO.m`. -/
+
+namespace Eager
+export GaudisCrypt.SHA3.SHA3OSecurity.Eager (RO.m FRO.m RO_T RO_Distinguisher RO LRO)
+end Eager
 
 /-! ## Section `Preimage` (EC l. 190–916), in progress -/
 
@@ -757,6 +773,255 @@ theorem eq_extend :
     · have h0 : (0 : ℤ) < size_out := GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0
       have h2 := ‹size_out < xn0₁.2›
       simp [h0, show (0 : ℤ) < xn0₁.2 by omega]
+
+/-- EC's `local lemma of_listK l : of_list (to_list l) = Some l`. -/
+theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
+  -- EC: by rewrite -to_listK.
+  (GaudisCrypt.SHA3.SHA3OSecurity.Params.to_listK l (to_list l)).mp rfl
+
+-- EC's local `module Fill_In (F : RO)`; `proc init = F.init` is wrapped in a call (E5)
+module Fill_In using (F : Eager.RO_T) : FUNCTIONALITY {
+  proc init () : Unit {
+    _ <- call F.init ();
+    return ()
+  };
+  proc f (xn : List Bool × ℤ) : (List Bool) {
+    var x : List Bool, n : ℤ, l : List Bool, b : Bool, i : ℤ;
+    x, n <- $xn;
+    i <- 0;
+    l <- [];
+    while (decide ($i < $n)) {
+      b <- call F.get (($x, $i));
+      l <- rcons $l $b;
+      i <- $i + 1;
+    }
+    while (decide ($i < size_out)) {
+      _ <- call F.sample (($x, $i));
+      i <- $i + 1;
+    }
+    return $l
+  };
+}
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: two loops
+/-- EC's `local equiv eq_eager_ideal :
+BIRO.IRO.f ~ Fill_In(LRO).f :
+={arg} /\ BIRO.IRO.mp{1} = RO.m{2} ==> ={res} /\ BIRO.IRO.mp{1} = RO.m{2}`. -/
+theorem eq_eager_ideal :
+    equiv[ IRO.f (xn) ~ Fill_In(Eager.LRO).f (x) :
+      §xn{1} = §x{2} ∧ §IRO.mp{1} = §Eager.RO.m{2} ==>
+      ={res} ∧ §IRO.mp{1} = §Eager.RO.m{2} ] := by
+  -- EC: proc; inline*; sp; rcondt{1} 1; auto.
+  equiv_proc; stmt_inline*; stmt_sp
+  stmt_rcondt{1} 1
+  · hoare_auto
+  -- EC: while{2}(bs{1} = l{2} /\ BIRO.IRO.mp{1} = RO.m{2})(size_out - i{2}).
+  equiv_while{2} (§bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2}) ((size_out - §i{2}).toNat)
+  · while_ll_phoare
+    intro σ₁
+    ec_auto
+  -- EC: + by auto=> />; smt().
+  · intro σ₁ k
+    hoare_auto
+  -- EC: conseq(:_==> bs{1} = l{2} /\ BIRO.IRO.mp{1} = RO.m{2}); 1: smt().
+  equiv_conseq (: _ ==> §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2})
+  · ec_close
+  -- EC: while(={i, n, x} /\ bs{1} = l{2} /\ BIRO.IRO.mp{1} = RO.m{2}).
+  equiv_while (={i, n, x} ∧ §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2})
+  -- EC: + sp; if{1}.
+  · stmt_sp
+    stmt_if{1}
+    -- EC: - by rcondt{2} 2; auto=> />.
+    · stmt_rcondt{2} 2
+      · intro σ₁
+        hoare_auto
+      ec_auto
+    -- EC: by rcondf{2} 2; auto=> />; smt(dbool_ll).
+    · stmt_rcondf{2} 2
+      · intro σ₁
+        hoare_auto
+      ec_auto; ec_progress
+      exact (is_lossless_iff_expected _).mp dbool_ll
+  -- EC: by auto.
+  ec_auto
+
+/-- The list step of `eq_eager_ideal2`'s second loop (EC's `smt(cats1 take_cat cats0 take_size)`,
+twice). -/
+private theorem take_rcons_le {α : Type} (k : ℤ) (bs : List α) (b : α) (h : k ≤ size bs) :
+    take k (rcons bs b) = take k bs := by
+  change take k (bs ++ [b]) = take k bs
+  rw [take_cat]
+  split_ifs with hlt
+  · rfl
+  · rw [show k = size bs by omega, take_size, sub_self, take0, cats0]
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: the two cases, five loops
+/-- EC's `local equiv eq_eager_ideal2 :
+ExtendSample(FSome(BIRO.IRO)).f ~ FSome(Fill_In(RO)).f :
+={arg} /\ BIRO.IRO.mp{1} = RO.m{2} ==> ={res} /\ BIRO.IRO.mp{1} = RO.m{2}`. -/
+theorem eq_eager_ideal2 :
+    equiv[ ExtendSample(FSome(IRO.asF)).f (x) ~ FSome(Fill_In(Eager.RO)).f (x) :
+      ={x} ∧ §IRO.mp{1} = §Eager.RO.m{2} ==> ={res} ∧ §IRO.mp{1} = §Eager.RO.m{2} ] := by
+  -- EC: proc; inline*; sp.
+  equiv_proc; stmt_inline*; stmt_sp
+  -- EC: if{1}; sp.
+  stmt_if{1}
+  · stmt_sp
+    -- EC: + rcondt{1} 1; auto=> /=/>.
+    stmt_rcondt{1} 1
+    · hoare_auto
+    stmt_wp
+    --     (`x1`{1}, `x0`{2} are also names of the other side or of the precondition at another
+    --     type: written with their lenses below, GAP 2; EC's `x2`{1} is `x1`)
+    -- EC: conseq(:_==> take k{1} bs{1} = l{2} /\ BIRO.IRO.mp{1} = RO.m{2}).
+    equiv_conseq (: _ ==> take §k{1} §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2})
+    --     * by move=> /> /#.
+    · ec_close
+    -- EC: case: (0 <= n{2}); last first.
+    equiv_case (0 ≤ §n{2})
+    swap
+    -- EC: + rcondf{2} 1; 1: by auto; smt().
+    · stmt_rcondf{2} 1
+      · intro σ₁
+        hoare_auto; ec_close
+      -- EC: conseq(:_==> BIRO.IRO.mp{1} = RO.m{2} /\ ={i} /\ n{1} = size_out /\
+      --       x2{1} = x0{2})=> />.
+      equiv_conseq (: _ ==> §IRO.mp{1} = §Eager.RO.m{2} ∧ ={i} ∧ §n{1} = size_out ∧
+        §(localVarLens "x1" (List Bool)){1} = §(localVarLens "x0" (List Bool)){2})
+      --     - smt(take_le0).
+      · ec_progress
+        exact take_le0 _ _ (le_of_lt ‹xn₂.2 < 0›)
+      -- EC: while(={i} /\ x2{1} = x0{2} /\ n{1} = size_out /\ BIRO.IRO.mp{1} = RO.m{2}).
+      equiv_while (={i} ∧
+        §(localVarLens "x1" (List Bool)){1} = §(localVarLens "x0" (List Bool)){2} ∧
+        §n{1} = size_out ∧ §IRO.mp{1} = §Eager.RO.m{2})
+      -- EC: - sp; if{1}.
+      · stmt_sp
+        stmt_if{1}
+        --   - by rcondt{2} 2; auto=> />.
+        · stmt_rcondt{2} 2
+          · intro σ₁
+            hoare_auto
+          ec_auto
+        --   by rcondf{2} 2; auto=> />; smt(dbool_ll).
+        · stmt_rcondf{2} 2
+          · intro σ₁
+            hoare_auto
+          ec_auto; ec_progress
+          exact (is_lossless_iff_expected _).mp dbool_ll
+      -- EC: by auto=> />.
+      ec_auto
+    -- EC: splitwhile{1} 1 : i < k.
+    --     (`k` is no variable of the statement after `wp`: written with its lens, GAP 2)
+    stmt_splitwhile{1} 1 : §i < §(localVarLens "k" ℤ)
+    -- EC: while(={i} /\ n{1} = size_out /\ x2{1} = x0{2} /\  BIRO.IRO.mp{1} = RO.m{2} /\
+    --       take k{1} bs{1} = l{2} /\ size bs{1} = i{1} /\ k{1} <= i{1} <= size_out).
+    equiv_while (={i} ∧ §n{1} = size_out ∧
+      §(localVarLens "x1" (List Bool)){1} = §(localVarLens "x0" (List Bool)){2} ∧
+      §IRO.mp{1} = §Eager.RO.m{2} ∧ take §k{1} §bs{1} = §l{2} ∧ size §bs{1} = §i{1} ∧
+      §k{1} ≤ §i{1} ∧ §i{1} ≤ size_out)
+    -- EC: * sp; if{1}.
+    · stmt_sp
+      stmt_if{1}
+      --   - by rcondt{2} 2; auto=> />; smt(dbool_ll cats1 take_cat cats0 take_size size_rcons).
+      · stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_auto
+        ec_auto; ec_progress
+        · exact take_rcons_le _ _ _ (by rw [‹size bs₁ = _›]; exact ‹k₁ ≤ _›)
+        · rw [size_rcons, ‹size bs₁ = _›]
+      --   by rcondf{2} 2; auto=> />; smt(dbool_ll cats1 take_cat cats0 take_size size_rcons).
+      · stmt_rcondf{2} 2
+        · intro σ₁
+          hoare_auto
+        ec_auto; ec_progress
+        · exact (is_lossless_iff_expected _).mp dbool_ll
+        · exact take_rcons_le _ _ _ (by rw [‹size bs₁ = _›]; exact ‹k₁ ≤ _›)
+        · rw [size_rcons, ‹size bs₁ = _›]
+    -- EC: conseq(:_==> ={i} /\ n{1} = size_out /\ x2{1} = x0{2} /\  BIRO.IRO.mp{1} = RO.m{2} /\
+    --       bs{1} = l{2} /\ size bs{1} = i{1} /\ k{1} = i{1}).
+    equiv_conseq (: _ ==> ={i} ∧ §n{1} = size_out ∧
+      §(localVarLens "x1" (List Bool)){1} = §(localVarLens "x0" (List Bool)){2} ∧
+      §IRO.mp{1} = §Eager.RO.m{2} ∧ §bs{1} = §l{2} ∧ size §bs{1} = §i{1} ∧ §k{1} = §i{1})
+    --     + smt(take_size).
+    · ec_progress
+      exact take_oversize _ _ (le_of_eq ‹size l₂1 = _›)
+    -- EC: while(={i} /\ x2{1} = x0{2} /\ n{1} = size_out /\ k{1} = n{2} /\
+    --       0 <= i{1} <= k{1} <= size_out /\ bs{1} = l{2} /\ size bs{1} = i{1} /\
+    --       BIRO.IRO.mp{1} = RO.m{2}).
+    equiv_while (={i} ∧
+      §(localVarLens "x1" (List Bool)){1} = §(localVarLens "x0" (List Bool)){2} ∧
+      §n{1} = size_out ∧ §k{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §k{1} ∧ §k{1} ≤ size_out ∧
+      §bs{1} = §l{2} ∧ size §bs{1} = §i{1} ∧ §IRO.mp{1} = §Eager.RO.m{2})
+    -- EC: + sp; if{1}.
+    · stmt_sp
+      stmt_if{1}
+      --   - by rcondt{2} 2; auto=> />; smt(size_rcons).
+      · stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_auto
+        ec_auto; ec_progress
+        · rw [size_rcons, ‹size l₂ = _›]
+        · have hn := ‹n₂ ≤ size_out›
+          by_cases h : x1₂.2 + 1 < n₂
+          · simp [h, show x1₂.2 + 1 < size_out by omega]
+          · simp [h]
+      --   by rcondf{2} 2; auto=> />; smt(size_rcons dbool_ll).
+      · stmt_rcondf{2} 2
+        · intro σ₁
+          hoare_auto
+        ec_auto; ec_progress
+        · exact (is_lossless_iff_expected _).mp dbool_ll
+        · rw [size_rcons, ‹size l₂ = _›]
+        · have hn := ‹n₂ ≤ size_out›
+          by_cases h : x1₂.2 + 1 < n₂
+          · simp [h, show x1₂.2 + 1 < size_out by omega]
+          · simp [h]
+    -- EC: by auto=> />; smt(size_ge0 size_out_gt0).
+    ec_auto; ec_progress
+    have h0 : (0 : ℤ) < size_out := GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0
+    simp [h0]
+  · stmt_sp
+    -- EC: rcondt{1} 1; auto.
+    stmt_rcondt{1} 1
+    · hoare_auto
+    stmt_wp
+    -- EC: rcondf{2} 2; 1: auto.
+    --     + conseq(:_==> i = n)=> [/> /#|].
+    --       by while(i <= n); auto=> />; smt(size_out_gt0).
+    stmt_rcondf{2} 2
+    · intro σ₁
+      --     (GAP 1: `n`, which the loop does not write, is kept by the invariant)
+      hoare_while (§i ≤ §n ∧ size_out < §n)
+      · hoare_auto
+      · ec_progress
+      · hoare_auto; ec_progress
+        have h0 : (0 : ℤ) < size_out := GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0
+        have h1 := ‹size_out < _›
+        have h2 := ‹_ = v.2›
+        omega
+    -- EC: while(i0{1} = i{2} /\ x3{1} = x0{2} /\ n0{1} = n{2} /\ bs0{1} = l{2} /\
+    --       BIRO.IRO.mp{1} = RO.m{2}).
+    equiv_while (§i0{1} = §i{2} ∧ §x4{1} = §x0{2} ∧ §n1{1} = §n{2} ∧ §bs0{1} = §l{2} ∧
+      §IRO.mp{1} = §Eager.RO.m{2})
+    -- EC: + sp; if{1}.
+    · stmt_sp
+      stmt_if{1}
+      --   - by rcondt{2} 2; auto=> />.
+      · stmt_rcondt{2} 2
+        · intro σ₁
+          hoare_auto
+        ec_auto
+      --   by rcondf{2} 2; auto; smt(dbool_ll).
+      · stmt_rcondf{2} 2
+        · intro σ₁
+          hoare_auto
+        ec_auto; ec_progress
+        exact (is_lossless_iff_expected _).mp dbool_ll
+    -- EC: by auto=> />.
+    ec_auto
 
 end Preimage
 
