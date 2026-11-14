@@ -1520,6 +1520,23 @@ Status (2026-11-06): complete, no `sorry`.
 | 2608 | local lemma | `rw_real` | section Collision. | `Collision.rw_real` (`Preimage.rw_real`'s steps; `rr_F` on both last queries) | done |
 | 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh, E6; `Dist_of_CollAdv_ll` by pHL) | exc |
 
+
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3OSecurity.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.SHA3OSecurity`; in progress).  The clones `SORO`, `SH` are `clone` over
+the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (`OSimulator`,
+`OFC`, `CSome`, …) are the first port's `SHA3_OIndiff`.
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 20–45 | ops, axioms, lemma | `size_out`, `sigma`, `f_out`, `dout`, `to_list`, `of_list`, …, `doutE1` | the first port's class `SHA3OSecurity.Params` and `doutE1` | first port |
+| 88 | clone import | `SecureORO as SORO` | `clone import … as SORO with …`, the `realize`s as `proof *` | def |
+| 105 | clone import | `SecureHash as SH` | `clone import … as SH with …` | def |
+| 143–175 | module | `FSetSize`, `DFSetSize`, `FIgnoreSize`, `OSponge` | same names (`FSetSize.init` call-wrapped, E5; `OSponge` by `Module.comp`) | def |
+| 177–188 | clone import | `Program as PBool`, `FullRO as Eager` | — | todo |
+| 190–916 | section `Preimage` | | — | todo |
+| 920–1803 | section `SecondPreimage` | | — | todo |
+| 1808–2651 | section `Collision` | | — | todo |
+
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
 
 Lean: `GaudisCrypt/Lib/EC/Strong_RP_RF.lean`, namespace `GaudisCrypt.EC.Strong_RP_RF` (only what
