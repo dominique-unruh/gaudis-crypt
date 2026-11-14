@@ -1560,7 +1560,8 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 1298 | local lemma | `eager_ideal` | `SecondPreimage.eager_ideal` (`Preimage`'s script; the two queries after the adversary's call one after the other, `seq` between them) | done |
 | 1427 | local equiv | `toto` | `SecondPreimage.toto` (EC's second `if` is `rcondt`) | done |
 | 1442 | local equiv | `titi` | `SecondPreimage.titi` | done |
-| 1476–1803 | section `SecondPreimage`, lemmas | `rw_ideal_2`, `rw_ideal`, `leq_ideal`, `rw_real`, `TOTO`, `Sponge_second_preimage_resistant` | — | todo (`rw_ideal_2` written, compiling) |
+| 1476 | local lemma | `rw_ideal_2 &m mess` | `SecondPreimage.rw_ideal_2` (`Preimage`'s script; the queries after the adversary's call by `rw_RF_List_While` / `toto` / `titi`; the branch where the counter is exceeded by EC's one-sided loops; `Dist_of_P2Adv.m` through the call's invariant, GAP 8) | done |
+| 1638–1803 | section `SecondPreimage`, lemmas | `rw_ideal`, `leq_ideal`, `rw_real`, `TOTO`, `Sponge_second_preimage_resistant` | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
