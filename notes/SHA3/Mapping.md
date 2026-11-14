@@ -1538,7 +1538,10 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 301 | local equiv | `rw_RF_List_While` | `Preimage.rw_RF_List_While` (EC's script; the two `transitivity` steps through `Sample`, `LoopSnoc` are one, first leg `Preimage.dlist_LoopSnoc`, E12) | done |
 | 331 | op | `inv` | the first port's `inv` | first port |
 | 337 | local equiv | `eq_IRO_RFWhile` | `Preimage.eq_IRO_RFWhile` (EC's script; the fresh case's `conseq` side goal by the first port's `inv_fresh`) | done |
-| 407–916 | section `Preimage`, lemmas | `eq_extend_size`, `ExtendSample`, `eq_extend`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
+| 407 | op | `eq_extend_size` | the first port's `eq_extend_size` | first port |
+| 415 | local module | `ExtendSample` | `Preimage.ExtendSample` | def |
+| 430 | local equiv | `eq_extend` | `Preimage.eq_extend` (EC's script; EC's `smt` on `eq_extend_size` by the first port's `eq_extend_size_set_lt/ge`, `_dom_lt/ge`) | done |
+| 469–916 | section `Preimage`, lemmas | `of_listK`, `Fill_In`, `eq_eager_ideal`, `eq_eager_ideal2`, …, `rw_real`, `Sponge_preimage_resistant` | — | todo |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 

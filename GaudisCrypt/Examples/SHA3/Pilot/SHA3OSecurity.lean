@@ -11,8 +11,8 @@ set_option ec.strict true
 EC-fidelity port, in progress
 
 Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and the local modules
-of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While` (EC l. 301)
-and `eq_IRO_RFWhile` (EC l. 337).
+of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While` (EC l. 301),
+`eq_IRO_RFWhile` (EC l. 337) and `eq_extend` (EC l. 430).
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -34,8 +34,12 @@ Translation:
   first port's `PBool.LoopSnoc.sample` and the rule `prhlStmt_dlist_left`
   (`Lib/EC/DListCall.lean`); EC's two `transitivity` steps through `Sample.sample` and
   `LoopSnoc.sample` are one, its first leg the lemma `Preimage.dlist_LoopSnoc` (as in E12);
-* the sections' operators on maps (`inv`, …) and the value lemmas about them that EC proves
-  inline by `smt` (`inv_fresh`) are the first port's;
+* the sections' operators on maps (`inv`, `eq_extend_size`) and the value lemmas about them
+  that EC proves inline by `smt` (`inv_fresh`, `eq_extend_size_set_lt`, …) are the first port's;
+* `FSetSize`'s `proc get = f` (outside its module type) makes `FSetSize(F)` an `Oracle` in EC:
+  a coercion of `SH.OIndif.OFUNCTIONALITY` to `SORO.Oracle` (`get` is `f`);
+* a loop that does not write a variable the condition after it reads (EC's `conseq (: _ ==>
+  true)`): the variable's fact is kept in the Hoare loop's invariant (GAP 1);
 * EC's `alias{1} 1 mp = BIRO.IRO.mp` names the map before a loop: `equiv_exists* §IRO.mp{1}`;
 * the sections' local modules are modules of the namespace of their section (`Preimage.FInit`,
   …); their variables (`Log.m`, `RFList.m`) are `global_var`s, which the section's adversary
@@ -158,7 +162,12 @@ module_subtype OPRIMITIVE <: ODPRIMITIVE
 -- are structural)
 module_subtype OPRIMITIVE <: SH.OIndif.ODPRIMITIVE
 
-/-! ## Section `Preimage` (EC l. 190–916), in progress: its local modules -/
+/-- EC's `proc get = f` of `FSetSize`: `FSetSize(F)` is also an `Oracle`, its `get` the procedure
+`f`.  (A coercion of the module type: EC's alias is outside the module type.) -/
+noncomputable instance : Coe SH.OIndif.OFUNCTIONALITY SORO.Oracle :=
+  ⟨fun F => SORO.Oracle.mk { get := SH.OIndif.OFUNCTIONALITY.f F }⟩
+
+/-! ## Section `Preimage` (EC l. 190–916), in progress -/
 
 namespace Preimage
 
@@ -561,6 +570,193 @@ theorem eq_IRO_RFWhile :
     · exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
     · exact absurd ((‹inv mp₁ m₂›).2.1 _ _ ‹mp₁.dom (x₂, j)›) ‹¬m₂.dom x₂›
     · exact absurd ((‹inv mp₁ m₂›).2.1 _ _ ‹mp₁.dom (x₂, j)›) ‹¬m₂.dom x₂›
+
+-- EC's `op eq_extend_size` (l. 407) is the first port's
+open GaudisCrypt.SHA3.SHA3OSecurity (eq_extend_size)
+
+-- EC's local `module ExtendSample (F : OFUNCTIONALITY)`; `proc init = F.init` is wrapped in a
+-- call (E5)
+module ExtendSample using (F : OFUNCTIONALITY) : OFUNCTIONALITY {
+  proc init () : Unit {
+    _ <- call F.init ();
+    return ()
+  };
+  proc f (xk : List Bool × ℤ) : (Option (List Bool)) {
+    var x : List Bool, k : ℤ, y : Option (List Bool);
+    x, k <- $xk;
+    if (decide ($k ≤ size_out)) {
+      y <- call F.f (($x, size_out));
+      y <- Option.map (take $k) $y;
+    } else {
+      y <- call F.f (($x, $k));
+    }
+    return $y
+  };
+}
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: the two cases, three loops
+/-- EC's `local equiv eq_extend :
+ExtendSample(FSome(BIRO.IRO)).f ~ ExtendOutputSize(FSetSize(FSome(BIRO.IRO))).f :
+={arg} /\ eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2} ==>
+={res} /\ eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}`. -/
+theorem eq_extend :
+    equiv[ ExtendSample(FSome(IRO.asF)).f (x) ~
+        ExtendOutputSize(FSetSize(FSome(IRO.asF))).f (x) :
+      ={x} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2} ==>
+      ={res} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2} ] := by
+  -- EC: proc; inline*; auto; sp.
+  equiv_proc; stmt_inline*; stmt_wp; stmt_sp
+  -- EC: rcondt{2} 1; 1: auto.
+  stmt_rcondt{2} 1
+  · hoare_auto
+  -- EC: if{1}; sp.
+  stmt_if{1}
+  · stmt_sp
+    -- EC: - rcondt{1} 1; auto.
+    stmt_rcondt{1} 1
+    · hoare_auto
+    -- EC: rcondf{2} 8; 1: auto.
+    --     - conseq(:_==> true); 1: smt().
+    --       by while(true); auto.
+    stmt_rcondf{2} 8
+    · intro σ₁
+      stmt_wp
+      --     (GAP 1: `k`, which the loop does not write, is kept by the invariant)
+      hoare_while (§k ≤ size_out)
+      · hoare_auto
+      · intros; simp_all
+      · hoare_auto
+    -- EC: auto=> /=.
+    stmt_wp
+    -- EC: conseq(:_==> ={bs, k} /\ size bs{1} = size_out /\
+    --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2})=> //=.
+    equiv_conseq (: _ ==> ={bs, k} ∧ size §bs{1} = size_out ∧
+      eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    --     - smt(cats0 to_listK spec2_dout).
+    · ec_progress
+      have hk : to_list (oget (of_list bs₂1)) = bs₂1 :=
+        GaudisCrypt.SHA3.SHA3OSecurity.to_list_oget_of_list _ ‹size bs₂1 = size_out›
+      change some (take xk₂.2 bs₂1) = some (take xk₂.2 (to_list (oget (of_list bs₂1))) ++ [])
+      rw [hk, List.append_nil]
+    -- EC: while(={k, bs, n, x2} /\ i{1} = i0{2} /\ n{1} = size_out /\
+    --       0 <= i{1} <= n{1} /\ size bs{1} = i{1} /\
+    --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}).
+    equiv_while (={k, bs, n} ∧ §(localVarLens "x1" (List Bool)){1} = §x2{2} ∧ §i{1} = §i0{2} ∧
+      §n{1} = size_out ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧ size §bs{1} = §i{1} ∧
+      eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    -- EC: - by sp; if; auto=> />; smt(domE get_setE size_rcons).
+    · stmt_sp; stmt_if
+      --     (EC's `smt` on `eq_extend_size`: the first port's `eq_extend_size_dom_lt`,
+      --     `eq_extend_size_set_lt`)
+      · ec_progress
+        simp [GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_dom_lt
+          ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›]
+      · ec_auto; ec_progress
+        · rw [size_rcons]
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+            ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›).1 _ _
+            ⟨‹0 ≤ j›, ‹j < size_out›⟩
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+            ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›).2.1 _ _
+            ‹size_out ≤ j›
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt
+            (m2 := mp₂) a ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂›
+            ‹size bs₂ < size_out›).2.2 _ _ ‹_›
+      · ec_auto; ec_progress
+        · rw [(‹eq_extend_size mp₁ mp₂ m₂›).1 _ _ ⟨‹0 ≤ size bs₂›, ‹size bs₂ < size_out›⟩]
+        · rw [size_rcons]
+    -- EC: by auto=> />; smt(size_eq0 size_out_gt0).
+    ec_auto; ec_progress
+    exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
+  · stmt_sp
+    -- EC: rcondt{1} 1; 1: auto.
+    stmt_rcondt{1} 1
+    · hoare_auto
+    -- EC: splitwhile{1} 1 : i0 < size_out; auto=> /=.
+    stmt_splitwhile{1} 1 : §i0 < size_out
+    stmt_wp
+    -- EC: while( (i0, n0, x3){1} = (i, k, x){2} /\ bs0{1} = prefix{2} ++ suffix{2} /\
+    --       size_out <= i{2} <= k{2} /\ eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}).
+    equiv_while (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x4{1} = §x{2} ∧
+      §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
+      eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    -- EC: + sp; if; auto=> />; 1,3:smt(domE rcons_cat).
+    --       move=> &1 &2 out_le_i _ ih1 ih2 ih3 i_lt_k xi_notin_mp r _.
+    --       by rewrite !get_set_sameE /= rcons_cat //= #smt:(get_setE size_out_gt0).
+    --     (EC's `smt` on `eq_extend_size`: the first port's `eq_extend_size_dom_ge`,
+    --     `eq_extend_size_set_ge`)
+    · stmt_sp; stmt_if
+      · ec_progress
+        simp [GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_dom_ge
+          ‹eq_extend_size mp₁ mp₂ m₂› ‹size_out ≤ i₂›]
+      · ec_auto; ec_progress
+        · rw [FMap.get_set_sameE, FMap.get_set_sameE]
+          simp [rcons]
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_ge a
+            ‹eq_extend_size mp₁ mp₂ m₂› ‹size_out ≤ i₂›).1 _ _ ⟨‹0 ≤ j›, ‹j < size_out›⟩
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_ge a
+            ‹eq_extend_size mp₁ mp₂ m₂› ‹size_out ≤ i₂›).2.1 _ _ ‹size_out ≤ j›
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_ge
+            (m3 := m₂) a ‹eq_extend_size mp₁ mp₂ m₂› ‹size_out ≤ i₂›).2.2 _ _ ‹_›
+      · ec_auto; ec_progress
+        rw [(‹eq_extend_size mp₁ mp₂ m₂›).2.1 _ _ ‹size_out ≤ i₂›]
+        simp [rcons]
+    -- EC: auto=> //=.
+    stmt_wp
+    -- EC: conseq(:_==> ={i0} /\ size bs{2} = i0{1} /\ (i0, x3){1} = (n, x2){2} /\
+    --       bs0{1} = bs{2} /\ size bs{2} = size_out /\
+    --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}).
+    equiv_conseq (: _ ==> ={i0} ∧ size §bs{2} = §i0{1} ∧ §i0{1} = §n{2} ∧ §x4{1} = §x2{2} ∧
+      §bs0{1} = §bs{2} ∧ size §bs{2} = size_out ∧
+      eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    --     + move=> />; smt(cats0 take_oversize spec_dout to_listK spec2_dout).
+    · ec_progress
+      have hk : to_list (oget (of_list bs₂1)) = bs₂1 :=
+        GaudisCrypt.SHA3.SHA3OSecurity.to_list_oget_of_list _ ‹size bs₂1 = size_out›
+      change bs₂1 = take xk₂.2 (to_list (oget (of_list bs₂1))) ++ []
+      rw [hk, List.append_nil, take_oversize _ _ (by
+        rw [‹size bs₂1 = size_out›]; exact le_of_lt ‹size_out < xk₂.2›)]
+    -- EC: while(={i0} /\ x3{1} = x2{2} /\ 0 <= i0{1} <= n{2} /\ n{2} = size_out /\
+    --       bs0{1} = bs{2} /\ size bs{2} = i0{1} /\ size_out <= n0{1} /\
+    --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}).
+    equiv_while (={i0} ∧ §x4{1} = §x2{2} ∧ 0 ≤ §i0{1} ∧ §i0{1} ≤ §n{2} ∧ §n{2} = size_out ∧
+      §bs0{1} = §bs{2} ∧ size §bs{2} = §i0{1} ∧ size_out ≤ §n1{1} ∧
+      eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
+    -- EC: + by sp; if; auto=> />; smt(size_rcons domE get_setE size_rcons mem_set).
+    --     (the last bullet of each branch: the two loops' guards after `splitwhile`)
+    · stmt_sp; stmt_if
+      · ec_progress
+        simp [GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_dom_lt
+          ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›]
+      · ec_auto; ec_progress
+        · rw [size_rcons]
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+            ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›).1 _ _
+            ⟨‹0 ≤ j›, ‹j < size_out›⟩
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt a
+            ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂› ‹size bs₂ < size_out›).2.1 _ _
+            ‹size_out ≤ j›
+        · exact (GaudisCrypt.SHA3.SHA3OSecurity.Preimage.eq_extend_size_set_lt
+            (m2 := mp₂) a ‹eq_extend_size mp₁ mp₂ m₂› ‹0 ≤ size bs₂›
+            ‹size bs₂ < size_out›).2.2 _ _ ‹_›
+        · have hn := ‹size_out ≤ n1₁›
+          by_cases h : size bs₂ + 1 < size_out
+          · simp [h, show size bs₂ + 1 < n1₁ by omega]
+          · simp [h]
+      · ec_auto; ec_progress
+        · rw [(‹eq_extend_size mp₁ mp₂ m₂›).1 _ _ ⟨‹0 ≤ size bs₂›, ‹size bs₂ < size_out›⟩]
+        · rw [size_rcons]
+        · have hn := ‹size_out ≤ n1₁›
+          by_cases h : size bs₂ + 1 < size_out
+          · simp [h, show size bs₂ + 1 < n1₁ by omega]
+          · simp [h]
+    -- EC: by auto=> />; smt(size_out_gt0).
+    ec_auto; ec_progress
+    · exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
+    · have h0 : (0 : ℤ) < size_out := GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0
+      have h2 := ‹size_out < xn0₁.2›
+      simp [h0, show (0 : ℤ) < xn0₁.2 by omega]
 
 end Preimage
 
