@@ -14,8 +14,9 @@ Ported so far: the clones `SORO`, `SH`, the file's modules (EC l. 1–175), and 
 of section `Preimage` (EC l. 194–300) with its first lemmas, `rw_RF_List_While` (EC l. 301),
 `eq_IRO_RFWhile` (EC l. 337), `eq_extend` (EC l. 430), `of_listK`, `Fill_In`, `eq_eager_ideal`
 (EC l. 492), `eq_eager_ideal2` (EC l. 512), `Dist`, `Game`, `eager_ideal` (EC l. 574),
-`rw_ideal_2` (EC l. 652), `rw_ideal` (EC l. 792), `leq_ideal` (EC l. 870) and `rw_real`
-(EC l. 881).
+`rw_ideal_2` (EC l. 652), `rw_ideal` (EC l. 792), `leq_ideal` (EC l. 870), `rw_real`
+(EC l. 881) and `Sponge_preimage_resistant` (EC l. 898): section `Preimage` is complete.
+Sections `SecondPreimage` and `Collision` are to do.
 
 Translation:
 * the file-level type `f_out`, the operators `size_out`, `sigma`, `dout`, `to_list`, `of_list`
@@ -240,7 +241,7 @@ theorem ODPRIMITIVE_fi_mk (f fi) :
       SHA3Indiff.state (List Bool × ℤ) (List Bool) { f := f, fi := fi }) = fi :=
   SH.OIndif.ODPRIMITIVE.fi.mk_simp { f := f, fi := fi }
 
-/-! ## Section `Preimage` (EC l. 190–916), in progress -/
+/-! ## Section `Preimage` (EC l. 190–916) -/
 
 namespace Preimage
 
@@ -1171,19 +1172,47 @@ set_option maxHeartbeats 10000000 in
       (Lens.pair Simulator.mi (Lens.pair Simulator.paths Gconcl_list.BIRO2.IRO.mp)))))
   simpa only [Footprint.lens_pair] using h
 
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the adversary's oracles
+/-- `Dist_of_P1Adv(A)` touches `A`'s variables and `Log.m` (EC reads the globals off the code). -/
+@[fp_bound] theorem fvP_Dist_of_P1Adv (A : SH.AdvPreimage) :
+    FVP.fvP (Dist_of_P1Adv A) ≤ FVP.fvP A ⊔ Log.m.footprint := by
+  fp_module Log.m
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob Dist_of_P1Adv(A)`: `glob A` (the region given for `A`) and `Log.m`. -/
+instance instECGlobDist_of_P1Adv (A : SH.AdvPreimage) {R : Footprint VariableAssignment}
+    [h : Module.ECGlob A R] : Module.ECGlob (Dist_of_P1Adv A) (R ⊔ Log.m.footprint) := by
+  obtain ⟨GF, hGF, hRGF⟩ := h.base
+  exact ⟨(h.finite.sup (by fp_finite)).mono (fvP_Dist_of_P1Adv A),
+    (fvP_Dist_of_P1Adv A).trans (sup_le_sup_right h.le _),
+    ⟨GF ⊔ Log.m.footprint, hGF.sup (by fp_finite),
+      sup_le (hRGF.trans (Footprint.glob_mono le_sup_left))
+        (Footprint.le_glob_of_le le_sup_right)⟩⟩
+
 section
 
 -- EC: declare module A <: SH.AdvPreimage {-Perm, -Counter, -Bounder, -F.RO, -F.FRO, -Redo, -C,
 --   -Gconcl.S, -BlockSponge.BIRO.IRO, -BlockSponge.C, -BIRO.IRO, -Gconcl_list.BIRO2.IRO,
 --   -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO, -Gconcl_list.Simulator, -SHA3Indiff.Simulator,
 --   -SHA3Indiff.Cntr, -SORO.Bounder, -SORO.RO.RO, -RO, -FRO}.
--- (and the variables of local modules, fresh in EC: the section's `Log.m`, `RFList.m`, and
--- `SORO.Preimage.Preimage2` of the lemma `RO_is_preimage_resistant` applied to `SORO_P1(A)`)
+-- (and the variables of local modules, fresh in EC: the section's `Log.m`, `RFList.m`,
+-- `SORO.Preimage.Preimage2` of the lemma `RO_is_preimage_resistant` applied to `SORO_P1(A)`, and
+-- those of `Pilot/SHA3_OIndiff.lean`'s `SHA3OIndiff`, applied to `Dist_of_P1Adv(A)`)
 declare module A <: SH.AdvPreimage {-Perm, -Counter, -SH.Bounder, -SLCommon.F.RO,
   -SLCommon.F.FRO, -SLCommon.Redo, -SLCommon.C, -Gconcl.S, -BlockSponge.BIRO.IRO,
   -BlockSponge.C, -IRO, -Gconcl_list.BIRO2.IRO, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
   -Gconcl_list.Simulator, -Simulator, -Cntr, -SORO.Bounder, -SORO.RO, -SORO.FRO,
-  -Eager.RO.m, -Eager.FRO.m, -Log.m, -RFList.m, -SORO.Preimage.Preimage2} with glob R
+  -Eager.RO.m, -Eager.FRO.m, -Log.m, -RFList.m, -SORO.Preimage.Preimage2,
+  -Gconcl_list.SimLast, -OSimulator,
+  -Pilot.Sponge.HybridIRO.HybridIROLazy.mp, -Pilot.Sponge.HybridIRO.HybridIROEager.mp,
+  -Pilot.Sponge.HybridIRO.ERO.RO.m, -Pilot.Sponge.HybridIRO.ERO.FRO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.RO.m,
+  -Pilot.Gconcl_list.Simplify_Simulator.IRO2.FRO.m,
+  -GaudisCrypt.SHA3.Handle.G1, -GaudisCrypt.SHA3.Gext.G2, -GaudisCrypt.SHA3.ConcreteF.PF,
+  -GaudisCrypt.SHA3.Handle.FRO.m, -GaudisCrypt.SHA3.Handle.ROhandle.RO,
+  -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c, -Pilot.ConcreteF.Switching.DBounder,
+  -Pilot.ConcreteF.Switching.ARP, -Pilot.ConcreteF.Switching.PRPi.PRPi} with glob R
 
 include R
 
@@ -2113,6 +2142,55 @@ theorem rw_real (m : VariableAssignment) :
   have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
   simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
   exact h
+
+set_option maxHeartbeats 40000000 in
+-- one declaration: EC's restriction checks and the losslessness of `Dist_of_P1Adv(A)`
+set_option synthInstance.maxHeartbeats 400000 in
+-- EC's restriction checks by instance search (`A` against the modules of `SHA3OIndiff`)
+set_option synthInstance.maxSize 1024 in
+/-- EC's `lemma Sponge_preimage_resistant &m:
+(forall (F <: OIndif.ODFUNCTIONALITY) (P <: OIndif.ODPRIMITIVE),
+islossless F.f => islossless P.f => islossless P.fi => islossless A(F,P).guess) =>
+Pr[Preimage(A, OSponge, PSome(Perm)).main() @ &m : res] <=
+(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r +
+(sigma + 1)%r / (2%r ^ size_out)`. -/
+theorem Sponge_preimage_resistant (m : VariableAssignment) :
+    (∀ (F <: SH.OIndif.ODFUNCTIONALITY), ∀ (P <: SH.OIndif.ODPRIMITIVE),
+      islossless F.f → islossless P.f → islossless P.fi → islossless A(F, P).guess) →
+    Pr[ SH.Preimage(A, OSponge, PSome(Perm)).main () @ &m : §res ] ≤
+      ((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
+        ((4 * SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
+      ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
+  -- EC: move=> A_ll.
+  intro A_ll
+  -- EC: rewrite (rw_real &m).
+  rw [rw_real A m]
+  -- EC: have := SHA3OIndiff (Dist_of_P1Adv(A)) &m _.
+  have h := @Pilot.SHA3_OIndiff.SHA3OIndiff _ _ _ (Dist_of_P1Adv A)
+    ⟨by fp_finite, by fp_disjoint⟩ (R ⊔ Log.m.footprint) inferInstance
+    ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ m ?_
+  · -- EC: by have/#:=leq_ideal &m.
+    --     (EC's `OGReal`, `OGIdeal` are module aliases, which `/#` sees through: the first
+    --     port's `OGReal_eq`, and `OGIdeal` by definition)
+    have h2 := leq_ideal A m
+    rw [GaudisCrypt.SHA3.SHA3OSecurity.OGReal_eq] at h
+    refine le_trans (sub_le_iff_le_add.mp (abs_le.mp h).2) ?_
+    exact (add_le_add_iff_left _).mpr h2
+  -- EC: + move=> F P Hp Hpi Hf; proc; inline*; sp; auto; call Hf; auto.
+  · intro F P Hp Hpi Hf
+    phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+    --     (the adversary's call in the middle: pHL `seq`, as in `Pilot/SHA3Security.lean`)
+    phoare_seq_lossless 2 : (True)
+    -- EC: call(A_ll (DFSetSize(F)) P _ Hp Hpi); auto.
+    · phoare_call (A_ll _ _ ?_ Hp Hpi)
+      -- EC: smt(dout_ll).
+      · phoare_auto
+        intros
+        exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+      -- EC: - proc; inline*; auto; call Hf; auto.
+      · simp only [SH.OIndif.ODFUNCTIONALITY.f.mk_simp]
+        phoare_proc; phoare_auto; phoare_call Hf; phoare_auto
+    · stmt_sp; phoare_call Hf; phoare_auto
 
 end
 

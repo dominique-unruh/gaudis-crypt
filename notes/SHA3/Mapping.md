@@ -1552,7 +1552,7 @@ the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (
 | 792 | local lemma | `rw_ideal` | `Preimage.rw_ideal` (EC's script; `rnd f g` is `equiv_rnd (fun l => oget (of_list l))` with the first port's `dlist_dout`; EC's `rcondt{2} 2` in the oracles is `wp` through the right's conditional; EC's `sim` past the bounder's conditional is `seq`, `conseq`, `sim`) | done |
 | 870 | local lemma | `leq_ideal` | `Preimage.leq_ideal` (EC's three steps; `SORO_P1(A)` checked against `RO_is_preimage_resistant`'s restriction by `fvP_SORO_P1`) | done |
 | 881 | local lemma | `rw_real` | `Preimage.rw_real` (EC's script with `seq` first and the inlining selective, GAP 6; `OSponge_app`, `OPRIMITIVE_coe_eq`, `PSome_Perm_init` put the clone's game at the sponge's module types; the functionality oracle's `sim` is two `while`s, GAP 7) | done |
-| 898 | lemma | `Sponge_preimage_resistant` | — | todo |
+| 898 | lemma | `Sponge_preimage_resistant` | `Preimage.Sponge_preimage_resistant` (EC's script; `SHA3OIndiff` applied to `Dist_of_P1Adv(A)` with its region written out, `fvP_Dist_of_P1Adv`, `instECGlobDist_of_P1Adv`; `OGReal` unfolded by the first port's `OGReal_eq`) | done |
 | 920–1803 | section `SecondPreimage` | | — | todo |
 | 1808–2651 | section `Collision` | | — | todo |
 
