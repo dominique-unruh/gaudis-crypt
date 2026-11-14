@@ -524,6 +524,16 @@ Document each in the docstring when it applies.
   simp (disch := fp_disjoint) only [touched_set_of_le_compl]; ec_close`; `proc (I)` on `S(F).f`
   is `equiv_proc (I)`; `RaiseSim(S, F)` is `S(LowerFun(F))` after
   `simp only [RaiseSim, Module.app_comp]`.
+  `call (_ : I)` on `S(F).init` as the last statement is `equiv_call (_ : ={glob M, …} ∧ I)`
+  with `SIMULATOR.call_init` tagged `@[proc_inv]`.  **No `swap` past `S(F).init`**: its footprint
+  as code is not known (only its behaviour); leave the statements where they are, `stmt_wp`
+  the assignment after the call on the other side, and put what the swap would give into the
+  call's invariant (`§mp{2} = FMap.empty`).
+* **`sim` on `D(F, S(G)) ~ D(F, S(G))` with a `glob` region and a variable in the
+  precondition** fails ("no equality set"): `stmt_wp; equiv_call (_ : ={glob S} ∧ §x{1} =
+  §x{2})`, then `equiv_proc (§x{1} = §x{2}); equiv_proc; sim` for the simulator's oracles, and
+  for a concrete oracle `have H : equiv[ F.f (x) ~ F.f (x) : ={x, X} ==> ={res, X} ] := by
+  equiv_proc; sim` then `equiv_conseq_frame H`.
 * **`equiv_call (_ : ={glob M} ∧ I)` must not be parenthesized**: `(_ : (={glob M} ∧ I))` is
   read as an invariant without a `glob` part and fails ("the conditions read … which is not a
   global variable").

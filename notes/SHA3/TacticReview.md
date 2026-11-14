@@ -465,6 +465,14 @@ of regions itself (the tactic hands it over, `withFiniteRegions`); a concrete pr
 footprint should be read off its code also for the first port's lens-parameterised modules (now
 `@[fp_bound]` lemmas by `fp_module`).
 
+The same file gives EC's `call (_ : I)` on a procedure with a rule
+(`equiv_call (_ : ={glob M, …} ∧ I)` on a simulator's `init`, by `SIMULATOR.call_init`).  Two
+more items for the batch, from the last lemmas of `Sponge.ec`: `sim` should take an equality set
+made of a `glob` region and variables (GAP 15 of `Pilot/Sponge.lean`; it needs "equal on a
+region and on a variable outside it" as "equal on their join"), and `swap` past a procedure
+whose oracle list is a hypothesis about its behaviour needs a semantic check, not the footprint
+of its code (GAP 14).
+
 ## The final section of `Sponge.ec` (EC l. 1913–2163): decisions (2026-11-14)
 
 The three questions below were decided as follows.

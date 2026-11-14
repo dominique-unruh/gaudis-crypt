@@ -179,6 +179,66 @@ example : equiv[ S(Inc).p (x) ~ S(Inc2).p (x) :
   trace_state
   exact Inc_Inc2
 
+-- EC's `call (_ : ={glob S} ∧ I)` on the procedure as the last statement: the same rule; the
+-- oracle's judgment, then the code before the calls
+include S_rep in
+/--
+trace: case oracle
+S : SIM
+inst✝ : Module.Declared S (pCount.footprint ⊔ pOther.footprint)
+S_rep : S.Rep
+R : ℤ → ℤ → Prop
+⊢ prhlProc (fun a₁ g₁ a₂ g₂ ↦ a₁ = a₂ ∧ pCount.get g₂ = 2 * pCount.get g₁) Inc.get.procedure Inc2.get.procedure
+    fun r₁ g₁ r₂ g₂ ↦ r₁ = r₂ ∧ pCount.get g₂ = 2 * pCount.get g₁
+
+case pre
+S : SIM
+inst✝ : Module.Declared S (pCount.footprint ⊔ pOther.footprint)
+S_rep : S.Rep
+R : ℤ → ℤ → Prop
+⊢ prhlStmt
+    (fun σ₁ σ₂ ↦
+      (§(localVarLens "x" ℤ) = §(localVarLens "x" ℤ) ∧ §(FVP.fvP S).touched_getter = §(FVP.fvP S).touched_getter) ∧
+        §pCount = 2 * §pCount)
+    (GaudiProg[
+        var x : ℤ;
+        x <- §x + 1;
+  ])
+    (GaudiProg[
+        var x : ℤ;
+        x <- §x + 1;
+  ])
+    fun σ₁ σ₂ ↦
+    (§(localVarLens "x" ℤ) = §(localVarLens "x" ℤ) ∧
+        (FVP.fvP S).touched_getter.get σ₁.globals = (FVP.fvP S).touched_getter.get σ₂.globals ∧
+          pCount.get σ₂.globals = 2 * pCount.get σ₁.globals) ∧
+      ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+        r₁ = r₂ ∧
+            (FVP.fvP S).touched_getter.get g₁ = (FVP.fvP S).touched_getter.get g₂ ∧ pCount.get g₂ = 2 * pCount.get g₁ →
+          R §(localVarLens "r" ℤ) §(localVarLens "r" ℤ)
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example (R : ℤ → ℤ → Prop) : equiv[ ={x, glob S} ∧ §pCount{2} = 2 * §pCount{1} ==> R §r{1} §r{2} ] {
+      var x : ℤ, r : ℤ;
+      x <- §x + 1;
+      r <- call (S(Inc).p).procedure (§x);
+    } ~ {
+      var x : ℤ, r : ℤ;
+      x <- §x + 1;
+      r <- call (S(Inc2).p).procedure (§x);
+    } := by
+  equiv_call (_ : ={glob S} ∧ §pCount{2} = 2 * §pCount{1})
+  trace_state
+  all_goals sorry
+
 -- a procedure without a rule
 include S_rep in
 /--

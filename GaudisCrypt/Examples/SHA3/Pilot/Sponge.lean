@@ -33,17 +33,13 @@ import GaudisCrypt.Logic.ModuleComp
 set_option ec.strict true
 
 /-!
-# The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port, in progress
+# The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port
 
-Ported so far, on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the whole theory
-`HybridIRO` (EC l. 256–1909; l. 1188–1305, the
-modules `BlockSpongeTrans`, `BlockGen` and `BlockGen_loop_direct` with its `bypr` proof, are the
-first port's, E12); `Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic
-experiment and is described below; and, of the final section, `RealIndif_Sponge_BlockSponge`
-(EC l. 1953), `Ideal_IRO_Experiment_HybridLazy` (l. 1970),
-`RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` (l. 2059) and
-`Experiment_HybridEager_Ideal_BlockIRO` (l. 2085).  Open: `HybridIRODist` and the three lemmas
-about `HIRO.HybridIROExper` (l. 2007–2057), and the closing equations (l. 2127–2163).
+Ported on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the whole theory `HybridIRO`
+(EC l. 256–1909; l. 1188–1305, the modules `BlockSpongeTrans`, `BlockGen` and
+`BlockGen_loop_direct` with its `bypr` proof, are the first port's, E12);
+`Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic experiment and is
+described below; and the final section with `conclusion` (EC l. 1913–2163).
 
 Translation:
 * the modules are the first port's (`Examples/SHA3/Sponge.lean`); a procedure takes its
@@ -114,6 +110,16 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   `BlockSim(F).init`, and EC's `proc (I)` on `BlockSim(F).f`, `.fi` by `equiv_proc (I)`
   (`Logic/ECProcInv.lean`) with the first port's rules `SIMULATOR.call_f`, `call_fi` tagged
   `@[proc_inv]`.
+  EC's `swap` past `BlockSim(F).init` has no footprint to check (the oracle list is known for
+  the procedure's behaviour, not for its code): the call's invariant says what the swap would
+  (`equiv_call (_ : ={glob Dist, glob BlockSim} ∧ §HybridIROLazy.mp{2} = FMap.empty)`, the rule
+  `SIMULATOR.call_init`).
+* GAP 15: `sim` finds no equality set for a call of `Dist` whose oracles are the same on both
+  sides when the precondition's equalities are a `glob` region and a variable
+  (`={glob Dist, glob BlockSim, HybridIROLazy.mp}`): the call with EC's set
+  (`equiv_call (_ : ={glob BlockSim} ∧ §mp{1} = §mp{2})`), the simulator's oracles by
+  `equiv_proc (I)` and `sim`, the concrete one by a judgment `={x, mp} ==> ={res, mp}` (`sim`)
+  under `equiv_conseq_frame`.
 * EC's `call (_ : P ==> Q). proc (I)=> //.` on the declared `Dist` is one step,
   `equiv_call (_ : ={glob BlockSim} ∧ I)` (the `={…} ∧` without parentheses); the implication
   that EC proves next (`progress; apply lazy_invar0`) is then in the last goal, with the code
@@ -2630,11 +2636,11 @@ omit [BlockSponge.Params] in
 @[fp_bound] theorem fvP_RaiseFun : FVP.fvP RaiseFun ≤ ⊥ := by
   fp_module
 
--- EC's `proc (I)` on a procedure of the simulator: the first port's rules for `S(F).f`, `S(F).fi`
-attribute [local proc_inv] Indifferentiability.SIMULATOR.call_f
-  Indifferentiability.SIMULATOR.call_fi
+-- EC's `call (_ : I)` and `proc (I)` on a procedure of the simulator: the first port's rules
+attribute [local proc_inv] Indifferentiability.SIMULATOR.call_init
+  Indifferentiability.SIMULATOR.call_f Indifferentiability.SIMULATOR.call_fi
 
-/-! ## The main result (EC l. 1913–2163), in progress
+/-! ## The main result (EC l. 1913–2146)
 
 `local clone HybridIRO as HIRO`: the clone's variables are those of `HybridIRO` above; they are
 fresh for the declared modules in EC, and named in their restrictions here.  `Dist` is restricted
@@ -2757,8 +2763,118 @@ theorem Ideal_IRO_Experiment_HybridLazy (m : VariableAssignment) :
   ec_prep
   exact ⟨lazy_invar0, fun _ _ _ _ h => by rw [h.1]⟩
 
--- (EC l. 2007–2057, `HybridIRODist` and the three lemmas about `Experiment` and
--- `HIRO.HybridIROExper`: not ported yet)
+-- EC's `local module (HybridIRODist : HIRO.HYBRID_IRO_DIST) (HI : HIRO.HYBRID_IRO)` (EC l. 2008)
+-- is the first port's `HybridIRODist`, with the section's `BlockSim`, `Dist` as arguments:
+-- `HybridIRODist(BlockSim, Dist)`.
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (RaiseHybridIRO LowerHybridIRO HybridIROExper) in
+include BlockSim_rep in
+/-- EC's `local lemma Experiment_HybridIROExper_Lazy &m :
+Pr[Experiment(HIRO.RaiseHybridIRO(HIRO.HybridIROLazy),
+BlockSim(HIRO.LowerHybridIRO(HIRO.HybridIROLazy)), Dist).main() @ &m : res] =
+Pr[HIRO.HybridIROExper(HIRO.HybridIROLazy, HybridIRODist).main() @ &m : res]`. -/
+theorem Experiment_HybridIROExper_Lazy (m : VariableAssignment) :
+    Pr[ Experiment(RaiseHybridIRO(HybridIRO.HybridIROLazy),
+        BlockSim(LowerHybridIRO(HybridIRO.HybridIROLazy)), Dist).main () @ &m : §res ] =
+      Pr[ HybridIROExper(HybridIRO.HybridIROLazy, HybridIRODist(BlockSim, Dist)).main ()
+        @ &m : §res ] := by
+  -- EC: byequiv=> //; proc; inline*.
+  byequiv; equiv_proc; stmt_inline*
+  -- EC: seq 2 2 : (={glob Dist, glob BlockSim, HIRO.HybridIROLazy.mp}).
+  equiv_seq 2 2 : (={glob Dist, glob BlockSim, HybridIRO.HybridIROLazy.mp})
+  · -- EC: swap{2} 1 1; wp; call (_ : true); auto.
+    --     (GAP 14: no `swap` past `init`, whose oracle list is known for its behaviour only;
+    --     the call's invariant says what the swap would: `init` keeps the map just emptied)
+    stmt_wp
+    equiv_call (_ : ={glob Dist, glob BlockSim} ∧ §HybridIRO.HybridIROLazy.mp{2} = FMap.empty)
+    simp only [Setter.throwaway_set]
+    ec_auto
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
+    ec_close
+  -- EC: sim.
+  --     (GAP 15: `sim` finds no equality set for the call, the precondition's being a `glob`
+  --     region and a variable; the call with EC's set, its oracles by `sim`)
+  stmt_wp
+  equiv_call (_ : ={glob BlockSim} ∧
+    §HybridIRO.HybridIROLazy.mp{1} = §HybridIRO.HybridIROLazy.mp{2})
+  · equiv_proc (§HybridIRO.HybridIROLazy.mp{1} = §HybridIRO.HybridIROLazy.mp{2})
+    equiv_proc; sim
+  · equiv_proc (§HybridIRO.HybridIROLazy.mp{1} = §HybridIRO.HybridIROLazy.mp{2})
+    equiv_proc; sim
+  · have H : equiv[ RaiseHybridIRO(HybridIRO.HybridIROLazy).f (x) ~
+        RaiseHybridIRO(HybridIRO.HybridIROLazy).f (x) :
+        ={x, HybridIRO.HybridIROLazy.mp} ==> ={res, HybridIRO.HybridIROLazy.mp} ] := by
+      equiv_proc; sim
+    equiv_conseq_frame H
+  ec_auto
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (RaiseHybridIRO LowerHybridIRO HybridIROExper) in
+include BlockSim_rep in
+/-- EC's `local lemma HybridIROExper_Experiment_Eager &m :
+Pr[HIRO.HybridIROExper(HIRO.HybridIROEager, HybridIRODist).main() @ &m : res] =
+Pr[Experiment(HIRO.RaiseHybridIRO(HIRO.HybridIROEager),
+BlockSim(HIRO.LowerHybridIRO(HIRO.HybridIROEager)), Dist).main() @ &m : res]`. -/
+theorem HybridIROExper_Experiment_Eager (m : VariableAssignment) :
+    Pr[ HybridIROExper(HybridIRO.HybridIROEager, HybridIRODist(BlockSim, Dist)).main ()
+        @ &m : §res ] =
+      Pr[ Experiment(RaiseHybridIRO(HybridIRO.HybridIROEager),
+        BlockSim(LowerHybridIRO(HybridIRO.HybridIROEager)), Dist).main () @ &m : §res ] := by
+  -- EC: byequiv=> //; proc; inline*.
+  byequiv; equiv_proc; stmt_inline*
+  -- EC: seq 2 2 : (={glob Dist, glob BlockSim, HIRO.HybridIROEager.mp}).
+  equiv_seq 2 2 : (={glob Dist, glob BlockSim, HybridIRO.HybridIROEager.mp})
+  · -- EC: swap{2} 1 1; wp; call (_ : true); auto.
+    --     (GAP 14, as in `Experiment_HybridIROExper_Lazy`)
+    stmt_wp
+    equiv_call (_ : ={glob Dist, glob BlockSim} ∧ §HybridIRO.HybridIROEager.mp{1} = FMap.empty)
+    simp only [Setter.throwaway_set]
+    ec_auto
+    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
+    ec_close
+  -- EC: sim.
+  --     (GAP 15, as in `Experiment_HybridIROExper_Lazy`)
+  stmt_wp
+  equiv_call (_ : ={glob BlockSim} ∧
+    §HybridIRO.HybridIROEager.mp{1} = §HybridIRO.HybridIROEager.mp{2})
+  · equiv_proc (§HybridIRO.HybridIROEager.mp{1} = §HybridIRO.HybridIROEager.mp{2})
+    equiv_proc; sim
+  · equiv_proc (§HybridIRO.HybridIROEager.mp{1} = §HybridIRO.HybridIROEager.mp{2})
+    equiv_proc; sim
+  · have H : equiv[ RaiseHybridIRO(HybridIRO.HybridIROEager).f (x) ~
+        RaiseHybridIRO(HybridIRO.HybridIROEager).f (x) :
+        ={x, HybridIRO.HybridIROEager.mp} ==> ={res, HybridIRO.HybridIROEager.mp} ] := by
+      equiv_proc; sim
+    equiv_conseq_frame H
+  ec_auto
+
+-- EC reads `HybridIRODist`'s globals off its code (for `HybridIROExper_Lazy_Eager`'s restriction)
+attribute [local fp_bound] GaudisCrypt.SHA3.Sponge.fvP_HybridIRODist_le
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (RaiseHybridIRO LowerHybridIRO HybridIROExper) in
+include BlockSim_rep in
+/-- EC's `local lemma Experiment_Hybrid_Lazy_Eager &m :
+Pr[Experiment(HIRO.RaiseHybridIRO(HIRO.HybridIROLazy),
+BlockSim(HIRO.LowerHybridIRO(HIRO.HybridIROLazy)), Dist).main() @ &m : res] =
+Pr[Experiment(HIRO.RaiseHybridIRO(HIRO.HybridIROEager),
+BlockSim(HIRO.LowerHybridIRO(HIRO.HybridIROEager)), Dist).main() @ &m : res]`.
+
+`HIRO.HybridIROExper_Lazy_Eager` is applied to `HybridIRODist`, which satisfies its restriction:
+EC checks that when the lemma is applied, here it is the instance stated first. -/
+theorem Experiment_Hybrid_Lazy_Eager (m : VariableAssignment) :
+    Pr[ Experiment(RaiseHybridIRO(HybridIRO.HybridIROLazy),
+        BlockSim(LowerHybridIRO(HybridIRO.HybridIROLazy)), Dist).main () @ &m : §res ] =
+      Pr[ Experiment(RaiseHybridIRO(HybridIRO.HybridIROEager),
+        BlockSim(LowerHybridIRO(HybridIRO.HybridIROEager)), Dist).main () @ &m : §res ] := by
+  -- EC: by rewrite (Experiment_HybridIROExper_Lazy &m)
+  --       (HIRO.HybridIROExper_Lazy_Eager HybridIRODist &m)
+  --       (HybridIROExper_Experiment_Eager &m).
+  haveI : Module.Declared (HybridIRODist BlockSim Dist)
+      (HybridIRO.HybridIROEager.mp.footprint ⊔ HybridIRO.HybridIROLazy.mp.footprint ⊔
+        HybridIRO.ERO.RO.m.footprint ⊔ HybridIRO.ERO.FRO.m.footprint) :=
+    ⟨by fp_finite, by fp_disjoint⟩
+  rw [Experiment_HybridIROExper_Lazy BlockSim Dist BlockSim_rep m,
+    HybridIRO.HybridIROExper_Lazy_Eager (HybridIRODist BlockSim Dist) m,
+    HybridIROExper_Experiment_Eager BlockSim Dist BlockSim_rep m]
 
 open GaudisCrypt.SHA3.Sponge.HybridIRO (RaiseHybridIRO LowerHybridIRO eager_invar) in
 /-- EC's `local lemma RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f :
@@ -2861,6 +2977,73 @@ theorem Experiment_HybridEager_Ideal_BlockIRO (m : VariableAssignment) :
   ec_auto
   ec_prep
   exact ⟨eager_invar0, fun _ _ _ _ h => by rw [h.1]⟩
+
+open GaudisCrypt.SHA3.Sponge.HybridIRO (RaiseHybridIRO LowerHybridIRO) in
+include BlockSim_rep in
+/-- EC's `local lemma IdealIndif_IRO_BlockIRO &m :
+Pr[IdealIndif(IRO, RaiseSim(BlockSim), Dist).main() @ &m : res] =
+Pr[BlockSponge.IdealIndif(BlockSponge.BIRO.IRO, BlockSim, LowerDist(Dist)).main () @ &m : res]`. -/
+theorem IdealIndif_IRO_BlockIRO (m : VariableAssignment) :
+    Pr[ IdealIndif(IRO.asF, RaiseSim(BlockSim), Dist).main () @ &m : §res ] =
+      Pr[ BlockSponge.IdealIndif(BlockSponge.BIRO.IRO.asF, BlockSim, LowerDist(Dist)).main ()
+        @ &m : §res ] := by
+  -- EC: by rewrite (Ideal_IRO_Experiment_HybridLazy &m) (Experiment_Hybrid_Lazy_Eager &m)
+  --       (Experiment_HybridEager_Ideal_BlockIRO &m).
+  rw [Ideal_IRO_Experiment_HybridLazy BlockSim Dist BlockSim_rep m,
+    Experiment_Hybrid_Lazy_Eager BlockSim Dist BlockSim_rep m,
+    Experiment_HybridEager_Ideal_BlockIRO BlockSim Dist BlockSim_rep m]
+
+include BlockSim_rep in
+/-- EC's `lemma conclu &m :
+`|Pr[RealIndif(Sponge, Perm, Dist).main() @ &m : res] -
+Pr[IdealIndif(IRO, RaiseSim(BlockSim), Dist).main() @ &m : res]| =
+`|Pr[BlockSponge.RealIndif(BlockSponge.Sponge, Perm, LowerDist(Dist)).main() @ &m : res] -
+Pr[BlockSponge.IdealIndif(BlockSponge.BIRO.IRO, BlockSim, LowerDist(Dist)).main() @ &m : res]|`. -/
+theorem conclu (m : VariableAssignment) :
+    |Pr[ RealIndif(Sponge, Perm, Dist).main () @ &m : §res ] -
+        Pr[ IdealIndif(IRO.asF, RaiseSim(BlockSim), Dist).main () @ &m : §res ]| =
+      |Pr[ BlockSponge.RealIndif(BlockSponge.Sponge, Perm, LowerDist(Dist)).main () @ &m : §res ] -
+        Pr[ BlockSponge.IdealIndif(BlockSponge.BIRO.IRO.asF, BlockSim, LowerDist(Dist)).main ()
+          @ &m : §res ]| := by
+  -- EC: by rewrite (RealIndif_Sponge_BlockSponge &m) (IdealIndif_IRO_BlockIRO &m).
+  rw [RealIndif_Sponge_BlockSponge (R := R) Dist m,
+    IdealIndif_IRO_BlockIRO BlockSim Dist BlockSim_rep m]
+
+end
+
+/-! ## Conclusion (EC l. 2148–2163) -/
+
+section
+
+declare module BlockSim <: BlockSponge.SIMULATOR {-IRO, -BlockSponge.BIRO.IRO,
+  -HybridIRO.HybridIROLazy.mp, -HybridIRO.HybridIROEager.mp, -HybridIRO.ERO.RO.m,
+  -HybridIRO.ERO.FRO.m} with glob R
+declare module Dist <: DISTINGUISHER {-Perm, -R, -IRO, -BlockSponge.BIRO.IRO,
+  -HybridIRO.HybridIROLazy.mp, -HybridIRO.HybridIROEager.mp, -HybridIRO.ERO.RO.m,
+  -HybridIRO.ERO.FRO.m}
+
+include R
+
+/-- EC's `lemma conclusion (BlockSim <: BlockSponge.SIMULATOR{-IRO, -BlockSponge.BIRO.IRO})
+(Dist <: DISTINGUISHER{-Perm, -BlockSim, -IRO, -BlockSponge.BIRO.IRO}) &m :
+`|Pr[RealIndif(Sponge, Perm, Dist).main() @ &m : res] -
+Pr[IdealIndif(IRO, RaiseSim(BlockSim), Dist).main() @ &m : res]| =
+`|Pr[BlockSponge.RealIndif(BlockSponge.Sponge, Perm, LowerDist(Dist)).main() @ &m : res] -
+Pr[BlockSponge.IdealIndif(BlockSponge.BIRO.IRO, BlockSim, LowerDist(Dist)).main() @ &m : res]|`.
+
+The restrictions also name the variables of the theory `HybridIRO` and of its local clone `ERO`
+(fresh in EC), `Dist`'s restriction against `BlockSim` is the region form (`with glob R`, E14),
+and the oracle lists of EC's module type `SIMULATOR` are the hypothesis `BlockSim_rep` (E2). -/
+theorem conclusion
+    (BlockSim_rep : Indifferentiability.SIMULATOR.Representable (block × capacity)
+      (List block × ℤ) (List block) BlockSim) (m : VariableAssignment) :
+    |Pr[ RealIndif(Sponge, Perm, Dist).main () @ &m : §res ] -
+        Pr[ IdealIndif(IRO.asF, RaiseSim(BlockSim), Dist).main () @ &m : §res ]| =
+      |Pr[ BlockSponge.RealIndif(BlockSponge.Sponge, Perm, LowerDist(Dist)).main () @ &m : §res ] -
+        Pr[ BlockSponge.IdealIndif(BlockSponge.BIRO.IRO.asF, BlockSim, LowerDist(Dist)).main ()
+          @ &m : §res ]| := by
+  -- EC: by apply (conclu BlockSim Dist &m).
+  exact conclu BlockSim Dist BlockSim_rep m
 
 end
 

@@ -7,6 +7,7 @@ import GaudisCrypt.Logic.ECAutoStrict
 # EasyCrypt's `proc (I)` on an abstract procedure, and `conseq H` with EC's frame
 
     equiv_proc (I)           -- EC's `proc (I)` on `equiv[ A(O₁).f ~ A(O₂).f : P ==> Q ]`
+    equiv_call (_ : I)       -- EC's `call (_ : I)` on a procedure with a rule (`@[proc_inv]`)
     equiv_conseq_frame H     -- EC's `conseq H` on a procedure judgment, with EC's frame
 
 ## `equiv_proc (I)`
@@ -31,6 +32,9 @@ Goals: the oracles' judgments, EC's `={arg} ∧ I ==> ={res} ∧ I` when the ora
 region (`glob` of the modules, read off the goal's precondition), else with the region in them;
 then `pre`, EC's two implications (the goal's precondition gives the invariant, the invariant the
 postcondition), as one statement about no code, unless `ec_auto` closes it.
+
+The same rules serve EC's `call (_ : I)` on such a procedure as the last statement:
+`equiv_call (_ : ={glob M, …} ∧ I)` (goals: the oracles' judgments, then the code before).
 
 ## `equiv_conseq_frame H`
 
@@ -363,6 +367,49 @@ elab_rules (kind := equivProcInv) : tactic
         if let some g' ← ECProcInv.tryClose g (← `(tactic| (ec_auto; done))) then out := out.push g'
       else out := out.push g
     setGoals out.toList
+
+open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
+/-- Do the two sides end with calls of procedures that a rule tagged `@[proc_inv]` is about
+(and that are not a declared module applied to its oracles, which `equiv_call` has rules for)? -/
+def ECProcInv.lastCallsHaveRule : TacticM Bool := withMainContext do
+  let s ← saveState
+  try
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_call"
+    let g ← HoareSplit.hoareSplit 1 g
+    g.withContext do
+      let ty ← instantiateMVars (← g.getType)
+      let M₁ ← lastCallee (ty.getArg! 1)
+      let M₂ ← lastCallee (ty.getArg! 2)
+      if M₁.isAppOfArity ``GaudisCrypt.Module.app 6 && (M₁.getArg! 4).isFVar then return false
+      let p₁ ← mkAppM ``Module.Proc.procedure #[M₁]
+      let p₂ ← mkAppM ``Module.Proc.procedure #[M₂]
+      for lem in ← labelled `proc_inv do
+        let c ← mkConstWithFreshMVarLevels lem
+        let (_, _, concl) ← forallMetaTelescope (← inferType c)
+        if concl.isAppOfArity ``prhlProc 6 then
+          if (← isDefEq (concl.getArg! 3) p₁) && (← isDefEq (concl.getArg! 4) p₂) then
+            return true
+      return false
+  catch _ => return false
+  finally s.restore
+
+/-- **EC's `call (_ : ={glob M, …} ∧ I)`** on the last statements, calls of a procedure with a
+rule tagged `@[proc_inv]` (a simulator's `S(F).init`, `S(F).f`): as `equiv_proc (I)`.  Goals: the
+oracles' judgments, then the code before the calls.  Any other callee is left to the forms of
+`Logic/ECCallUpto.lean`. -/
+elab_rules (kind := equivCallInvAnd) : tactic
+  | `(tactic| equiv_call (_ : ={ $xs,* } ∧ $rest)) => do
+    unless ← ECProcInv.lastCallsHaveRule do Lean.Elab.throwUnsupportedSyntax
+    ECProcInv.byRule (← `(={ $xs,* } ∧ $rest))
+
+/-- **EC's `call (_ : I)`** on the last statements, calls of a procedure with a rule tagged
+`@[proc_inv]`: as `equiv_proc (I)`.  Any other callee is left to the other forms. -/
+elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
+  | `(tactic| equiv_call $h:term) => do
+    let `(term| (_ : $I)) := h | Lean.Elab.throwUnsupportedSyntax
+    unless ← ECProcInv.lastCallsHaveRule do Lean.Elab.throwUnsupportedSyntax
+    ECProcInv.byRule I
 
 open Lean Meta Elab Tactic GaudisCrypt ECCallEquiv ECProcInv in
 /-- **EC's `conseq H`** on a procedure judgment, with EC's frame: see the module docstring.

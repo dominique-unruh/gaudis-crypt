@@ -937,10 +937,15 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1913–1918 | section | `declare module BlockSim`, `Dist`; `local clone HybridIRO as HIRO` | `declare module BlockSim <: BlockSponge.SIMULATOR {…} with glob R`, `declare module Dist <: DISTINGUISHER {-Perm, -R, …}`; the clone's variables are `HybridIRO`'s, named in the restrictions | def |
 | 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | same name (EC's script; `LowerDist(Dist)`'s wrapping call inlined, E5; `glob Perm` spelled out in the cut and as the call's invariant; `sim_perm`) | done |
 | 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | same name (EC's script; the simulator's oracle lists as the section hypothesis `BlockSim_rep`, E2; `call (_ : true)` by `BlockSim_init_call`; EC's `call (_ : P ==> Q). proc (I)` as `equiv_call (_ : ={glob BlockSim} ∧ I)`; `proc (I)` on `BlockSim(F).f` by the new `equiv_proc (I)`; `by conseq H` by the new `equiv_conseq_frame H`) | done |
-| 2007–2057 | local module, local lemmas | `HybridIRODist`, `Experiment_HybridIROExper_Lazy`, `HybridIROExper_Experiment_Eager`, `Experiment_Hybrid_Lazy_Eager` | — | todo |
+| 2008 | local module | `HybridIRODist` | the first port's `HybridIRODist`, at the section's modules: `HybridIRODist(BlockSim, Dist)` | def |
+| 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | same name (EC's script, except: no `swap{2} 1 1` past `BlockSim(F).init`, the call's invariant instead, GAP 14; `sim` on the call of `Dist` spelled out, GAP 15) | done |
+| 2036 | local lemma | `HybridIROExper_Experiment_Eager` | same name (as `Experiment_HybridIROExper_Lazy`) | done |
+| 2053 | local lemma | `Experiment_Hybrid_Lazy_Eager` | same name (EC's three rewrites; `HybridIRODist`'s restriction as an instance first) | done |
 | 2059 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | same name (EC's script; `={bs, n}` is `={x}`, the one parameter; `call (HIRO.HybridIROEager_f_BlockIRO_f n' xs2)` framed by the `@[fp_bound]` lemmas; EC's case analysis by hand) | done |
 | 2085 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | same name (as `Ideal_IRO_Experiment_HybridLazy`; `LowerDist(Dist)`'s wrapping call inlined, E5) | done |
-| 2127–2163 | local lemma, lemmas | `IdealIndif_IRO_BlockIRO`, `conclu`, `conclusion` | — | todo |
+| 2127 | local lemma | `IdealIndif_IRO_BlockIRO` | same name (EC's three rewrites) | done |
+| 2137 | lemma | `conclu` | same name (EC's two rewrites) | done |
+| 2152 | lemma | `conclusion` | same name (its own section: the two declarations, `BlockSim_rep`; `exact conclu …`) | done |
 
 ## `proof/SHA3Indiff.ec`
 
