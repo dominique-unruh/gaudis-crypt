@@ -26,6 +26,7 @@ import GaudisCrypt.Logic.ECCallTrueTest
 import GaudisCrypt.Logic.ECCallMultiProcTest
 import GaudisCrypt.Syntax.ModuleVarTest
 import GaudisCrypt.Logic.PHoareExactTest
+import GaudisCrypt.Logic.ECTransProcTest
 import GaudisCrypt.Logic.ECInlineParamsTest
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHLWpTest

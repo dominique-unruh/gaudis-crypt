@@ -250,6 +250,10 @@ import GaudisCrypt.Lib.EC.DUniform
 import GaudisCrypt.Lib.EC.DBoolBiased
 import GaudisCrypt.Examples.VonNeumann
 import GaudisCrypt.Lib.EC.WhileSamplingFixedTest
+import GaudisCrypt.Lib.EC.DInterval
+import GaudisCrypt.Logic.ECTransProc
+import GaudisCrypt.Logic.ECTransProcTest
+import GaudisCrypt.Examples.Dice4_6
 import GaudisCrypt.Examples.PIR
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame

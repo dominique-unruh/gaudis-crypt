@@ -243,7 +243,8 @@ the `while` row.
 | `splitwhile{i} n : e` / `unroll{i} n` | `stmt_splitwhile{i} n : e` / `stmt_unroll{i} n` |
 | `alias{i} n x = e` | `stmt_alias{i} n x = e` |
 | `transitivity{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` | `equiv_trans{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` |
-| `transitivity N.f (P₁ ==> Q₁) (P₂ ==> Q₂)` (procedure) | **no tactic** (2 uses, Sponge); the rule `prhlProc_trans_ec` (`Logic/ECTrans.lean`) |
+| `transitivity N.f (P₁ ==> Q₁) (P₂ ==> Q₂)` (procedure) | `equiv_trans (N.f) (P₁ ==> Q₁) (P₂ ==> Q₂)` (`Logic/ECTransProc.lean`, 2026-11-15): goals `hP` (the middle procedure's argument and memory: `exact fun _ g _ _ _ => ⟨args, g, …⟩`), `hQ`, then the two judgments; `hP` for preconditions `true` and `hQ` for equalities that compose are closed.  (Sponge's two uses are still the rule `prhlProc_trans_ec`.)  A judgment whose condition reads a parameter is shown as the plain `prhlProc` term (display) |
+| `proc *; rewrite equiv[{1} 1 L args]` (a call replaced along an equivalence) | no tactic: `equiv_trans (N.f) …` on the procedures, one step per rewrite, `exact L` for its judgment (`Examples/Dice4_6.lean` `D4_D6`); for `rewrite equiv[… -L]`: `equiv_sym; exact prhlProc_conseq L (fun _ _ _ _ h => h) (fun _ _ _ _ h => h.symm)` |
 | `proc (I)` on an abstract procedure | `equiv_proc (I)` (`Logic/ECProcInv.lean`): `D(O₁).f ~ D(O₂).f` with `D` declared, or a procedure with a rule tagged `@[proc_inv]` (a simulator's `S(F).f`: `attribute [local proc_inv] SIMULATOR.call_f SIMULATOR.call_fi`, and the simulator's oracle lists as a section hypothesis). Goals: the oracles' judgments in EC's form `={arg} ∧ I ==> ={res} ∧ I` (then `exact H`, EC's `apply H`), then `pre` if `ec_auto` does not close it. EC's `call (_ : P ==> Q). proc (I)` on the last statement is `equiv_call (_ : ={glob M} ∧ I)` directly |
 | `symmetry` | `equiv_sym` |
 | `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)` — EC's `n` dropped: the call must be the **last** statement (`stmt_wp` first). Goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviations: `bad` must persist; **one oracle only** — Gext's `fel 8 … [ReSample.f : …; ReSample.f1 : …]` needs the multi-oracle extension .  **A procedure the oracles call** (`fel … [Gcol.sample_c : pre]`): `fel §cntr (fun _ => step) q (bad) [Gcol.sample_c : pre] (inv)?` (`Logic/FelInner.lean`; `inv` may be left out): `stmt_wp` itself, the event may be EC's `bad ∧ cntr ≤ q`, `pre` may read anything, the oracles' code checked syntactically (`exp_decr`), `lt` closed; goals `sum`, `init`, then per procedure `step`, `incr`, `same`, `keep`. Over the procedure's body: `byphoare (: True ==> _)`, `phoare_proc`, `phoare_inline*` first (Gcol's `Pr_col`).  Code *after* the adversary's call (Gext's resampling) is checked like the oracles, so it must stay calls of the named procedures: inline only the wrapper (`phoare_inline 1` for `DRestr(D)`'s call, Gext's `Pr_ext`); several procedures `[ReSample.f : …, ReSample.f1 : …]` (EC's `;` is `,`) |
@@ -956,6 +957,15 @@ Document each in the docstring when it applies.
   `PMF.toMeasure_apply_singleton`, its expectation by `SubProbability.expected_eq_tsum`.
 * **A lemma named like a module** (`equiv SamplePair` next to `module SamplePair`): another
   name for the lemma (`SamplePair_Fair`).
+* **`rnd` (identity) between two different distributions** (`r <$ [1..4]` ~ `r <$ [1..6] \ X`):
+  `equiv_rnd` asks `d₁ = d₂` (EC: the masses pointwise on the support): a library equality
+  (`dinter_dexcepted`), by `SubProbability.ext_singleton` and the point masses
+  (`dexcepted_apply`, `dinter_apply`).  `equiv_auto` after `equiv_rnd f g` loops when a
+  condition is `b = f (g b)` (simp takes it as a rewrite rule): `equiv_skip` and the
+  conditions by hand.
+* **Rejection sampling** (EC's `WhileSamplingFixedTest`): `Lib/EC/WhileSamplingFixedTest.lean`
+  (`SampleE`, `SampleWi`, `pr_sampleE`, `pr_sampleWi`, `sampleE_sampleWi`); `dinter` is
+  `Lib/EC/DInterval.lean`.
 * **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
