@@ -110,4 +110,24 @@ example : equiv[ (§b{1} → §b{2}) ==> (§b{1} → §b{2}) ] {
       skip;
     } := rfl
 
+-- a name with one type on the left and another on the right (as inlining leaves them): two
+-- variables, `§x{i}` the one of side `i`
+/--
+info: equiv[ §x{1} = true ∧ §x{2} = 2 ==> §y{1} = §x{1} ∧ §y{2} = §x{2} + 1 ] {
+    var y : Bool, x : Bool;
+    y <- §x;
+} ~ {
+    var y : ℕ, x : ℕ;
+    y <- §x + 1;
+}
+-/
+#guard_msgs in
+#roundtrip equiv[ §x{1} = true ∧ §x{2} = 2 ==> §y{1} = §x{1} ∧ §y{2} = §x{2} + 1 ] {
+      var x : Bool, y : Bool;
+      y <- $x;
+    } ~ {
+      var x : Nat, y : Nat;
+      y <- $x + 1;
+    }
+
 end GaudisCrypt.PRHLSyntaxTest

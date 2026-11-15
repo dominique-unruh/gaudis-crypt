@@ -93,12 +93,11 @@ theorem dlog_standard_reduction (m : VariableAssignment) :
       Pr[ DLog.DLogStdExperiment(StdRedAdversary(L)).main () @ &m : §res ] := by
   -- byequiv => //; proc; inline*.
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   equiv_proc; stmt_inline*
   -- wp; seq 2 3: (x'{1} = lx{2} /\ x{1} = x{2}).
   stmt_wp; equiv_seq 2 3 : (§x'{1} = §lx{2} ∧ ={x})
   -- + by call (_: true); auto.
-  · equiv_call (_ : ={glob L}); equiv_auto
+  · equiv_call (_ : True); equiv_auto
   -- if{2} => //; last by auto.
   stmt_if{2}
   case «else» => equiv_auto; smt_close [oget]

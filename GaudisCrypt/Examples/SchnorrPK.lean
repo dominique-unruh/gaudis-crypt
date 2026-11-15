@@ -42,16 +42,14 @@ Translation (as `Examples/ElGamal.lean`):
 Gap list (the examples' infrastructure batch; numbers as in `Examples/ElGamal.lean` where the
 gap is the same):
 * GAP 1: `stmt_split_params` after `inline*` (one assignment per parameter, as EC).
-* GAP 3: the path `SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameIdeal` into a
-  module without a module type that has several module parameters does not elaborate: the two
-  games are the abbreviations `gameIdeal D`, `gameReal D`.
-* GAP 5: `byphoare (_: h = x /\ w' = w ==> _)` on a clone's game does not know the parameters'
-  names: the judgment is written out, `byphoare (?j : phoare[ … (x, w) : … ==> … ] = …)`.
+* GAP 3 (closed 2026-11-15): the path `SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms,
+  D).gameIdeal` into a module without a module type that has several module parameters.
+* GAP 5 (closed 2026-11-15): `byphoare (_: h = x /\ w' = w ==> _)` on a clone's game is
+  `byphoare (: §x = h ∧ §w = w' ==> _)`.
 * GAP 6: EC's `seq 2 2 : (#pre /\ ={w0})`: there is no `#pre`; the precondition is written out.
 * The last steps in the group (EC's `algebra`, and the eight rewrites of special soundness) are
   by hand; special soundness finds the witness through `loge`, where EC rewrites with `expM`,
   `expB`, `mulcV`, ….
-* EC's `call (_:true)` is written `equiv_call (_ : ={glob D})`.
 -/
 
 set_option ec.strict true
@@ -154,9 +152,7 @@ theorem schnorr_proof_of_knowledge_completeness (h : group) (w' : exp) (m : Vari
   -- EC: rewrite /R /R_DL; move => sigmarel.
   intro sigmarel
   -- EC: byphoare (_: h = x /\ w' = w ==> _) => //; rewrite sigmarel.
-  --     (GAP 5: the judgment written out)
-  byphoare (?j : phoare[ Completeness(SchnorrPK).main (x, w) : §x = h ∧ §w = w' ==> §res ] =
-    (ENNReal.ofReal 1))
+  byphoare (: §x = h ∧ §w = w' ==> _)
   -- EC: proc; inline*; swap 3 -2; swap 8 -7.
   --     (GAP 1)
   phoare_proc; phoare_inline*; stmt_split_params; stmt_swap 3 -2; stmt_swap 8 -7
@@ -185,11 +181,7 @@ theorem schnorr_proof_of_knowledge_special_soundness (h : group) (msg : group)
   -- EC: move => challenges_differ accepting_transcript_1 accepting_transcript_2.
   intro challenges_differ accepting_transcript_1 accepting_transcript_2
   -- EC: byphoare (_: h = x /\ msg = m /\ ch = e /\ ch' = e' /\ r = z /\ r' = z' ==> _) => //.
-  --     (GAP 5)
-  byphoare (?j : phoare[ SpecialSoundnessExperiment(SchnorrPK, SchnorrPKAlgorithms).main
-      (x, m, e, z, e', z') :
-      §x = h ∧ §m = msg ∧ §e = ch ∧ §e' = ch' ∧ §z = r ∧ §z' = r' ==>
-      §res ≠ none ∧ R h (oget §res) ] = (ENNReal.ofReal 1))
+  byphoare (: §x = h ∧ §m = msg ∧ §e = ch ∧ §e' = ch' ∧ §z = r ∧ §z' = r' ==> _)
   -- EC: proc; simplify; inline*.
   phoare_proc; phoare_inline*
   -- EC: auto; rewrite /R /R_DL /oget => &hr /> hne 2!-> /=.
@@ -213,17 +205,6 @@ theorem schnorr_proof_of_knowledge_special_soundness (h : group) (msg : group)
     rw [h1, h2]; field_simp; ring
   simp [challenges_differ, accepting_transcript_1, accepting_transcript_2, oget, R, R_DL, ← hw]
 
-/-- EC's `SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameIdeal` (GAP 3: the path
-into a module without a module type that has several module parameters does not elaborate). -/
-noncomputable abbrev gameIdeal (D : SigmaTraceDistinguisher) : procmod () → Bool :=
-  Module.app (Module.app (Module.app SimulateHonestVerifier.gameIdeal SchnorrPK)
-    SchnorrPKAlgorithms) D
-
-/-- EC's `SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameReal` (GAP 3; the
-procedure does not use the algorithms). -/
-noncomputable abbrev gameReal (D : SigmaTraceDistinguisher) : procmod () → Bool :=
-  Module.app (Module.app SimulateHonestVerifier.gameReal SchnorrPK) D
-
 set_option maxHeartbeats 4000000 in
 -- one declaration: the two games inlined, with the simulator's loop
 /-- EC's `lemma schnorr_proof_of_knowledge_shvzk (D<: SigmaTraceDistinguisher) &m:
@@ -231,7 +212,8 @@ Pr[SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameIdeal() @ &m : 
 Pr[SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameReal() @ &m : res]`. -/
 theorem schnorr_proof_of_knowledge_shvzk : ∀ (D <: SigmaTraceDistinguisher),
     ∀ m : VariableAssignment,
-    Pr[ (gameIdeal D) () @ &m : §res ] = Pr[ (gameReal D) () @ &m : §res ] := by
+    Pr[ SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameIdeal () @ &m : §res ] =
+      Pr[ SimulateHonestVerifier(SchnorrPK, SchnorrPKAlgorithms, D).gameReal () @ &m : §res ] := by
   intro D m
   -- EC: byequiv => //.
   byequiv
@@ -260,7 +242,7 @@ theorem schnorr_proof_of_knowledge_shvzk : ∀ (D <: SigmaTraceDistinguisher),
     · rename_i hv
       exact hv (by rw [← expM, ← expM, ← expD, ← expD]; congr 1; ring)
   · -- EC: by call (_:true); rcondf{1} 1; auto.
-    equiv_call (_ : ={glob D}); stmt_rcondf{1} 1
+    equiv_call (_ : True); stmt_rcondf{1} 1
     · hoare_auto
     equiv_auto
     intros; simp_all [oget]

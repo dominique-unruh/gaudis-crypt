@@ -34,14 +34,14 @@ trace: case term
 
 case body
 ⊢ ∀ (w : Stmt),
-    (phoareStmt GaudiExpr[ True ].get w (fun x ↦ 1) Eq fun x ↦ 1) →
-      phoareStmt (fun σ ↦ GaudiExpr[ True ].get σ ∧ GaudiExpr[ !§(localVarLens "b" Bool) ].get σ = true)
-        (GaudiProg[
-                var b : Bool;
-                b <$ dbool;
-          ].seq
-          w)
-        (fun x ↦ 1) Eq fun x ↦ 1
+    phoare[ True ==> 1 ] = 1 {
+          stmt w;
+    } →
+      phoare[ True ∧ (!§b) = true ==> 1 ] = 1 {
+          var b : Bool;
+          b <$ dbool;
+          stmt w;
+    }
 
 case inv
 ⊢ phoare[ True ∧ (!§b) = true ==> True ] = 1 {

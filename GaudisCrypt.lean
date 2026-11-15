@@ -230,6 +230,7 @@ import GaudisCrypt.Lib.EC.Commitment
 import GaudisCrypt.Examples.Pedersen
 import GaudisCrypt.Logic.PHoareWhileRev
 import GaudisCrypt.Logic.PHoareWhileRevTest
+import GaudisCrypt.Logic.ECCallTrueTest
 import GaudisCrypt.Examples.WhileSampling
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame

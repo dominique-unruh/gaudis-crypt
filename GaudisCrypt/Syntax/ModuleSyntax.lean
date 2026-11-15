@@ -1,5 +1,6 @@
 import GaudisCrypt.Syntax.ProgramSyntax
 import GaudisCrypt.Language.Modules
+import GaudisCrypt.Syntax.CloneRegistry
 
 open GaudisCrypt
 
@@ -1730,6 +1731,38 @@ def moduletypeMk? (mt? : Option Term) (fns : Array Name) : CommandElabM (Option 
   let mkId := mkIdent (n.str "mk")
   if args.isEmpty then return some mkId else return some (← `($mkId $args*))
 
+/-- The fields of the declared module type, when it is one introduced by `moduletype` (the head
+name of `mt?`, as `moduletypeMk?` reads it). -/
+def moduletypeFields? (mt? : Option Term) : CommandElabM (Option (Array Name)) := do
+  let some mt := mt? | return none
+  let mt ← match mt with
+    | `(($t:term)) => pure t
+    | _            => pure mt
+  let id : Ident ←
+    if mt.raw.isIdent then pure (⟨mt.raw⟩ : Ident)
+    else if mt.raw.getKind == ``Lean.Parser.Term.app && mt.raw[0]!.isIdent then
+      pure (⟨mt.raw[0]!⟩ : Ident)
+    else return none
+  let some n ← (try pure (some (← resolveGlobalConstNoOverload id)) catch _ => pure none)
+    | return none
+  let env ← getEnv
+  -- (an alias of a clone stands for the theory's module type)
+  let n := cloneBase env n
+  let structName := n.str "Structure"
+  unless env.contains (n.str "mk") && isStructure env structName do return none
+  return some (getStructureFields env structName)
+
+/-- EasyCrypt's `module M : T = { … }` may declare more procedures than `T` lists
+(`ElGamal : Scheme` with its `dec`): the module `M` is then the record of `T`'s procedures, in
+`T`'s order, and the others are procedures of their own (`M.dec`, declared like the rest).
+The procedures the module itself is made of. -/
+def procsOfType (mt? : Option Term) (procs : Array ProcResult) :
+    CommandElabM (Array ProcResult) := do
+  let some fields ← moduletypeFields? mt? | return procs
+  unless fields.size < procs.size &&
+      fields.all (fun f => procs.any (·.fn.getId == f)) do return procs
+  return fields.filterMap fun f => procs.find? (·.fn.getId == f)
+
 /-- The record whose field `i` is `fields[i]`: `N.mk { f₁ := …, fₙ := … }` when `mk?` is the
 constructor of a `moduletype` with exactly these fields (see `moduletypeMk?`), and the right-nested
 `Module.pair` of them — which is the same record, only anonymous — otherwise. -/
@@ -1953,7 +1986,7 @@ elab_rules : command
             `Module.Proc.procedure`."⟩
     -- `X` itself — only when every procedure made it (a missing field would not type-check)
     if results.size == procs.size then
-      declared := declared ++ (← elabModule nm P paramBs? mt results)
+      declared := declared ++ (← elabModule nm P paramBs? mt (← procsOfType mt results))
     docDeclared declared
     logDeclared (← getRef) declared
 

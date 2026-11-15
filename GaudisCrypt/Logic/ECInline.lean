@@ -38,6 +38,16 @@ partial def callees (e₀ : Expr) : MetaM (Array (Option Expr)) := do
     | some ``StmtWithHoles.while => callees args[2]!
     | _ => return #[]
 
+/-- A callee `M.procedure` with its module `M` evaluated by the module steps (`moduleStep?`): a
+procedure reached through a module type's accessor (`StdAdversary.guess (StdRedAdversary(L))`,
+how an experiment calls its parameter) and the module's own procedure
+(`StdRedAdversary(L).guess`, how it is named) then are the same term. -/
+partial def normCallee (e : Expr) (fuel : Nat := 16) : MetaM Expr := do
+  if fuel == 0 || !e.isAppOfArity ``Module.Proc.procedure 2 then return e
+  match ← moduleStep? e.appArg! (views := true) with
+  | some r => normCallee (mkApp e.appFn! r.expr) (fuel - 1)
+  | none => return e
+
 /-- Inline the calls of `p` on side `side?` of the goal, as long as one is left (at most `fuel`). -/
 partial def inlineByName (p : Expr) (g : MVarId) (side? : Option Nat) (fuel : Nat := 32) :
     MetaM MVarId := g.withContext do
@@ -45,9 +55,11 @@ partial def inlineByName (p : Expr) (g : MVarId) (side? : Option Nat) (fuel : Na
   let (d, ty) ← Judgment.descOf g side?
   let cs ← callees (ty.getAppArgs[d.stmtArg]!)
   let mut k? : Option Nat := none
+  let p' ← normCallee p
   for c? in cs, i in [0:cs.size] do
     if let some c := c? then
-      if ← withNewMCtxDepth (withReducible (isDefEq c p)) then
+      if ← withNewMCtxDepth (withReducible (isDefEq c p)) <||>
+          (do withNewMCtxDepth (withReducible (isDefEq (← normCallee c) p'))) then
         k? := some i
         break
   let some k := k? | return g

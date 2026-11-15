@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.Hoare
 import GaudisCrypt.Syntax.ModuleSyntax
+import GaudisCrypt.Syntax.CloneRegistry
 
 /-!
 # Concrete syntax for Hoare triples
@@ -289,7 +290,8 @@ private def appliedModuleParamNames? (M : Lean.Expr) : MetaM (Option (Array Name
   let headModule (e : Lean.Expr) : Option Name := Id.run do
     let mut f := e
     while f.isAppOfArity ``Module.app 6 do f := f.getArg! 4
-    return f.getAppFn.constName?
+    -- (an alias of a clone stands for the theory's module, where the names are recorded)
+    return f.getAppFn.constName?.map (cloneBase env)
   -- `C.f (Module.app X …)`: `X.f`
   if let some c := M.getAppFn.constName? then
     if env.contains (c ++ `utilities) && M.getAppNumArgs ≥ 1 then

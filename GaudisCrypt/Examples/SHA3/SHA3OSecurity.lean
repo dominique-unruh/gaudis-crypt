@@ -1996,7 +1996,6 @@ theorem rw_ideal_2 (m : VariableAssignment) :
   rw [h3]; clear h3
   -- EC: byequiv=> //=; proc.
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   equiv_proc
   -- EC: inline{1} 1; inline{2} 2; sp.
   --     inline{1} 1; inline{2} 3; swap{2}[1..2]1; sp.
@@ -2212,7 +2211,6 @@ theorem rw_ideal (m : VariableAssignment) :
   refine (rw_ideal_2 A m).trans ?_
   -- EC: byequiv(: ={glob A} ==> _) => //=; proc; inline*; sp; wp.
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   equiv_proc
   -- EC: swap{2} 2; sp; swap{2}[1..2] 6; sp.
   --     swap{1} 2; sp; swap{1}[1..2] 6; sp.
@@ -3286,7 +3284,6 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
       ODRestr(Dist_of_P2Adv(A))).main () ~ SORO.SecondPreimage(SORO_P2(A), RFWhile).main (m1) :
     §allGlobals{1} = §allGlobals{2} ∧ §Dist_of_P2Adv.m{1} = mess ∧ §m1{2} = mess ==>
     (§res{1} → §res{2}) ])
-  case hE => exact fun _ _ _ _ h => h
   case last =>
     equiv_proc
     -- EC: inline{1} 1; inline{2} 1; sp.  (five times)
@@ -3566,7 +3563,6 @@ theorem rw_ideal (m : VariableAssignment) (mess : List Bool) :
   -- EC: byequiv(: ={glob A} /\ ={arg} /\ arg{1} = mess ==> _) => //=; proc; inline*; sp; wp.
   --     (EC's `inline*` leaves the two queries for after the adversary's call)
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   equiv_proc
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -4539,7 +4535,6 @@ theorem rw_ideal_2 (m : VariableAssignment) :
   rw [h3]; clear h3
   -- EC: byequiv=> //=; proc.
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   equiv_proc
   -- EC: inline{1} 1; inline{2} 1; sp.  (five times)
   --     inline{1} 1; sp; auto.
@@ -4809,7 +4804,6 @@ theorem rw_ideal (m : VariableAssignment) :
   -- EC: byequiv(: ={glob A} ==> _) => //=; proc; inline*; sp; wp.
   --     (EC's `inline*` leaves the two queries for after the adversary's call)
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   equiv_proc
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0

@@ -16,9 +16,8 @@ declaration of the theory and are left out (EC's clones leave them abstract).  `
 proposition; where a program stores it (`r <- R x w`) it is decided classically, as EC's logic
 is.  EC's variable `to` is a Lean keyword, hence `«to»`.
 
-Gap: `SimulateHonestVerifier.main` calls the module's own procedures (`b' <@ gameIdeal()`); there
-is no syntax for that in a module with parameters, and the calls are written with the procedure
-modules applied to the parameters they use.
+`SimulateHonestVerifier.main` calls the module's own procedures (`b' <@ gameIdeal()`): written
+with their paths, `SimulateHonestVerifier(S, A, D).gameIdeal`.
 -/
 
 namespace GaudisCrypt.EC.SigmaProtocol
@@ -143,15 +142,14 @@ module SimulateHonestVerifier using (S : SigmaScheme, A : SigmaAlgorithms,
     b <- call D.distinguish ($x, $t);
     return $b
   };
-  -- EC's `b' <@ gameIdeal()`, `b' <@ gameReal()`: the module's own procedures, here as the
-  -- procedure modules applied to the parameters they use (GAP: no syntax for a sibling's call)
+  -- EC's `b' <@ gameIdeal()`, `b' <@ gameReal()`: the module's own procedures, by their paths
   proc main () : Bool {
     var b : Bool, b' : Bool;
     b <$ dbool;
     if ($b) {
-      b' <- call (Module.app (Module.app (Module.app SimulateHonestVerifier.gameIdeal S) A) D) ();
+      b' <- call SimulateHonestVerifier(S, A, D).gameIdeal ();
     } else {
-      b' <- call (Module.app (Module.app SimulateHonestVerifier.gameReal S) D) ();
+      b' <- call SimulateHonestVerifier(S, A, D).gameReal ();
     }
     return decide ($b' = $b)
   };

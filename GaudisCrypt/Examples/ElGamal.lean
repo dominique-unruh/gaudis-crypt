@@ -45,16 +45,14 @@ infrastructure batch):
   parameter, so EC's positions are off by the number of parameters less one, and a `swap`
   between two parameters has nothing to move past: `stmt_split_params` after `stmt_inline*`
   (`Logic/ECInlineParams.lean`), until the inliner does it.
-* GAP 2: EC's `call (_ : true)` on the adversary is written `equiv_call (_ : ={glob A})`: there
-  is no `equiv_call (_ : I)` for a plain invariant.
+* GAP 2 (closed 2026-11-15): EC's `call (_ : true)` on the adversary is `equiv_call (_ : True)`.
 * GAP 3 (closed 2026-11-15): `Gb_half` is EC's script; pHL `rnd E` and `conseq` on an exact
   bound and the tactic `islossless` are `Logic/PHoareRnd.lean`.
-* GAP 4: EC's `module ElGamal : Scheme` has a third procedure, `dec`, which `Scheme` does not
-  list.  `module M : T` wants exactly `T`'s procedures: `dec` is left out.
+* GAP 4 (closed 2026-11-15): `module ElGamal : Scheme` with its third procedure `dec`, which
+  `Scheme` does not list, as in EC (`ElGamal.dec` is a procedure of its own).
 * GAP 5 (closed 2026-11-15): EC's `rnd f g` is `equiv_rnd f g` (`Logic/ECRnd.lean`).
 * GAP 6 (goals as shown): `byequiv` states `§allGlobals{1} = §allGlobals{2}` where EC shows
-  `={glob A}`; a clone's game prints as `Module.app CPA (Module.pair ElGamal A)`, not
-  `CPA(ElGamal, A).main`.
+  `={glob A}`.
 -/
 
 set_option ec.strict true
@@ -83,6 +81,11 @@ module ElGamal : Scheme {
     var y : exp;
     y <$ dt;
     return (g ^ $y, $pk ^ $y * $m)
+  };
+  proc dec (sk : exp, c : group × group) : (Option group) {
+    var gy : group, gm : group;
+    gy, gm <- $c;
+    return some ($gm * $gy ^ (-$sk))
   };
 }
 
@@ -127,9 +130,9 @@ theorem cpa_ddh0 (m : VariableAssignment) :
   stmt_split_params
   stmt_swap{1} 7 -5
   -- EC: auto; call (_:true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: auto; call (_:true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: by auto=> /> sk _ y _ r b _; rewrite expM.
   equiv_auto; smt_close [expM]
 
@@ -144,13 +147,13 @@ theorem ddh1_gb (m : VariableAssignment) :
   stmt_split_params
   stmt_swap{1} 3 2; stmt_swap{1} [5..6] 2; stmt_swap{2} 6 -2
   -- EC: auto; call (_:true); wp.
-  equiv_auto; equiv_call (_ : ={glob A}); stmt_wp
+  equiv_auto; equiv_call (_ : True); stmt_wp
   -- EC: rnd (fun z, z + loge (if b then m1 else m0){2})
   --         (fun z, z - loge (if b then m1 else m0){2}).
   equiv_rnd (fun z => z + loge (if §b{2} then §m1{2} else §m0{2}))
     (fun z => z - loge (if §b{2} then §m1{2} else §m0{2}))
   -- EC: auto; call (_:true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: auto; progress.
   --     - by rewrite ZPF.addrAC -ZPF.addrA ZPF.subrr ZPF.addr0.
   --     - by rewrite  -ZPF.addrA ZPF.subrr ZPF.addr0.

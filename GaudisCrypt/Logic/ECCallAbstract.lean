@@ -310,4 +310,38 @@ elab_rules (kind := equivCallInv) : tactic
     let isOracle (g' : MVarId) : TacticM Bool := return (← g'.getTag) == `oracle
     setGoals ((← gs.filterM isOracle) ++ (← gs.filterM fun g' => return !(← isOracle g')))
 
+/-- **EC's `call (_ : true)`** on a call of an abstract procedure (the adversary): the invariant
+`true`, under which the two runs keep the adversary's own state equal — `equiv_call (_ : ={glob
+A})` for the declared module `A` the calls are of. -/
+syntax (name := equivCallTrue) "equiv_call" " (" "_" " : " &"True" ")" : tactic
+
+elab_rules (kind := equivCallTrue) : tactic
+  | `(tactic| equiv_call (_ : True)) => withMainContext do
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_call"
+    -- the modules the left side's last statement mentions: the callee's is among them
+    let s ← saveState
+    let g' ← HoareSplit.hoareSplit 1 g
+    let cands ← g'.withContext do
+      let ty ← instantiateMVars (← g'.getType)
+      let st ← TacticMisc.openStmt (ty.getArg! 1)
+      let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then TacticMisc.openStmt (st.getArg! 2)
+        else pure st
+      let fvs := (collectFVars {} last).fvarIds
+      fvs.filterMapM fun fv => do
+        let d ← fv.getDecl
+        if d.isImplementationDetail || d.userName.hasMacroScopes then return none
+        if ← isProp d.type then return none
+        return some d.userName
+    s.restore
+    for x in cands do
+      let s ← saveState
+      try
+        evalTactic (← `(tactic| equiv_call (_ : ={glob $(mkIdent x)})))
+        return
+      catch _ => s.restore
+    throwError "equiv_call (_ : True): the last statements are not calls of an abstract \
+      procedure of a declared module (the invariant `true` is for the adversary; for a \
+      concrete callee: `equiv_call (_ : =\{x₁, …})`, `sim`, or inline it)"
+
 end GaudisCrypt

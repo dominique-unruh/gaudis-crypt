@@ -109,16 +109,13 @@ example : equiv[ True ==> §b{2} = !§b{1} ] {
 -- a name with one type on the left and another on the right (as inlining leaves them): each
 -- side's own variable
 /--
-trace: ⊢ equiv[ True ==>
-      (∀ (b : ZMod 7), b = b - §(localVarLens "k" (ZMod 7)){2} + §(localVarLens "k" (ZMod 7)){2}) ∧
-        ∀ (a : ZMod 7),
-          a = a + §(localVarLens "k" (ZMod 7)){2} - §(localVarLens "k" (ZMod 7)){2} ∧
-            a + §(localVarLens "k" (ZMod 7)){2} = a + 2 ]
+trace: ⊢ equiv[ True ==> (∀ (b : ZMod 7), b = b - §k{2} + §k{2}) ∧ ∀ (a : ZMod 7), a = a + §k{2} - §k{2} ∧ a + §k{2} = a + 2 ]
       {
-      (localVarLens "k" Bool) <- true;
-} ~
-    {
-      (localVarLens "k" (ZMod 7)) <- 2;
+      var k : Bool;
+      k <- true;
+} ~ {
+      var k : ZMod 7;
+      k <- 2;
 }
 -/
 #guard_msgs in

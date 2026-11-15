@@ -203,14 +203,32 @@ def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
 /-- Elaborate the relational term `t` (`§x{1}`, `§x{2}`, `={x}` over the program variables of the
 goal `goalTy`) at type `T`, as a function `ProgramState → ProgramState → T`. -/
 def elabRelTerm (goalTy : Lean.Expr) (t : Term) (T : Lean.Expr) : TacticM Lean.Expr := do
-  let vars := (← ProgramSyntax.frameVars goalTy.getAppArgs #[]).filter (·.nameable)
+  -- a name with one type on the left and another on the right (after inlining) is a variable
+  -- per side: `§x{i}` means side `i`'s
+  let (all, sided) ← (do
+    if goalTy.isAppOfArity ``prhlStmt 4 then
+      let (es, es₁, es₂) ← relSideParts goalTy
+      ProgramSyntax.frameVarsSided es es₁ es₂
+    else return (← ProgramSyntax.frameVars goalTy.getAppArgs #[], #[]))
+  let vars := all.filter (·.nameable)
+  let mut sidedIds : Array (Nat × String × Ident × Lean.Expr) := #[]
+  for (k, v) in sided do
+    if v.nameable then
+      if let some slot := v.slots[0]? then
+        sidedIds := sidedIds.push
+          (k, v.name, mkIdent (← mkFreshUserName (.mkSimple s!"{v.name}_{k}")), slot)
+  let param (k : Nat) (n : Name) : Option Term :=
+    (sidedIds.find? fun (k', n', _, _) => k' == k && Name.mkSimple n' == n).map
+      fun (_, _, i, _) => ⟨i.raw⟩
   let σ₁ ← `(σ₁)
   let σ₂ ← `(σ₂)
   let states (k : Nat) : Option Term :=
     if k == 1 then some σ₁ else if k == 2 then some σ₂ else none
-  let t' : Term := ⟨← liftMacroM (RelSyntax.expand states (fun _ _ => none) t)⟩
+  let t' : Term := ⟨← liftMacroM (RelSyntax.expand states param t)⟩
   let Tstx ← Term.exprToSyntax T
   let mut stx ← `(fun ($σ₁ : ProgramState) ($σ₂ : ProgramState) => ($t' : $Tstx))
+  for (_, _, i, slot) in sidedIds do
+    stx ← `(letI $i := $(← Term.exprToSyntax slot); $stx)
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue
     stx ← `(letI $(mkIdent (.mkSimple v.name)) := $(← Term.exprToSyntax slot); $stx)

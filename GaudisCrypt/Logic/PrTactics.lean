@@ -128,6 +128,9 @@ def closeSide (gs : List MVarId) : TacticM (List MVarId) := do
     let closed ← try
         let gs' ← evalTacticAt (← `(tactic| first
           | exact ⟨rfl, rfl⟩ | exact ⟨rfl, rfl, rfl, rfl⟩ | trivial | rfl | exact le_rfl
+          -- the events' condition when the postcondition is the events' implication itself
+          -- (`byequiv` on `≤` without a judgment)
+          | exact fun _ _ _ _ h => h
           | positivity
           | (intros; subst_vars; rfl) | (intros; simp_all))) g
         pure gs'.isEmpty

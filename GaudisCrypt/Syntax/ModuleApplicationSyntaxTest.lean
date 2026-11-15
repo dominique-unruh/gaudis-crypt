@@ -109,4 +109,46 @@ module UseFlip using (F : Flip) {
 #roundtrip UseFlip(FairCoin).main
 #roundtrip UseFlip(Swap(FairCoin)).main
 
+-- EC's `module M : T` with a procedure `T` does not list: `M` is `T`'s record, `M.extra` a
+-- procedure of its own
+module Loaded : Coin {
+  proc flip () : Bool {
+    return true
+  };
+  proc neg (k : Int) : Int {
+    return -$k
+  };
+  proc extra (k : Int) : Int {
+    return $k + 1
+  };
+}
+
+noncomputable example : Coin := Loaded
+#check (Loaded.extra : procmod (Int) → Int)
+
+-- a module without a module type and with several parameters: the path takes them all, each
+-- procedure the ones it uses; a sibling procedure is called by its path
+module Two using (C : Coin, F : Flip) {
+  proc first () : Bool {
+    var b : Bool;
+    b <- call F.flip ();
+    return $b
+  };
+  proc second (k : Int) : Int {
+    var r : Int;
+    r <- call C.neg ($k);
+    return $r
+  };
+  proc both (k : Int) : Int {
+    var b : Bool, r : Int;
+    b <- call Two(C, F).first ();
+    r <- call Two(C, F).second ($k);
+    return $r
+  };
+}
+
+noncomputable example : procmod () → Bool := Two(FairCoin, ((FairCoin : Flip))).first
+noncomputable example : procmod (Int) → Int := Two(FairCoin, ((FairCoin : Flip))).second
+noncomputable example : procmod (Int) → Int := Two(FairCoin, ((FairCoin : Flip))).both
+
 end GaudisCrypt.ModuleApplicationSyntaxTest

@@ -780,4 +780,24 @@ info: GaudiProg[
 #guard_msgs in
 #check proc (a.b : Nat) { return 0 }
 
+-- a variable standing for a statement (EC's abstract statement): `stmt w;`
+/--
+trace: w : Stmt
+h :
+  GaudiProg[
+        a <- 1;
+        stmt w;
+  ] =
+    GaudiProg[
+        a <- 1;
+        stmt w;
+  ]
+⊢ True
+-/
+#guard_msgs in
+example (w : Stmt) : True := by
+  have h : GaudiProg[ a <- 1; stmt w; ] = StmtWithHoles.seq GaudiProg[ a <- 1; ] w := rfl
+  trace_state
+  trivial
+
 end GaudisCrypt.ProgTest

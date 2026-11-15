@@ -44,30 +44,26 @@ Translation:
 
 Gap list (what keeps the file from reading as EC's; items of the examples' infrastructure
 batch):
-* GAP 1: EC's `call (_ : true)` on the adversary is `equiv_call (_ : ={glob U})`.
+* GAP 1 (closed 2026-11-15): EC's `call (_ : true)` on the adversary is `equiv_call (_ : True)`.
 * GAP 2 (closed 2026-11-15): pHL on an event reached with probability `1` — `call H` with
   `H : islossless f`, `rnd`, `auto` — keeps the judgment an event, as EC does
   (`Logic/PHoareRnd.lean`): `fakecommit_half` is EC's script.
-* GAP 3 (closed 2026-11-15 for `rnd f g`): after inlining, `x` is a group element on the left
-  (`Correctness`'s key) and an exponent on the right (`FakeCommit`'s secret).  `§x{2}` in
-  `equiv_rnd f g` is the right side's variable (`Logic/ECRnd.lean`); the other tactics'
-  conditions, and the goals as shown (`§(localVarLens "x" exp){2}`), do not yet tell the sides
-  apart.
+* GAP 3 (closed 2026-11-15): after inlining, `x` is a group element on the left
+  (`Correctness`'s key) and an exponent on the right (`FakeCommit`'s secret): two variables
+  of one name.  `§x{2}` is the right side's, in the tactics' conditions and in the goals as
+  shown.
 * GAP 4: `islossless` closes the samplings (EC's hint `random`) and leaves the calls; EC's takes
   the hypotheses `uc_ll`, `ug_ll` and leaves the samplings.  `hi_ll` ends with `assumption`
   where EC's ends with `apply dt_ll || apply DBool.dbool_ll`.
-* GAP 5: `byequiv` on `Pr[…] ≤ Pr[…]` leaves the events' implication `res{1} → res{2}`, which
-  EC's `=> //` closes: `case hE => exact fun _ _ _ _ h => h`.
+* GAP 5 (closed 2026-11-15): `byequiv` on `Pr[…] ≤ Pr[…]` closes the events' implication
+  `res{1} → res{2}` itself, as EC's `=> //`.
 * GAP 6: the field algebra of `pedersen_computational_binding` (EC's `field`, `ring`,
   `pow_bij`) is by hand, as is naming what `auto => /> x _ [c m d m' d'] /= comm comm'
   m_neq_m'` names (`rename_i`, `obtain`).
-* GAP 8: `inline{2} DL.StdRedAdversary(DLogAttacker(B)).guess` by name does not find the call:
-  the experiment calls the procedure through its module type (`StdAdversary.guess` of the
-  module), the name is the module's own procedure.  The call is inlined by its site,
-  `stmt_inline{2} 0`.
+* GAP 8 (closed 2026-11-15): `inline{2} DL.StdRedAdversary(DLogAttacker(B)).guess` finds the
+  call the experiment makes through its module type.
 * GAP 7 (goals as shown): `byequiv` states `§allGlobals{1} = §allGlobals{2}` where EC shows
-  `={glob U}`; a hoare judgment on a clone's game with parameters names them at the triple
-  (`Correctness(Pedersen).main (m)`).
+  `={glob U}`.
 -/
 
 set_option ec.strict true
@@ -144,7 +140,7 @@ section PedersenSecurity
 /-- Correctness.  EC's `lemma pedersen_correctness:
 hoare[Correctness(Pedersen).main: true ==> res]`. -/
 theorem pedersen_correctness :
-    hoare[ Correctness(Pedersen).main (m) : True ==> §res ] := by
+    hoare[ Correctness(Pedersen).main : True ==> §res ] := by
   -- EC: proc; inline *;auto.
   hoare_proc; hoare_inline*; hoare_auto
 
@@ -183,7 +179,7 @@ theorem phi_hi : ∀ (U <: Unhider), ∀ m : VariableAssignment,
   -- EC: proc; inline*.
   equiv_proc; stmt_inline*
   -- EC: call (_:true); wp.
-  equiv_call (_ : ={glob U}); stmt_wp
+  equiv_call (_ : True); stmt_wp
   -- EC: rnd (fun d, (d + x * (b?m1:m0)){2})
   --         (fun d, (d - x * (b?m1:m0)){2}).
   equiv_rnd (fun d => d + §x{2} * (if §b{2} then §m1{2} else §m0{2}))
@@ -191,7 +187,7 @@ theorem phi_hi : ∀ (U <: Unhider), ∀ m : VariableAssignment,
   -- EC: by wp; rnd; call (_: true); auto => />; progress; algebra.
   --     (`progress` closes the bijection's two equations itself and splits the conditional;
   --     EC's `algebra` on the commitment's equation is `expD`, `expM`)
-  stmt_wp; equiv_rnd; equiv_call (_ : ={glob U}); equiv_auto; auto_progress
+  stmt_wp; equiv_rnd; equiv_call (_ : True); equiv_auto; auto_progress
   all_goals rw [expD, expM]
 
 /-- Perfect hiding - QED.  EC's `lemma pedersen_perfect_hiding (U<:Unhider) &m:
@@ -216,7 +212,7 @@ theorem pedersen_computational_binding : ∀ (B <: Binder), ∀ m : VariableAssi
   equiv_proc; stmt_inline*
   -- EC: wp; call (_: true); auto => /> x _ [ c m d m' d'] /= comm comm' m_neq_m'.
   --     (GAP 6: the names; EC's `/>` closes the case where the binder's output does not verify)
-  stmt_wp; equiv_call (_ : ={glob B}); equiv_auto; auto_progress
+  stmt_wp; equiv_call (_ : True); equiv_auto; auto_progress
   · rename_i _ x _ r _ comm comm' m_neq_m' _
     obtain ⟨c, μ, d, μ', d'⟩ := r
     simp only at comm comm' m_neq_m' ⊢
@@ -254,17 +250,14 @@ theorem std_red_dl_bridge : ∀ (B <: Binder), ∀ m : VariableAssignment,
         §res ] := by
   intro B m
   -- EC: byequiv => //.
-  --     (GAP 5)
   byequiv
-  case hE => exact fun _ _ _ _ h => h
   -- EC: proc; wp; inline{2} DL.StdRedAdversary(DLogAttacker(B)).guess; wp.
-  --     (GAP 8: the call by its site, not by name; nothing for the two `wp` but the last
-  --     assignment)
-  equiv_proc; stmt_inline{2} 0; stmt_wp
+  --     (nothing for the two `wp` but the last assignment)
+  equiv_proc; stmt_inline{2} (DLog.StdRedAdversary(DLogAttacker(B)).guess); stmt_wp
   -- EC: seq 2 3: (x'{1} = lx{2} /\ x{1} = x{2}).
   equiv_seq 2 3 : (§x'{1} = §lx{2} ∧ ={x})
   -- EC: + by inline*; wp; call (_: true); auto.
-  · stmt_inline*; stmt_wp; equiv_call (_ : ={glob B}); equiv_auto
+  · stmt_inline*; stmt_wp; equiv_call (_ : True); equiv_auto
   -- EC: by if{2}; auto => />; apply dt_ll.
   --     (`dt` is lossless by its hint; what EC's `/>` closes of the `else` branch is left)
   stmt_if{2} <;> equiv_auto

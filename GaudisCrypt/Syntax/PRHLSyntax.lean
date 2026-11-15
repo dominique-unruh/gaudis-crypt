@@ -99,17 +99,22 @@ where
     readAt st ⟨← expand states param x⟩
 
 /-- The `letI` bindings of the local variables of the two sides: their union, a name declared on
-both sides with the same type bound once. -/
-def unionBinds (b₁ b₂ : Array (Ident × Term)) : MacroM (Array (Ident × Term)) := do
-  let mut bs := b₁
+both sides with the same type bound once.  A name declared with one type on the left and another
+on the right (as inlining leaves them) is not in the union: it is two variables, returned with
+their sides, and a read `§x{i}` means the one of side `i`. -/
+def unionBinds (b₁ b₂ : Array (Ident × Term)) :
+    MacroM (Array (Ident × Term) × Array (Nat × Ident × Term)) := do
+  let same (a b : Ident) : Bool := a.getId.eraseMacroScopes == b.getId.eraseMacroScopes
+  let clashes (id : Ident) (ty : Term) (other : Array (Ident × Term)) : Bool :=
+    other.any fun (id', ty') => same id id' && !ty'.raw.structEq ty.raw
+  let mut bs : Array (Ident × Term) := #[]
+  let mut sided : Array (Nat × Ident × Term) := #[]
+  for (id, ty) in b₁ do
+    if clashes id ty b₂ then sided := sided.push (1, id, ty) else bs := bs.push (id, ty)
   for (id, ty) in b₂ do
-    match bs.find? (·.1.getId.eraseMacroScopes == id.getId.eraseMacroScopes) with
-    | some (_, ty₁) =>
-        unless ty₁.raw.structEq ty.raw do
-          Macro.throwErrorAt id s!"`{id.getId.eraseMacroScopes}` is declared on both sides with \
-            different types"
-    | none => bs := bs.push (id, ty)
-  return bs
+    if clashes id ty b₁ then sided := sided.push (2, id, ty)
+    else unless bs.any (same id ·.1) do bs := bs.push (id, ty)
+  return (bs, sided)
 
 /-- The local variables a `var …;` block declares. -/
 def localsOf (locals : Array (Syntax.TSepArray `proc_binder ",")) :
@@ -143,15 +148,25 @@ macro_rules
     let body (bs : Array (Ident × Term)) (stmts : Array (TSyntax `gaudi_stmt)) : MacroM Term := do
       let binds ← bs.mapM fun (id, ty) => ProgramSyntax.varBinding id ty
       ProgramSyntax.wrapLetI binds (← `((GaudiProg[ $stmts* ] : Stmt)))
-    let binds ← (← RelSyntax.unionBinds bs₁ bs₂).mapM fun (id, ty) =>
-      ProgramSyntax.varBinding id ty
+    let (union, sided) ← RelSyntax.unionBinds bs₁ bs₂
+    let binds ← union.mapM fun (id, ty) => ProgramSyntax.varBinding id ty
+    -- a name with a type per side: one binding per side, under a fresh name
+    let sidedBinds ← sided.mapM fun (k, id, ty) => do
+      let (_, lensTy, slot) ← ProgramSyntax.varBinding id ty
+      let n := id.getId.eraseMacroScopes
+      let idk := mkIdentFrom id (← Macro.addMacroScope (n.appendAfter s!"_{k}"))
+      return (k, n, idk, lensTy, slot)
+    let param (k : Nat) (n : Name) : Option Term :=
+      (sidedBinds.find? fun (k', n', _, _, _) => k' == k && n' == n).map
+        fun (_, _, idk, _, _) => ⟨idk.raw⟩
     let cond (p : Term) : MacroM Term := do
       let σ₁ ← `(σ₁)
       let σ₂ ← `(σ₂)
       let states (k : Nat) : Option Term := if k == 1 then some σ₁ else if k == 2 then some σ₂
         else none
-      let p' : Term := ⟨← RelSyntax.expand states (fun _ _ => none) p⟩
-      ProgramSyntax.wrapLetI binds
+      let p' : Term := ⟨← RelSyntax.expand states param p⟩
+      ProgramSyntax.wrapLetI (binds ++ sidedBinds.map fun (_, _, idk, lensTy, slot) =>
+          (idk, lensTy, slot))
         (← `(fun ($σ₁ : ProgramState) ($σ₂ : ProgramState) => ($p' : Prop)))
     `(prhlStmt $(← cond pre) $(← body bs₁ stmts₁) $(← body bs₂ stmts₂) $(← cond post))
 
@@ -287,6 +302,32 @@ def markCond (c : Lean.Expr) : MetaM Lean.Expr := do
     let b ← markReads s₂ 2 (← markReads s₁ 1 (b.instantiateRev #[s₁, s₂]))
     mkLambdaFVars #[s₁, s₂] b
 
+/-- What a marked relational condition reads at side `i`: the variables of its
+`relRead … i x`. -/
+partial def sideReads (i : Nat) (e : Lean.Expr) (acc : Array Lean.Expr := #[]) :
+    Array Lean.Expr :=
+  if e.isAppOfArity ``relRead 6 then
+    if e.getArg! 4 == mkNatLit i then acc.push (e.getArg! 5) else acc
+  else match e with
+    | .app f a => sideReads i a (sideReads i f acc)
+    | .lam _ t b _ | .forallE _ t b _ => sideReads i b (sideReads i t acc)
+    | .letE _ t v b _ => sideReads i b (sideReads i v (sideReads i t acc))
+    | .mdata _ b | .proj _ _ b => sideReads i b acc
+    | _ => acc
+
+/-- The terms of a relational judgment `prhlStmt A c₁ c₂ B` by side, for
+`ProgramSyntax.frameVarsSided`: all of them, then each side's program with what the conditions
+read on that side. -/
+def relSideParts (ty : Lean.Expr) :
+    MetaM (Array Lean.Expr × Array Lean.Expr × Array Lean.Expr) := do
+  let args := ty.getAppArgs
+  let mark (c : Lean.Expr) : MetaM Lean.Expr := do
+    try markCond c catch _ => pure c
+  let conds ← #[args[0]!, args[3]!].mapM mark
+  return (args,
+    #[args[1]!] ++ sideReads 1 conds[0]! ++ sideReads 1 conds[1]!,
+    #[args[2]!] ++ sideReads 2 conds[0]! ++ sideReads 2 conds[1]!)
+
 /-- Do the states (loose bound variables `0` and `1` of `e`) occur other than as the state of a
 `relRead`? -/
 private partial def statesEscape (e : Lean.Expr) (d : Nat := 0) : Bool :=
@@ -314,11 +355,19 @@ private def delabPrhlStmt : Delab := do
   let pre ← markCond (e.getArg! 0)
   let post ← markCond (e.getArg! 3)
   let parts := #[pre, e.getArg! 1, e.getArg! 2, post]
-  let vars := (← frameVars parts #[]).filter (·.printable)
+  -- (a name with one type on the left and another on the right: a variable per side)
+  let (all, sided) ← frameVarsSided parts
+    (#[e.getArg! 1] ++ sideReads 1 pre ++ sideReads 1 post)
+    (#[e.getArg! 2] ++ sideReads 2 pre ++ sideReads 2 post)
+  let common := all.filter (·.printable)
+  let sidedAt (k : Nat) : Array FrameVar :=
+    (sided.filter fun (k', v) => k' == k && v.printable).map (·.2)
+  let vars := common ++ sidedAt 1 ++ sidedAt 2
   let occursIn (v : FrameVar) (s : Lean.Expr) : Bool :=
     v.slots.any fun t => (s.find? (· == t)).isSome
-  let vars₂ := vars.filter (occursIn · (e.getArg! 2))
-  let vars₁ := vars.filter fun v => occursIn v (e.getArg! 1) || !occursIn v (e.getArg! 2)
+  let vars₂ := common.filter (occursIn · (e.getArg! 2)) ++ sidedAt 2
+  let vars₁ := (common.filter fun v => occursIn v (e.getArg! 1) || !occursIn v (e.getArg! 2))
+    ++ sidedAt 1
   withVarLocals vars.toList parts fun es => do
     let stmts₁ ← withExpr es[1]! (delabGaudiStmts #[])
     let stmts₂ ← withExpr es[2]! (delabGaudiStmts #[])

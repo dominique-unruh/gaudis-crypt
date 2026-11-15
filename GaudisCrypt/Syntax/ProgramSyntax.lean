@@ -252,6 +252,10 @@ syntax ppLine "skip" ";" : gaudi_stmt
 -- built by kind).  Low priority: `reset_vars <- e;` is an assignment to a variable
 -- `reset_vars`, though it parses as `reset_vars (← e);` too.
 syntax (name := resetStmt) (priority := low) ppLine &"reset_vars" ppSpace term ";" : gaudi_stmt
+-- `stmt w;`: the statement `w`, a term of type `Stmt` — a variable standing for a statement
+-- (EasyCrypt's abstract statement, as in the body goal of its `while` rule for `phoare`).  A
+-- non-reserved keyword at low priority, like `reset_vars`.
+syntax (name := embedStmt) (priority := low) ppLine &"stmt" ppSpace term:max ";" : gaudi_stmt
 syntax ppLine term:max,+ " <- " term ";" : gaudi_stmt
 syntax ppLine term:max,+ " <$ " term ";" : gaudi_stmt
 syntax (name := callStore) ppLine term:max,+ " <- " "call" ppSpace term:max
@@ -311,6 +315,13 @@ macro_rules
       unless r.raw.isOfKind ``resetStmt do Lean.Macro.throwUnsupported
       let s : Lean.Term := ⟨r.raw[1]⟩
       `(StmtWithHoles.assign (resetSetter $s) ⟨fun _st => ()⟩)
+
+-- `stmt w;`, by node kind (see `embedStmt`)
+macro_rules
+  | `([gstmt| $r:gaudi_stmt]) => do
+      unless r.raw.isOfKind ``embedStmt do Lean.Macro.throwUnsupported
+      let w : Lean.Term := ⟨r.raw[1]⟩
+      `(($w : StmtWithHoles _))
 
 macro_rules
   | `([gstmt| skip;]) => `(StmtWithHoles.skip)
@@ -1225,7 +1236,8 @@ private partial def replaceVarSlots (ts : Array Lean.Expr) (fv : Lean.Expr) (e :
 not be told apart from it. -/
 private def binderClashes (n : String) (e : Lean.Expr) : Bool :=
   (e.find? fun
-    | .lam nm .. | .forallE nm .. | .letE nm .. => nm.eraseMacroScopes == .str .anonymous n
+    -- (a hygienic binder, `fun _ => …`'s `x✝`, prints with its `✝`: no clash)
+    | .lam nm .. | .forallE nm .. | .letE nm .. => nm == .str .anonymous n
     | _ => false).isSome
 
 /-- The constants in `e` whose last name component is `n`. -/
@@ -1253,13 +1265,17 @@ structure FrameVar where
   slots : Array Lean.Expr
   printable : Bool
   nameable : Bool := printable
+  /-- The name also occurs with another type (then neither prints nor can be named; in a
+  judgment about two programs, see `frameVarsSided`). -/
+  typeClash : Bool := false
   deriving Inhabited
 
 /-- The program variables of the frame whose terms are `es`: the parameters `params` first (in
 order), then every other variable whose slot occurs in `es`, in order of first occurrence. -/
 def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
     MetaM (Array FrameVar) := do
-  let mut vars : Array FrameVar := params.map fun (n, ty) => ⟨n, ty, #[], true, true⟩
+  let mut vars : Array FrameVar := params.map fun (n, ty) =>
+    { name := n, type := ty, slots := #[], printable := true }
   for (n, ty, t) in es.foldl (fun acc e => collectVarSlots e acc) #[] do
     match vars.findIdx? (·.name == n) with
     | some i =>
@@ -1267,12 +1283,31 @@ def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
         if ← Meta.withReducible (Meta.isDefEq v.type ty) then
           vars := vars.set! i { v with slots := v.slots.push t }
         else
-          vars := vars.set! i { v with printable := false }
-    | none => vars := vars.push ⟨n, ty, #[t], true, true⟩
+          vars := vars.set! i { v with printable := false, typeClash := true }
+    | none => vars := vars.push { name := n, type := ty, slots := #[t], printable := true }
   vars.mapM fun v => do
     let nameable := v.printable && !v.name.isEmpty && !v.name.contains '»'
       && !(← constClashes v.name es)
     return { v with printable := nameable && !es.any (binderClashes v.name), nameable }
+
+/-- The program variables of a judgment about two programs: `frameVars es` (the terms of the
+whole judgment), and, for a name that has one type in the left program and another in the right
+one — `x` the key of an inlined `gen`, `x` the secret of the other game —, one variable per
+side, from that side's terms `es₁`, `es₂` (its program, and what the conditions read on that
+side).  The two carry the same name; a read says which is meant by its side (`§x{1}`). -/
+def frameVarsSided (es es₁ es₂ : Array Lean.Expr) :
+    MetaM (Array FrameVar × Array (Nat × FrameVar)) := do
+  let all ← frameVars es #[]
+  let clash := all.filter (·.typeClash)
+  if clash.isEmpty then return (all, #[])
+  let mut sided : Array (Nat × FrameVar) := #[]
+  for (k, esk) in [(1, es₁), (2, es₂)] do
+    for v in ← frameVars esk #[] do
+      if !v.typeClash && clash.any (·.name == v.name) then
+        -- a binder anywhere in the judgment still hides the name
+        sided := sided.push
+          (k, { v with printable := v.printable && !es.any (binderClashes v.name) })
+  return (all, sided)
 
 /-- Bind each variable of `vars` to a let-variable of its name, replace its slots in `es` by it,
 and run `k` on the rewritten terms. -/
@@ -1447,7 +1482,11 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
       let c ← withNaryArg 1 delabStmtExpr
       let body ← withNaryArg 2 (delabGaudiStmts holeNames)
       `(gaudi_stmt| while ($c) { $body:gaudi_stmt* })
-  | _ => failure
+  | _ => do
+      -- a variable standing for a statement: `stmt w;`
+      guard (← getExpr).isFVar
+      let w ← delab
+      return ⟨mkNode ``embedStmt #[mkAtom "stmt", w, mkAtom ";"]⟩
 
 end
 

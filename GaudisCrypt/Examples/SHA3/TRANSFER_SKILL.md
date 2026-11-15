@@ -197,6 +197,7 @@ the `while` row.
 | `call (_ : bad, I, J)` (up to bad) | `equiv_call (_ : bad, I, J)`; EC's goal order; `D_ll`'s goal: `exact D_ll` (E11: right oracles' `islossless` is one more goal each) |
 | `call (: P ==> Q)` (concrete callees, pRHL) | `equiv_call (_ : P ==> Q)`; callee's judgment first, then pre; the frame of unwritten variables is found |
 | `call (_ : ={glob P})` / `call (_: ={x})` (concrete callee) | `equiv_call (_ : ={glob P})` / `equiv_call (_ : ={x})`, with EC's frame (what the callee does not write keeps its value); the callee's judgment (EC's `1: by sim`) is closed by its footprint |
+| `call (_ : true)` on the adversary (a declared module) | `equiv_call (_ : True)` (2026-11-15): `equiv_call (_ : ={glob A})` for the module `A` the two calls are of; with oracles' variables to keep, `equiv_call (_ : ={glob A, x, …})` as before |
 | `call H` | `equiv_call (H)` (also where the calls spell the callees differently from `H`: behind a record `(RF.mk { get := M.get }).get`, a view unfolded — `H` is taken to them by their bodies, `Logic/ECProcInv.lean`); `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; with EC's frame (what the callee does not write): `phoare_call (: P ==> Q) / x, …`, `hoare_call (: P ==> Q) / x, …` (the trivial triple `True ==> True` closed), `phoare_call H / x, …` for lossless + frame |
@@ -679,8 +680,8 @@ Document each in the docstring when it applies.
   "fp_disjoint: no restriction hypothesis for FVP.fvP {…}" names the module that lacks one.
 * **EC's `have ->: Pr[…] = Pr[…]`**: `have h : … := by …` then `rw [h]; clear h`.  Left in
   context, the equation costs every later `simp_all` a pass through its two games.
-* **`byequiv` on `Pr[…] ≤ Pr[…]`**: goals `judgment`, then `hE` (the event's implication):
-  `byequiv` / `case hE => exact fun _ _ _ _ h => h` / `equiv_proc`.
+* **`byequiv` on `Pr[…] ≤ Pr[…]`**: the events' implication (`hE`) is closed by `byequiv`
+  itself, as EC's `=> //` (2026-11-15; before, `case hE => exact fun _ _ _ _ h => h`).
 * **Probing leaves under a stubbed context**: a lemma made of several `have`s is compiled one
   part at a time with the others' proofs replaced by `sorry` (saved to files and put back by
   script); heartbeat budgets are per declaration, so the assembled lemma needs the sum.
@@ -715,7 +716,7 @@ Document each in the docstring when it applies.
 * **`byequiv` with a fact about `&m`, one game taking a parameter**: the judgment written out,
   `byequiv (?last : equiv[ G₁.main () ~ G₂.main (m1) : §allGlobals{1} = §allGlobals{2} ∧
   §X{1} = mess ∧ §m1{2} = mess ==> (§res{1} → §res{2}) ])` (`↔` for `=`, which leaves the
-  judgment only), then `case hE => …`, `case last => …`.  A fresh goal name: `?judgment`
+  judgment only), then `case last => …` (the events' condition `hE` is closed by `byequiv`).  A fresh goal name: `?judgment`
   clashes with the earlier `byequiv`s of the proof.
 * **Parameter names of a clone's game, or of a module with a Lean parameter, are not known**
   (`SH.SecondPreimage(A, …).main`, `TOTO(A).main`; "no parameter names are known for this
@@ -791,11 +792,9 @@ Document each in the docstring when it applies.
   `export A.B (X.m Y.m)` inside `namespace C` makes `C.X.m` the same variable, so restriction
   lists written `-C.X.m` in other files keep reading.
 
-* **A constant function in a rule's statement is `fun _τ => r`, not `fun _ => r`** (2026-11-15):
-  the anonymous binder is named `x✝`, and the printer of statements refuses to show a program
-  variable `x` by name when some binder in the judgment is called `x` (`binderClashes` erases
-  the macro scopes): the goal then shows `(localVarLens "x" exp) <$ dt`.  To do: ignore
-  inaccessible names there.
+* **A hygienic binder does not hide a program variable** (2026-11-15): `fun _ => r` in a
+  rule's statement has the binder `x✝`, which no longer stops the printer from showing a
+  program variable `x` by name (`binderClashes` compares the names as they print).
 
 * **`swap` across the start of an inlined body** (2026-11-15): `inline` leaves a `reset_vars`
   of the callee's locals in front of the body, which EC's count attaches to the statement after
@@ -813,31 +812,26 @@ Document each in the docstring when it applies.
   row on `phoare[ c : P ==> Q ] = 1`.)
 
 * **A path into a module without a module type that has several module parameters**
-  (`SimulateHonestVerifier(S, A, D).gameIdeal`, EC's `theories/crypto/SigmaProtocol.ec`) does not
-  elaborate: the procedure modules are curried and take only the parameters the procedure uses
-  (`Module.app (Module.app SimulateHonestVerifier.gameReal S) D`).  Name the game by an
-  abbreviation and state `Pr[ (gameIdeal D) () @ &m : §res ]`.  Likewise a call of the module's
-  own procedure inside it (`b' <@ gameIdeal()`): written with the procedure module applied.
-* **`byphoare (_: P ==> _)` on a clone's game with parameters** (`Completeness(SchnorrPK).main
-  (h, w')`): the parameters' names are not known; write the judgment,
-  `byphoare (?j : phoare[ Completeness(SchnorrPK).main (x, w) : §x = h ∧ §w = w' ==> §res ] =
-  (ENNReal.ofReal 1))`.
+  (`SimulateHonestVerifier(S, A, D).gameIdeal`, EC's `theories/crypto/SigmaProtocol.ec`): the
+  path takes all the module's parameters, as in EC; the procedure module itself is applied to
+  those it uses (read off `M.apply_simp`).  A call of the module's own procedure inside its
+  declaration (`b' <@ gameIdeal()`) is written with the path too, the arguments the module's
+  parameters by name: `b' <- call SimulateHonestVerifier(S, A, D).gameIdeal ();`.
+* **`byphoare (_: P ==> _)`, `hoare[ M.main : … ]` on a clone's game with parameters**
+  (`Completeness(SchnorrPK).main (h, w')`): the parameters' names are those of the theory's
+  module (2026-11-15): `byphoare (: §x = h ∧ §w = w' ==> _)`, `hoare[ Correctness(Pedersen).main
+  : True ==> §res ]`.
 * **A theory's operator in a development that clones it** (`R` of `SigmaProtocol`): the clone
   does not alias the class's fields; `open GaudisCrypt.EC.SigmaProtocol (R)` and `R h w` is the
   clone's (`R_DL h w` by definition).
 * **A variable with one type on the left and another on the right** (after `inline*`: `x` the
   key, a group element, of `Correctness`'s inlined `gen`, and `x` the secret exponent of the
-  other game; `Pedersen.ec`): the judgment prints it as `§(localVarLens "x" exp){2}` and a
-  tactic's condition cannot name it (`Unknown identifier x`).  `equiv_rnd f g` reads `§x{i}` as
-  side `i`'s variable (`ECRnd.elabRelTermSided`); the other tactics and the printer do not yet
-  (the examples' batch).  A written `equiv[ … ] { … } ~ { … }` refuses such a pair of
-  declarations: a test of it goes through procedures and `equiv_proc`.
+  other game; `Pedersen.ec`): two variables of one name.  `§x{i}` is side `i`'s, in every
+  tactic's condition (`PRHLWp.elabRelTerm`), in a written `equiv[ … ] { var x : group; … } ~
+  { var x : exp; … }` and in the goals as shown (`ProgramSyntax.frameVarsSided`).
 * **`inline{i} M(A).f` by name where the game calls `f` through its module type** (the
-  experiment's `A.guess` at `A := StdRedAdversary(L)`; the call is `StdAdversary.guess` of the
-  module, the name is the module's own procedure): `stmt_inline{i} (M(A).f)` finds no call.
-  By site: `stmt_inline{i} 0`.
-* **`hoare[ … ]` on a clone's game with parameters**: as for `byphoare`, the parameters are
-  named at the triple, `hoare[ Correctness(Pedersen).main (m) : True ==> §res ]`.
+  experiment's `A.guess` at `A := StdRedAdversary(L)`): `stmt_inline{i} (M(A).f)` finds the
+  call (the callees are compared as the module steps evaluate them).
 * **A lemma over a module and a memory** (`(U <: Unhider) &m`): one binder per quantifier,
   `∀ (U <: Unhider), ∀ m : VariableAssignment, islossless U.choose → …`; `intro U m uc_ll ug_ll`.
   `islossless` leaves the calls' goals (it closes the samplings by hint): with the hypotheses
@@ -847,6 +841,12 @@ Document each in the docstring when it applies.
   for a call's tuple result (`simp only at … ⊢` reduces the projections).  `auto_progress` also
   leaves the cases EC's `/>` closes (a conditional's other branch): close them after.
 * **`pow_bij`** (`g ^ a = g ^ b ↔ a = b`): `congrArg loge h` and `loggK`.
+* **`module M : T` with more procedures than `T`** (`ElGamal : Scheme` with `dec`): as in EC;
+  the module is the record of `T`'s procedures, `M.dec` a procedure of its own (2026-11-15).
+  (For a procedure that must be *called through the type* by other modules, see "A module with
+  more procedures than its module type" above.)
+* **EC's abstract statement** (the `w` of pHL `while I V k ε`'s body goal): a variable
+  `w : Stmt`, written and printed `stmt w;` inside a program.
 * **`auto` on a lossless goal** (`phoare[ c : P ==> true ] = 1`, EC's `by auto=> />; exact/sample_ll`):
   with `Logic/PHoareRnd.lean` imported `phoare_auto` leaves `is_lossless d` for a sampling (the
   event rules; before, the expectation `d.expected fun _ => 1 = 1`): `phoare_auto; exact

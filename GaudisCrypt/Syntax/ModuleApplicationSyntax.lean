@@ -116,11 +116,75 @@ def moduleProcs (env : Environment) (x : Name) : Array Name := Id.run do
       out := out.push c
   return out
 
+/-- The components of a right-nested `Module.pair`. -/
+partial def pairComponents (e : Lean.Expr) : Array Lean.Expr :=
+  if e.isAppOfArity ``Module.pair 6 then #[e.getArg! 4] ++ pairComponents (e.getArg! 5) else #[e]
+
+/-- The arguments of a chain `Module.app (… (Module.app h a₁) …) aₙ` with the constant `h` at
+its head. -/
+partial def appChain? (h : Name) (e : Lean.Expr) : Option (Array Lean.Expr) :=
+  if e.getAppFn.isConstOf h then some #[]
+  else if e.isAppOfArity ``Module.app 6 then
+    (appChain? h (e.getArg! 4)).map (·.push (e.getArg! 5))
+  else none
+
+/-- The positions, in the parameter list of the `module` `x`, of the parameters its procedure
+`xf` uses, in the order `xf` takes them — read off `x.apply_simp`, which states the module
+applied to its parameters as the record of its procedures, each applied to its own. -/
+def usedParams? (x xf : Name) : Meta.MetaM (Option (Array Nat)) := do
+  -- (an alias of a clone stands for the theory's module, whose lemma it is)
+  let (x, xf) := (cloneBase (← getEnv) x, cloneBase (← getEnv) xf)
+  let some ci := (← getEnv).find? (x ++ `apply_simp) | return none
+  Meta.forallTelescope ci.type fun _ body => do
+    let some (_, lhs, rhs) := body.eq? | return none
+    unless lhs.isAppOfArity ``Module.app 6 do return none
+    let params := pairComponents (lhs.getArg! 5)
+    -- the outermost application of `xf` in the record
+    let some t := rhs.find? fun e => (appChain? xf e).isSome | return none
+    let some as := appChain? xf t | return none
+    return as.mapM fun a => params.findIdx? (· == a)
+
+/-- The names of the module parameters the procedure `xf` of a `module` takes, in its order —
+read off `xf.apply_simp`. -/
+def usedParamNames? (xf : Name) : Meta.MetaM (Option (Array Name)) := do
+  let some ci := (← getEnv).find? (xf ++ `apply_simp) | return none
+  Meta.forallTelescope ci.type fun _ body => do
+    let some (_, lhs, _) := body.eq? | return none
+    let some as := appChain? xf lhs | return none
+    let mut names := #[]
+    for a in as do
+      unless a.isFVar do return none
+      names := names.push (← a.fvarId!.getUserName)
+    return some names
+
 /-- `c` is the accessor of a `moduletype`'s field (it has `c.utilities`). -/
 def isAccessor (env : Environment) (c : Name) : Bool :=
   env.contains (c ++ `utilities)
 
 end ModuleApplication
+
+open Elab Term Meta ModuleApplication in
+/-- The procedure module `xf` of a `module` without a module type, applied to the arguments of
+a path `M(a₁, …, aₙ).f`: `xf`'s Lean parameters first (the leading arguments), then the module
+parameters `pick` selects of the rest, one application each.  `none` if `pick` fails or the
+result is not a procedure. -/
+def ModuleApplication.applyProc (xf : Ident) (args : Array (TSyntax `ec_mod))
+    (pick : Array (TSyntax `ec_mod) → Option (Array (TSyntax `ec_mod))) :
+    TermElabM (Option Lean.Expr) := do
+  let k ← leanArity xf
+  unless k ≤ args.size do return none
+  let leanArgs ← (args.extract 0 k).mapM ecModTerm
+  let some margs := pick (args.extract k args.size) | return none
+  let head : Lean.Term ← if k == 0 then pure ⟨xf.raw⟩ else `($xf $leanArgs*)
+  let margs ← margs.mapM ecModTerm
+  let t ← margs.foldlM (fun (acc : Lean.Term) a => `(Module.app $acc ($a :))) head
+  let s ← saveState
+  try
+    let e ← withSynthesize <| elabTerm t none
+    if e.hasSyntheticSorry then s.restore; return none
+    if (← whnfR (← instantiateMVars (← inferType e))).isAppOf ``Module.Proc then return some e
+    s.restore; return none
+  catch _ => s.restore; return none
 
 open Elab Term Meta ModuleApplication in
 elab_rules : term
@@ -129,6 +193,19 @@ elab_rules : term
     if let fname :: rest@(_ :: _) := f.getId.components then
       let path ← `($m:ident($args,*).$(mkIdent fname):ident)
       return ← elabTerm (← `(($path).$(mkIdent (Name.fromComponents rest)):ident)) none
+    -- inside `module M`'s own declaration (`M` is not there yet, its procedure `M.f` is): a
+    -- call of a sibling procedure, `M(A, B).f` with the module's parameters as arguments
+    if (← (try some <$> realizeGlobalConstNoOverloadWithInfo m catch _ => pure none)).isNone
+        && ((← getLCtx).findFromUserName? m.getId).isNone then
+      let mf := mkIdent (m.getId ++ f.getId)
+      if let some xf ← (try some <$> realizeGlobalConstNoOverloadWithInfo mf catch _ => pure none)
+      then
+        if let some names ← usedParamNames? xf then
+          let pick (margs : Array (TSyntax `ec_mod)) : Option (Array (TSyntax `ec_mod)) :=
+            names.mapM fun n => margs.find? fun a => match a with
+              | `(ec_mod| $y:ident) => y.getId == n
+              | _ => false
+          if let some e' ← applyProc mf args.getElems pick then return e'
     let app ← ecModTerm (← `(ec_mod| $m:ident($args,*)))
     let e ← withSynthesize <| elabTerm app none
     if e.hasSyntheticSorry then throwAbortTerm
@@ -162,6 +239,10 @@ elab_rules : term
     if let some x ← (try some <$> realizeGlobalConstNoOverloadWithInfo m catch _ => pure none) then
       let xf := x ++ fname
       if (← getEnv).contains xf then
+        -- the procedure takes the parameters it uses, one by one
+        if let some used ← usedParams? x xf then
+          if let some e' ← applyProc (mkIdent xf) args.getElems (fun margs => used.mapM (margs[·]?))
+            then return e'
         let app' ← ecModTerm (← `(ec_mod| $(mkIdent xf):ident($args,*)))
         let e' ← withSynthesize <| elabTerm app' none
         if (← whnfR (← inferType e')).isAppOf ``Module.Proc then return e'
@@ -243,6 +324,20 @@ def delabAccessorPath : Delab := do
   let some (m, args) ← withAppArg delabPairArgs.delabApp? | failure
   `($m:ident($args,*).$(mkIdent (Name.mkSimple c.getString!)):ident)
 
+/-- `C.f U` for a `moduletype` accessor `C.f` of a theory and a module `U` whose type is a
+clone's alias of `C` (`U : CM.Unhider`, `CommitmentProtocol.Unhider.choose U`): `U.choose`, as it
+is written (Lean's field notation does not see through the alias). -/
+@[delab app]
+def delabCloneAccessor : Delab := do
+  guardSurfaceSyntax
+  let e ← getExpr
+  let some c := e.getAppFn.constName? | failure
+  guard (isAccessor (← getEnv) c && e.getAppNumArgs ≥ 1)
+  let some t := (← instantiateMVars (← inferType e.appArg!)).getAppFn.constName? | failure
+  guard (t != c.getPrefix && cloneBase (← getEnv) t == c.getPrefix)
+  let `($x:ident) ← withAppArg delab | failure
+  return mkIdent (x.getId ++ Name.mkSimple c.getString!)
+
 /-- `Module.app X A` of a single-procedure `module` `X` with procedure `f`: `X(A).f`. -/
 @[delab app.GaudisCrypt.Module.app]
 def delabProcModulePath : Delab := do
@@ -250,7 +345,8 @@ def delabProcModulePath : Delab := do
   let e ← getExpr
   guard (e.getAppNumArgs == 6)
   let some x := (e.getArg! 4).getAppFn.constName? | failure
-  let #[f] := moduleProcs (← getEnv) x | failure
+  -- (an alias of a clone stands for the theory's module, as when the path is read)
+  let #[f] := moduleProcs (← getEnv) (cloneBase (← getEnv) x) | failure
   guard ((← whnfR (e.getArg! 1)).isAppOf ``Module.Proc)
   let some (m, args) ← delabPairArgs.delabApp? | failure
   `($m:ident($args,*).$(mkIdent (Name.mkSimple f.getString!)):ident)

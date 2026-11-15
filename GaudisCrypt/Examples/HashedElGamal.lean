@@ -57,9 +57,7 @@ gap is the same):
   auto=> />; rewrite dhkey_ll dt_ll dbits_ll`); `phoare_call` followed by `phoare_auto` computes
   through the code before the call and leaves an expectation, so the lossless part is one
   `islossless`.
-* GAP 4: `module Hashed_ElGamal : Scheme` leaves out EC's third procedure `dec`.
-* EC's `call (: true)` is written `equiv_call (_ : ={glob A})`; EC's `rnd f` (an involution) is
-  `equiv_rnd f f`.
+* EC's `rnd f` (an involution) is `equiv_rnd f f`.
 -/
 
 set_option ec.strict true
@@ -161,6 +159,12 @@ module Hashed_ElGamal : Scheme {
     h <- hash ($pk).1 (($pk).2 ^ $y);
     return (g ^ $y, $h +^ $m)
   };
+  proc dec (sk : hkey × exp, c : group × bits) : (Option bits) {
+    var gy : group, h : bits, hm : bits;
+    gy, hm <- $c;
+    h <- hash ($sk).1 ($gy ^ ($sk).2);
+    return some ($h +^ $hm)
+  };
 }
 
 module DDHAdv using (A : Adversary) {
@@ -221,9 +225,9 @@ theorem cpa_ddh0 (m : VariableAssignment) :
   stmt_split_params
   stmt_swap_raw{1} 2 1; stmt_swap{1} 8 -6; stmt_swap{2} 6 -3
   -- EC: auto; call (: true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: auto; call (: true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: by auto=> /> sk _ y _ hk _ [m0 m1] b _ /=; rewrite -expM.
   equiv_auto; smt_close [expM]
 
@@ -238,9 +242,9 @@ theorem ddh1_es1 (m : VariableAssignment) :
   stmt_split_params
   stmt_swap{1} 7 -3; stmt_swap{2} [5..6] -4; stmt_swap{2} 4 -1
   -- EC: auto; call (: true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: auto; call (:true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: by auto.
   equiv_auto
 
@@ -255,13 +259,13 @@ theorem es0_Gb (m : VariableAssignment) :
   stmt_split_params
   stmt_swap{1} 2 1; stmt_swap{1} [3..4] 4; stmt_swap{2} 7 -2
   -- EC: auto; call (: true); wp.
-  equiv_auto; equiv_call (_ : ={glob A}); stmt_wp
+  equiv_auto; equiv_call (_ : True); stmt_wp
   -- EC: rnd (fun w, w +^ (b0{1} ? m1{1} : m0{1})).
   --     (EC's `rnd f` is `rnd f f`: `f` is its own inverse)
   equiv_rnd (fun w => w +^ (if §b0{1} then §m1{1} else §m0{1}))
     (fun w => w +^ (if §b0{1} then §m1{1} else §m0{1}))
   -- EC: auto; call (: true).
-  equiv_auto; equiv_call (_ : ={glob A})
+  equiv_auto; equiv_call (_ : True)
   -- EC: by auto=> /> *; split => *; algebra.
   equiv_auto
 
