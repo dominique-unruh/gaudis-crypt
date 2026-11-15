@@ -229,6 +229,13 @@ the `while` row.
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, then the code before (EC's: `I` and, over the loop's final states under EC's frame, `I ∧ ¬guard ⇒ post`; old form with an `exit` goal and no frame: `equiv_while_noframe{i}`). EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | pHL `while I V k ε` (the loop alone; probabilistic termination) | `phoare_while I V k ε` (`Logic/PHoareWhileRev.lean`, 2026-11-15): `V` an integer, `k` an integer, `ε` a real.  EC's goals in its order — `pre_inv`, `pre_bound`, `term` (`I → V ≤ k ∧ (V ≤ 0 → ¬guard)`), `body` (`∀ w, phoare[ w : P ==> Q ] = r → phoare[ c; w : P ∧ guard ==> Q ] = r`: EC's abstract statement, `intro w ih`), `inv`, `rate` (`0 < ε`), `variant` (`∀ z, phoare[ c : I ∧ guard ∧ V = z ==> V < z ] ≥ ε`) — those that are not judgments closed when trivial (EC's `=> //`); beyond EC's, `sat` (some state satisfies the postcondition; closed for `true`): our `w` is a quantified statement, and without `sat` the `body` goal could hold vacuously.  EC's `seq 1: true=> //` on the body goal is `phoare_seq_lossless 1 : (True)` with `exact ih` for the second part |
+| pHL `seq n : E p₁ p₂ p₃ p₄ I` on an **exact** bound | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)` with `Logic/PHoareExactTactics.lean` imported (2026-11-15): the bounds are reals, `_` as in EC (a bound left open where the other bound of its branch is `0`; its goal is not asked).  EC's goals in its order: `invariant`, `first_E`, `second_E`, `first_notE`, `second_notE`, `bound` (the reals' equation `r = p₁ p₂ + p₃ p₄`).  It counts the statements of a block (the loop body before `stmt w` in the body goal of `while I V k ε`).  On an upper bound: the rule of `Logic/PHoareSeq.lean`, as before |
+| pHL `case (E)` | `phoare_case (E)`: goals `pos`, `neg` |
+| pHL `conseq (_ : _ ==> _ : = e)` (another bound) | `phoare_conseq (: _ ==> _ : = e)`, `e` a real: goals `bound` (the two bounds are equal under the precondition, over the reals), then the judgment; the bounds `0`, `1` are then `0`, `1` (`phoare_hoare` and the event rules apply) |
+| pHL `conseq (: P ==> _)` on an exact bound | `phoare_conseq (: P ==> _)`: `pre`, then the judgment |
+| pHL `conseq (_ : _ ==> Q₁) (_ : _ ==> Q₂)` on an exact bound | `phoare_conseq (: _ ==> Q₁) (: _ ==> Q₂)`: goals `post` (under `Q₂`, `Q₁` iff the event), `hoare` (for `Q₂`), then the judgment for `Q₁` — EC's order |
+| pHL `conseq H` (`H` the hypothesis of `while I V k ε`'s body goal) | `phoare_conseq H`: goals `pre`, `bound`, each closed when trivial |
+| `hoare` on `phoare[ … ] = 0` | `phoare_hoare` |
 | pHL `conseq (: P ==> Q)` on a lower bound `≥ r` | `phoare_conseq (: P ==> Q)` (`Logic/PHoareRnd.lean`): goals `pre` (closed when trivial), `post` (from the old precondition, `Q` implies the old event: EC's goal, over the values before and after), then the judgment |
 | pHL `rnd` / `rnd E` on a lower bound `≥ r` | `phoare_rnd` (the postcondition is the event) / `phoare_rnd E`: the goal becomes `phoare[ c : P ==> r ≤ mu d E ∧ ∀ v ∈ d, (E v → Q v) ] = 1`; then `phoare_auto` |
 | Hoare `while I` | `hoare_while I` |
@@ -917,6 +924,20 @@ Document each in the docstring when it applies.
   `big_cons`, `big_consT`, `big_cat`); `predT` is in `Lib/EC/Logic.lean`.  A hypothesis in read
   form (`h : §PIR.s = s1 ++ s2`) does not rewrite a goal in lens form (`PIR.s.get σ.globals`):
   `have h' : PIR.s.get σ.globals = _ := h`.
+* **A probability computed in pHL** (`PIR.ec`'s `Pr_PIR_s`: `case`, `conseq … : = e`, `sp`,
+  the two-judgment `conseq`, `while I V k ε`, `seq … _ 0%r 0%r _`, `exists*`, `conseq H`):
+  `Examples/PIR.lean` is the reference.  Start with `byphoare (: True ==> _)` where EC writes
+  `byphoare=> //` (the default precondition `arg = a ∧ glob = m` makes `sp` state the memory).
+  EC's `case: (P)` on a pure fact is `by_cases`.  `exists * x, y; elim * => x0 y0` is
+  `stmt_exists * §x; intro x0; stmt_exists * §y; intro y0`.  Our `while I V k ε` asks two
+  goals more (`bound_le_one`, `sat`); for `sat` give a state: `⟨(localVarLens "j" ℤ).set 0
+  ⟨X.set v VariableAssignment.init, VariableAssignment.init⟩, indicatorE_of ?_⟩`, with the
+  globals of a local write by `rfl` and `Lens.set_get`.
+* **`sp` over `(x, y) <- (e₁, e₂)`** leaves a condition on the pair `§(x.pair y)`, which the
+  conditions on `§x` do not see (pHL; open gap): write two assignments.
+* **A `Decidable` instance for a predicate of the theory** (`instance : Decidable (is_restr s
+  n)`, needed for `if is_restr x N then …`) lets `auto` decide closed instances of it: goals
+  after `auto` may have fewer conjuncts than before the instance was added.
 * **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
@@ -1157,6 +1178,9 @@ glue around the *old* `eq_f`/`eq_fi`): copy their proof steps, not their declara
   (`br93.ec`); goals of the call rules in `Logic/ECCallMultiProcTest.lean`.  The same file:
   a theory and its instance (`clone` of a theory with clones, a wrapper adversary, the
   theory's theorem applied to it).
+* pHL on exact bounds (a probability computed step by step), loops in pRHL with a coupling
+  (`rnd (fun b => …)`), finite sets: `Examples/PIR.lean` (`PIR.ec`); goals of the rules in
+  `Logic/PHoareExactTest.lean`.
 * Large invariant proofs with `exists*`, ambient cases, `rcondt`/`rcondf`, `swap` past calls:
   `Handle.lean` (`eq_fi`, `eq_f`, `CF_G1`) — compare with `Handle.eca`: `eq_fi` from line 1349,
   `eq_f` 1488–1813, `CF_G1` 2595.

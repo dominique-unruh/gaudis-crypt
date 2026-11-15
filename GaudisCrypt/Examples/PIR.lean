@@ -22,6 +22,7 @@ import GaudisCrypt.Logic.ECWhileRel
 import GaudisCrypt.Logic.PHoareRnd
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Logic.PHoareWhileRev
+import GaudisCrypt.Logic.PHoareExactTactics
 import GaudisCrypt.Lib.EC.Logic
 import GaudisCrypt.Lib.EC.BitWord
 import GaudisCrypt.Lib.EC.BitWordRing
@@ -36,20 +37,19 @@ server learning `i`, the client sends the first server a random subset `s` of th
 `[0, N)` and the second server `s` with `i` flipped; each server returns the xor of the entries
 it was asked for, and the two answers xor to `a i`.
 
-EC's file, declaration by declaration and script line by line.  **In progress**: proven are
-`sxor_cons`, `sxor2_cons`, `PIR_correct`, `PIR_secure1`, `PIR_secure2`,
-`PIR_secuity_s_byequiv`, `PIR_secuity_s'_byequiv`, the nine lemmas on `restr` and `is_restr`,
-`PIR_s_uniform`, `PIR_s'_uniform`.  Not yet ported: `Pr_PIR_s`, `Pr_PIR_s'` (the probability
-of a query computed in pHL: they need `seq`, `case`, `conseq` with a new bound and `exists*`
-on exact bounds) and `PIR_secuity_s_bypr`, `PIR_secuity_s'_bypr`, which follow from them.
-(The old port of the whole file, in the style before the EC layer, is
-`Examples/EasyCryptBench/PIR.lean`.)
+EC's file, declaration by declaration and script line by line: correctness (`PIR_correct`),
+security by a coupling (`PIR_secure1`, `PIR_secure2` and the two `byequiv` lemmas), the
+probability of each query computed in pHL (`Pr_PIR_s`, `Pr_PIR_s'` and the two `bypr` lemmas),
+and the uniformity equivalences (`PIR_s_uniform`, `PIR_s'_uniform`).  All of EC's lemmas are
+proven.
 
 Translation:
 * `clone import BitWord as BS`, `op N`, `op a`, `axiom N_pos` are the class `Params` (`n` the
   length of `BS.word`); `clone import Bigop as BBS` is a clone of `Lib/EC/Bigop.lean`.
 * `var s, s' : int list` of `module PIR` are `global_var PIR.s`, `PIR.s'` before the module.
-* `var j <- 0` is the declaration and the assignment `j <- 0`.
+* `var j <- 0` is the declaration and the assignment `j <- 0`; `(s, s') <- ([], [])` is two
+  assignments (GAP 5).
+* pHL's bounds are reals, as EC's: `1 / 2 ^ (N - §j)` is `1%r/2%r^(N-j)` (an integer power).
 * `int fset` is `FSet ℤ` (`Finset`), `` `|` `` and `` `&` `` are `∪` and `∩`, `oflist` and the
   membership lemmas are `Lib/EC/FSetOflist.lean`; `b ^^ (j \in x1)` is
   `b ^^ decide (j ∈ x1)`.
@@ -69,6 +69,14 @@ Gap list (what keeps the file from reading as EC's):
   `smt (is_restr_addS is_restrS is_restr_diff is_restr_Ueq is_restr_restr fset0U)` is the
   lemmas `oflist_step`, `is_restr_step` (and `s'_step` for the second server's update), and
   the goals after `auto` are taken apart by hand.
+* GAP 5: `(s, s') <- ([], [])` is written as two assignments: `sp` over a tuple assignment
+  leaves a condition on the pair that the conditions on `PIR.s` do not see.
+* GAP 6 (`Pr_PIR_s`, `Pr_PIR_s'`): `byphoare (: True ==> _)` for EC's `byphoare=> //` (the
+  default precondition fixes the argument and the memory); `case: (is_restr x N)` is
+  `by_cases`; the rule for `while I V k ε` has two goals more than EC's (`bound_le_one`,
+  `sat`: `Logic/PHoareWhileRev.lean`); `exists * j, PIR.s; elim * => j0 s0` is two
+  `stmt_exists *`; the side conditions (EC's `smt (…)` on the `restr` lemmas) are closed by
+  hand with `oflist_step`, `is_restr_step`, `s'_step`.
 -/
 
 set_option ec.strict true
@@ -146,7 +154,8 @@ module PIR {
   proc main (i : ℤ) : word {
     var r : word, r' : word, j : ℤ, b : Bool;
     j <- 0;
-    PIR.s, PIR.s' <- ([], []);
+    PIR.s <- [];
+    PIR.s' <- [];
     while ($j < N) {
       b <$ dbool;
       if ($j = $i) {
@@ -259,6 +268,8 @@ def restr (s : FSet ℤ) (n : ℤ) : FSet ℤ := s ∩ oflist (iota_ 0 n)
 /-- EC's `op is_restr (s : int fset) n = s = restr s n`. -/
 def is_restr (s : FSet ℤ) (n : ℤ) : Prop := s = restr s n
 
+instance (s : FSet ℤ) (n : ℤ) : Decidable (is_restr s n) := by unfold is_restr; infer_instance
+
 /-- Membership in `restr s n` (EC's `rewrite /restr in_fsetI mem_oflist mem_iota`). -/
 theorem mem_restr (s : FSet ℤ) (n x : ℤ) : x ∈ restr s n ↔ x ∈ s ∧ 0 ≤ x ∧ x < n := by
   rw [restr, in_fsetI, mem_oflist, mem_iota, zero_add]
@@ -367,6 +378,370 @@ theorem s'_step (j i : ℤ) (b : Bool) (s : List ℤ) :
       if (b ^^ decide (j = i)) = true then j :: s else s := by
   cases b <;> by_cases h : j = i <;> simp [h]
 
+theorem Pr_PIR_s (i0 : ℤ) (m : VariableAssignment) (x : FSet ℤ) :
+    Pr[ PIR.main (i0) @ &m : oflist §PIR.s = x ] =
+      if is_restr x N then 1 / 2 ^ N else 0 := by
+  -- EC: byphoare=> // {i0};proc;inline *;wp.
+  byphoare (: True ==> _); phoare_proc; phoare_inline*; stmt_wp
+  -- EC: case: (is_restr x N);first last.
+  by_cases hx : is_restr x N
+  rotate_left
+  · -- EC: + conseq (_ : _ ==> _ : = 0%r) => [ _ | ].
+    --       + smt(expr_ge0 divr_ge0).
+    phoare_conseq (: _ ==> _ : = 0)
+    · simp [hx]
+    -- EC: hoare;conseq (_ : _ ==> is_restr (oflist PIR.s) N); 1:by smt().
+    phoare_hoare
+    hoare_conseq (: _ ==> is_restr (oflist §PIR.s) N)
+    · rintro σ h rfl; exact hx h
+    -- EC: while (0<= j <= N /\ is_restr (oflist PIR.s) j).
+    hoare_while (0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s) §j)
+    · -- EC: + by auto => &m1 />;rewrite oflist_cons;smt (is_restrS is_restr_addS).
+      hoare_auto
+      rintro j s i ⟨⟨H0j, HjN, Hs⟩, Hj⟩ b -
+      have Hj' := of_decide_eq_true Hj
+      simp only [ite_self]
+      exact ⟨by omega, by omega, is_restr_step _ _ _ H0j Hs⟩
+    · rintro j s ⟨H0j, HjN, Hs⟩ Hj
+      exact le_antisymm HjN (not_lt.mp (of_decide_eq_false Hj)) ▸ Hs
+    -- EC: auto=> ?;rewrite -set0E;smt (is_restr_fset0 N_pos).
+    hoare_auto
+    exact N_pos
+  -- EC: sp; conseq (_ : _ ==> _ : = (if (oflist PIR.s) = restr x j then 1%r/2%r^(N-j)
+  --       else 0%r)).
+  stmt_sp
+  phoare_conseq (: _ ==> _ : = (if oflist §PIR.s = restr x §j then 1 / 2 ^ (N - §j) else 0))
+  · -- EC: + move=> {&m} &m />;rewrite -set0E.
+    --       split.
+    --       + smt(expr_ge0 invr_ge0).
+    --       have -> // : fset0 = restr x 0.
+    --       + by apply fsetP=> z;rewrite /restr !inE mem_oflist mem_iota /#.
+    rintro j s s' ⟨⟨rfl, rfl⟩, -⟩
+    simp [hx, restr_0, set0E]
+  -- EC: conseq (_ : _ ==> oflist PIR.s = restr x j) (_: _ ==> j = N) => //;1:smt().
+  phoare_conseq (: _ ==> oflist §PIR.s = restr x §j) (: _ ==> §j = N)
+  · rintro j s rfl; rw [← hx]
+  · -- EC: + while(0 <= j <= N);auto;smt (N_pos).
+    hoare_while (0 ≤ §j ∧ §j ≤ N)
+    · hoare_auto; smt_close []
+    · smt_close []
+    hoare_auto; smt_close [N_pos]
+  -- EC: conseq (: (0 <= j <= N /\ is_restr (oflist PIR.s) j) ==> _) => //.
+  phoare_conseq (: 0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s) §j ==> _)
+  · -- EC: + move=> />; smt(N_pos set0E is_restr_fset0).
+    rintro j s s' ⟨⟨rfl, rfl⟩, -⟩
+    exact ⟨le_rfl, N_pos, is_restr_fset0 0⟩
+  -- EC: while (0 <= j <= N /\ is_restr (oflist PIR.s) j) (N-j) N 1%r => //.
+  phoare_while (0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s) §j) (N - §j) N 1
+  · -- EC: + move=> /> s j *; have ->>: j = N by smt().
+    --       by rewrite subzz expr0.
+    rintro j s ⟨H0j, HjN, Hs⟩ Hj
+    obtain rfl : j = N := le_antisymm HjN (not_lt.mp (of_decide_eq_false Hj))
+    by_cases h : oflist s = restr x N <;> simp [h, indicatorE]
+  · -- EC: + smt(N_pos).
+    rintro j s ⟨H0j, HjN, -⟩
+    exact ⟨by omega, fun h => decide_eq_false (by omega)⟩
+  · -- EC: + move=> H.
+    intro w H
+    -- EC: case (oflist PIR.s = restr x j);first last.
+    phoare_case (oflist §PIR.s = restr x §j)
+    rotate_left
+    · -- EC: + seq 3 : true _ 0%r 0%r _ (0 <= j <= N /\ is_restr (oflist PIR.s) j /\
+      --         oflist PIR.s <> restr x j).
+      phoare_seq 3 : (True) _ 0 0 _
+        (0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s) §j ∧ oflist §PIR.s ≠ restr x §j)
+      · -- EC: + auto => /> &hr H0j ???? b ?.
+        --       rewrite restrS //= oflist_cons.
+        --       smt (is_restr_addS is_restrS is_restr_Ueq  is_restr_diff fset0U
+        --         is_restr_restr).
+        hoare_auto
+        rintro j s i ⟨⟨⟨H0j, HjN, Hs⟩, Hj⟩, Hne⟩ b -
+        have Hj' := of_decide_eq_true Hj
+        simp only [ite_self]
+        refine ⟨by omega, by omega, is_restr_step _ _ _ H0j Hs, ?_⟩
+        rw [ne_eq, oflist_step _ _ _ _ H0j Hs]; exact fun h => Hne h.2
+      · -- EC: by conseq H=> /#.
+        phoare_conseq H
+        · exact fun j s h => ⟨h.1, h.2.1, h.2.2.1⟩
+        · rintro j s ⟨-, -, -, h⟩; rw [if_neg h, ENNReal.ofReal_zero]
+      · -- EC: + by hoare;auto.
+        phoare_hoare; hoare_auto
+      -- EC: smt().
+      rintro j s ⟨-, h⟩; rw [if_neg h]
+    -- EC: conseq (_ : _ : = (1%r / 2%r ^ (N - j))).
+    --     + smt(divr_ge0 expr_ge0).
+    phoare_conseq (: _ ==> _ : = (1 / 2 ^ (N - §j)))
+    · rintro j s ⟨-, h⟩; rw [if_pos h]
+    -- EC: exists * j, PIR.s;elim * => j0 s0.
+    stmt_exists * §j
+    intro j0
+    stmt_exists * §PIR.s
+    intro s0
+    -- EC: seq 3: (b = j0 \in x) (1%r/2%r) (1%r / 2%r ^ (N - (j0+1))) _ 0%r
+    --       (1 <= j <= N /\ j = j0 + 1 /\ (PIR.s = if b then j0 :: s0 else s0) /\
+    --        is_restr (oflist s0) j0 /\ oflist s0 = restr x j0).
+    phoare_seq 3 : (§b = decide (j0 ∈ x)) (1 / 2) (1 / 2 ^ (N - (j0 + 1))) _ 0
+      (1 ≤ §j ∧ §j ≤ N ∧ §j = j0 + 1 ∧ (§PIR.s = if §b then j0 :: s0 else s0) ∧
+        is_restr (oflist s0) j0 ∧ oflist s0 = restr x j0)
+    · -- EC: + by auto => /> /#.
+      hoare_auto
+      rintro j s i ⟨⟨⟨⟨⟨H0j, HjN, Hs⟩, Hj⟩, Heq⟩, rfl⟩, rfl⟩ b -
+      have Hj' := of_decide_eq_true Hj
+      simp only [ite_self]
+      exact ⟨by omega, by omega, trivial, trivial, Hs, Heq⟩
+    · -- EC: + by wp => /=;rnd (pred1 (j0 \in x));skip => /> &hr;rewrite dbool1E.
+      stmt_wp; phoare_rnd (pred1 (decide (j0 ∈ x))); phoare_auto
+      smt_close [dbool_ll, mu_pred1, dbool1E_mu1, pred1E]
+    · -- EC: + conseq H=> />.
+      --       + split.
+      --         + smt(divr_ge0 expr_ge0).
+      --         case: (j0 \in x) => Hjx ?? His Hof.
+      --         + by rewrite oflist_cons restrS 1:/# Hjx Hof.
+      --         by rewrite restrS 1:/# Hjx Hof /= fset0U.
+      --       smt (is_restrS is_restr_addS oflist_cons).
+      phoare_conseq H
+      · rintro b j s ⟨-, h1, hN, rfl, rfl, Hs0, -⟩
+        exact ⟨by omega, hN, is_restr_step _ _ _ (by omega) Hs0⟩
+      · rintro b j s ⟨rfl, h1, hN, rfl, rfl, Hs0, Heq⟩
+        rw [if_pos (by rw [oflist_step _ _ _ _ (by omega) Hs0]; exact ⟨rfl, Heq⟩)]
+    · -- EC: + conseq H=> /> &0 />.
+      --       + smt(restrS oflist_cons fset0U in_fsetU in_fset1 nin_is_restr).
+      --       smt(is_restr_addS oflist_cons is_restrS fset0U).
+      phoare_conseq H
+      · rintro b j s ⟨-, h1, hN, rfl, rfl, Hs0, -⟩
+        exact ⟨by omega, hN, is_restr_step _ _ _ (by omega) Hs0⟩
+      · rintro b j s ⟨hb, h1, hN, rfl, rfl, Hs0, Heq⟩
+        rw [if_neg (by rw [oflist_step _ _ _ _ (by omega) Hs0]; exact fun h => hb h.1),
+          ENNReal.ofReal_zero]
+    -- EC: move=> &hr /> ?????; rewrite -exprS 1:/#; congr;congr;ring.
+    rintro j s ⟨⟨⟨⟨⟨H0j, HjN, -⟩, Hj⟩, -⟩, rfl⟩, -⟩
+    have h2 : (2 : ℝ) ^ (N - j) = 2 ^ (N - (j + 1)) * 2 := by
+      rw [← zpow_add_one₀ (by norm_num)]; congr 1; ring
+    rw [h2]; field_simp
+  · -- EC: + wp;rnd predT;skip => /> &hr.
+    --       smt (dbool_ll oflist_cons is_restrS is_restr_addS).
+    phoare_auto
+    rintro j s i ⟨⟨H0j, HjN, Hs⟩, Hj⟩
+    have Hj' := of_decide_eq_true Hj
+    refine ⟨dbool_ll, fun v _ => ?_⟩
+    simp only [ite_self]
+    exact ⟨by omega, by omega, is_restr_step _ _ _ H0j Hs⟩
+  · -- EC: move=> z;auto=> />;smt (dbool_ll).
+    intro z; phoare_auto
+    rintro j s i ⟨-, -, rfl⟩
+    simp only [ite_self]
+    rw [show (fun _ : Bool => indicatorE (N - (j + 1) < N - j)) = fun _ => 1 from
+      funext fun _ => indicatorE_of (by omega), (is_lossless_iff_expected _).mp dbool_ll,
+      ENNReal.ofReal_one]
+  · -- (our rule's goal: the bound is at most `1`)
+    rintro j s ⟨H0j, HjN, -⟩
+    split_ifs
+    · rw [ENNReal.ofReal_le_one]
+      exact (div_le_one (by positivity)).mpr (one_le_zpow₀ (by norm_num) (by omega))
+    · simp
+  · -- (our rule's goal: some state satisfies the postcondition)
+    refine ⟨(localVarLens "j" ℤ).set 0 ⟨PIR.s.set [] VariableAssignment.init,
+      VariableAssignment.init⟩, indicatorE_of ?_⟩
+    have e1 : ((localVarLens "j" ℤ).set 0 ⟨PIR.s.set [] VariableAssignment.init,
+        VariableAssignment.init⟩).globals = PIR.s.set [] VariableAssignment.init := rfl
+    rw [e1, Lens.set_get, Lens.set_get, restr_0]; rfl
+
+theorem Pr_PIR_s' (i0 : ℤ) (m : VariableAssignment) (x : FSet ℤ) :
+    Pr[ PIR.main (i0) @ &m : oflist §PIR.s' = x ] =
+      if is_restr x N then 1 / 2 ^ N else 0 := by
+  -- EC: byphoare=> // {i0};proc;inline *;wp.
+  byphoare (: True ==> _); phoare_proc; phoare_inline*; stmt_wp
+  -- EC: case: (is_restr x N);first last.
+  by_cases hx : is_restr x N
+  rotate_left
+  · -- EC: + conseq (_ : _ ==> _ : = 0%r) => [ _ | ].
+    --       + smt(expr_ge0 divr_ge0).
+    phoare_conseq (: _ ==> _ : = 0)
+    · simp [hx]
+    -- EC: hoare;conseq (_ : _ ==> is_restr (oflist PIR.s') N); 1:by smt().
+    phoare_hoare
+    hoare_conseq (: _ ==> is_restr (oflist §PIR.s') N)
+    · rintro σ h rfl; exact hx h
+    -- EC: while (0<= j <= N /\ is_restr (oflist PIR.s') j).
+    hoare_while (0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s') §j)
+    · -- EC: + by auto => &m1 />;rewrite oflist_cons;smt (is_restrS is_restr_addS).
+      hoare_auto
+      rintro j s i ⟨⟨H0j, HjN, Hs⟩, Hj⟩ b -
+      have Hj' := of_decide_eq_true Hj
+      simp only [ite_self, s'_step]
+      exact ⟨by omega, by omega, is_restr_step _ _ _ H0j Hs⟩
+    · rintro j s ⟨H0j, HjN, Hs⟩ Hj
+      exact le_antisymm HjN (not_lt.mp (of_decide_eq_false Hj)) ▸ Hs
+    -- EC: auto=> ?;rewrite -set0E;smt (is_restr_fset0 N_pos).
+    hoare_auto
+    exact N_pos
+  -- EC: sp; conseq (_ : _ ==> _ : = (if (oflist PIR.s') = restr x j then 1%r/2%r^(N-j)
+  --       else 0%r)).
+  stmt_sp
+  phoare_conseq (: _ ==> _ : = (if oflist §PIR.s' = restr x §j then 1 / 2 ^ (N - §j) else 0))
+  · -- EC: + move=> {&m} &m />;rewrite -set0E.
+    --       split.
+    --       + smt(expr_ge0 invr_ge0).
+    --       have -> // : fset0 = restr x 0.
+    --       + by apply fsetP=> z;rewrite /restr !inE mem_oflist mem_iota /#.
+    rintro j s s' ⟨⟨rfl, -⟩, rfl⟩
+    simp [hx, restr_0, set0E]
+  -- EC: conseq (_ : _ ==> oflist PIR.s' = restr x j) (_: _ ==> j = N) => //;1:smt().
+  phoare_conseq (: _ ==> oflist §PIR.s' = restr x §j) (: _ ==> §j = N)
+  · rintro j s rfl; rw [← hx]
+  · -- EC: + while(0 <= j <= N);auto;smt (N_pos).
+    hoare_while (0 ≤ §j ∧ §j ≤ N)
+    · hoare_auto; smt_close []
+    · smt_close []
+    hoare_auto; smt_close [N_pos]
+  -- EC: conseq (: (0 <= j <= N /\ is_restr (oflist PIR.s') j) ==> _) => //.
+  phoare_conseq (: 0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s') §j ==> _)
+  · -- EC: + move=> />; smt(N_pos set0E is_restr_fset0).
+    rintro j s s' ⟨⟨rfl, -⟩, rfl⟩
+    exact ⟨le_rfl, N_pos, is_restr_fset0 0⟩
+  -- EC: while (0 <= j <= N /\ is_restr (oflist PIR.s') j) (N-j) N 1%r => //.
+  phoare_while (0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s') §j) (N - §j) N 1
+  · -- EC: + move=> /> s j *; have ->>: j = N by smt().
+    --       by rewrite subzz expr0.
+    rintro j s ⟨H0j, HjN, Hs⟩ Hj
+    obtain rfl : j = N := le_antisymm HjN (not_lt.mp (of_decide_eq_false Hj))
+    by_cases h : oflist s = restr x N <;> simp [h, indicatorE]
+  · -- EC: + smt(N_pos).
+    rintro j s ⟨H0j, HjN, -⟩
+    exact ⟨by omega, fun h => decide_eq_false (by omega)⟩
+  · -- EC: + move=> H.
+    intro w H
+    -- EC: case (oflist PIR.s' = restr x j);first last.
+    phoare_case (oflist §PIR.s' = restr x §j)
+    rotate_left
+    · -- EC: + seq 3 : true _ 0%r 0%r _ (0 <= j <= N /\ is_restr (oflist PIR.s') j /\
+      --         oflist PIR.s' <> restr x j).
+      phoare_seq 3 : (True) _ 0 0 _
+        (0 ≤ §j ∧ §j ≤ N ∧ is_restr (oflist §PIR.s') §j ∧ oflist §PIR.s' ≠ restr x §j)
+      · -- EC: + auto => /> &hr H0j ???? b ?.
+        --       rewrite restrS //= oflist_cons.
+        --       smt (is_restr_addS is_restrS is_restr_Ueq  is_restr_diff fset0U
+        --         is_restr_restr).
+        hoare_auto
+        rintro j s i ⟨⟨⟨H0j, HjN, Hs⟩, Hj⟩, Hne⟩ b -
+        have Hj' := of_decide_eq_true Hj
+        simp only [ite_self, s'_step]
+        refine ⟨by omega, by omega, is_restr_step _ _ _ H0j Hs, ?_⟩
+        rw [ne_eq, oflist_step _ _ _ _ H0j Hs]; exact fun h => Hne h.2
+      · -- EC: by conseq H=> /#.
+        phoare_conseq H
+        · exact fun j s h => ⟨h.1, h.2.1, h.2.2.1⟩
+        · rintro j s ⟨-, -, -, h⟩; rw [if_neg h, ENNReal.ofReal_zero]
+      · -- EC: + by hoare;auto.
+        phoare_hoare; hoare_auto
+      -- EC: smt().
+      rintro j s ⟨-, h⟩; rw [if_neg h]
+    -- EC: conseq (_ : _ : = (1%r / 2%r ^ (N - j))).
+    --     + smt(divr_ge0 expr_ge0).
+    phoare_conseq (: _ ==> _ : = (1 / 2 ^ (N - §j)))
+    · rintro j s ⟨-, h⟩; rw [if_pos h]
+    -- EC: exists * j, PIR.s';elim * => j0 s0.
+    stmt_exists * §j
+    intro j0
+    stmt_exists * §PIR.s'
+    intro s0
+    -- EC: seq 3: (b = ((j0 = i) ^^ (j0 \in x))) (1%r/2%r) (1%r / 2%r ^ (N - (j0+1))) _ 0%r
+    --       (1 <= j <= N /\ j = j0 + 1 /\ (PIR.s' = if (j0=i) then (if b then s0 else j0::s0)
+    --          else if b then j0 :: s0 else s0) /\
+    --        is_restr (oflist s0) j0 /\ oflist s0 = restr x j0).
+    phoare_seq 3 : (§b = (decide (j0 = §i) ^^ decide (j0 ∈ x))) (1 / 2) (1 / 2 ^ (N - (j0 + 1))) _ 0
+      (1 ≤ §j ∧ §j ≤ N ∧ §j = j0 + 1 ∧
+        (§PIR.s' = if decide (j0 = §i) then (if §b then s0 else j0 :: s0)
+          else if §b then j0 :: s0 else s0) ∧
+        is_restr (oflist s0) j0 ∧ oflist s0 = restr x j0)
+    · -- EC: + by auto => /> /#.
+      hoare_auto
+      rintro j s i ⟨⟨⟨⟨⟨H0j, HjN, Hs⟩, Hj⟩, Heq⟩, rfl⟩, rfl⟩ b -
+      have Hj' := of_decide_eq_true Hj
+      simp only [ite_self]
+      exact ⟨by omega, by omega, trivial, trivial, Hs, Heq⟩
+    · -- EC: + by wp => /=;rnd (pred1 ((j0 = i) ^^ (j0 \in x)));skip => /> &hr;rewrite dbool1E.
+      stmt_wp; phoare_rnd (pred1 (decide (j0 = §i) ^^ decide (j0 ∈ x))); phoare_auto
+      smt_close [dbool_ll, mu_pred1, dbool1E_mu1, pred1E]
+    · -- EC: + conseq H=> />.
+      --       + split.
+      --         + smt(divr_ge0 expr_ge0).
+      --         case: (j0 \in x) => Hjx ?? His Hof.
+      --         + by rewrite oflist_cons restrS 1:/# Hjx Hof.
+      --         by rewrite restrS 1:/# Hjx Hof /= fset0U.
+      --       smt (is_restrS is_restr_addS oflist_cons).
+      phoare_conseq H
+      · rintro b i j s ⟨-, h1, hN, rfl, rfl, Hs0, -⟩
+        rw [s'_step]; exact ⟨by omega, hN, is_restr_step _ _ _ (by omega) Hs0⟩
+      · rintro b i j s ⟨rfl, h1, hN, rfl, rfl, Hs0, Heq⟩
+        rw [s'_step, if_pos (by
+          rw [oflist_step _ _ _ _ (by omega) Hs0]
+          exact ⟨by cases decide (j0 = i) <;> cases decide (j0 ∈ x) <;> rfl, Heq⟩)]
+    · -- EC: + conseq H=> /> &0 />.
+      --       + smt(restrS oflist_cons fset0U in_fsetU in_fset1 nin_is_restr).
+      --       smt(is_restr_addS oflist_cons is_restrS fset0U).
+      phoare_conseq H
+      · rintro b i j s ⟨-, h1, hN, rfl, rfl, Hs0, -⟩
+        rw [s'_step]; exact ⟨by omega, hN, is_restr_step _ _ _ (by omega) Hs0⟩
+      · rintro b i j s ⟨hb, h1, hN, rfl, rfl, Hs0, Heq⟩
+        rw [s'_step, if_neg (by
+          rw [oflist_step _ _ _ _ (by omega) Hs0]
+          exact fun h => hb (by
+            have h1 := h.1
+            revert h1
+            cases b <;> cases decide (j0 = i) <;> cases decide (j0 ∈ x) <;> simp)),
+          ENNReal.ofReal_zero]
+    -- EC: move=> &hr /> ?????; rewrite -exprS 1:/#; congr;congr;ring.
+    rintro j s ⟨⟨⟨⟨⟨H0j, HjN, -⟩, Hj⟩, -⟩, rfl⟩, -⟩
+    have h2 : (2 : ℝ) ^ (N - j) = 2 ^ (N - (j + 1)) * 2 := by
+      rw [← zpow_add_one₀ (by norm_num)]; congr 1; ring
+    rw [h2]; field_simp
+  · -- EC: + wp;rnd predT;skip => /> &hr.
+    --       smt (dbool_ll oflist_cons is_restrS is_restr_addS).
+    phoare_auto
+    rintro j s i ⟨⟨H0j, HjN, Hs⟩, Hj⟩
+    have Hj' := of_decide_eq_true Hj
+    refine ⟨dbool_ll, fun v _ => ?_⟩
+    simp only [ite_self, s'_step]
+    exact ⟨by omega, by omega, is_restr_step _ _ _ H0j Hs⟩
+  · -- EC: move=> z;auto=> />;smt (dbool_ll).
+    intro z; phoare_auto
+    rintro j s i ⟨-, -, rfl⟩
+    simp only [ite_self]
+    rw [show (fun _ : Bool => indicatorE (N - (j + 1) < N - j)) = fun _ => 1 from
+      funext fun _ => indicatorE_of (by omega), (is_lossless_iff_expected _).mp dbool_ll,
+      ENNReal.ofReal_one]
+  · -- (our rule's goal: the bound is at most `1`)
+    rintro j s ⟨H0j, HjN, -⟩
+    split_ifs
+    · rw [ENNReal.ofReal_le_one]
+      exact (div_le_one (by positivity)).mpr (one_le_zpow₀ (by norm_num) (by omega))
+    · simp
+  · -- (our rule's goal: some state satisfies the postcondition)
+    refine ⟨(localVarLens "j" ℤ).set 0 ⟨PIR.s'.set [] VariableAssignment.init,
+      VariableAssignment.init⟩, indicatorE_of ?_⟩
+    have e1 : ((localVarLens "j" ℤ).set 0 ⟨PIR.s'.set [] VariableAssignment.init,
+        VariableAssignment.init⟩).globals = PIR.s'.set [] VariableAssignment.init := rfl
+    rw [e1, Lens.set_get, Lens.set_get, restr_0]; rfl
+
+theorem PIR_secuity_s_bypr (i1 i2 : ℤ) (m1 m2 : VariableAssignment) (x : FSet ℤ) :
+    Pr[ PIR.main (i1) @ &m1 : oflist §PIR.s = x ] =
+      Pr[ PIR.main (i2) @ &m2 : oflist §PIR.s = x ] := by
+  -- EC: by rewrite (@Pr_PIR_s i1 &m1 x) (@Pr_PIR_s i2 &m2 x).
+  rw [Pr_PIR_s i1 m1 x, Pr_PIR_s i2 m2 x]
+
+theorem PIR_secuity_s'_bypr (i1 i2 : ℤ) (m1 m2 : VariableAssignment) (x : FSet ℤ) :
+    Pr[ PIR.main (i1) @ &m1 : oflist §PIR.s' = x ] =
+      Pr[ PIR.main (i2) @ &m2 : oflist §PIR.s' = x ] := by
+  -- EC: by rewrite (@Pr_PIR_s' i1 &m1 x) (@Pr_PIR_s' i2 &m2 x).
+  rw [Pr_PIR_s' i1 m1 x, Pr_PIR_s' i2 m2 x]
+
+/-!
+Other version without explicit computation of the probability: we first show that the
+probability is uniform.  (EC: "unfortunately this does not allow to conclude in EasyCrypt.  We
+need to be able to do the projection of memories.")
+-/
+
 theorem PIR_s_uniform (x1 x2 : FSet ℤ) : 0 ≤ N → is_restr x1 N → is_restr x2 N →
     equiv[ PIR.main ~ PIR.main : ={i} ==>
       ((oflist §PIR.s{1} = x1) = (oflist §PIR.s{2} = x2)) ] := by
@@ -404,7 +779,7 @@ theorem PIR_s_uniform (x1 x2 : FSet ℤ) : 0 ≤ N → is_restr x1 N → is_rest
   --     rewrite !restr_0 -set0E /=;smt (is_restr_fset0).
   equiv_auto
   rintro i _ rfl
-  refine ⟨⟨rfl, HN, is_restr_fset0 0, is_restr_fset0 0, by rw [restr_0, restr_0]⟩, ?_⟩
+  refine ⟨⟨rfl, HN, by rw [restr_0, restr_0]⟩, ?_⟩
   rintro τ₁ τ₂ ⟨-, -, hN, -, -, key⟩ g1 -
   have hjN : (localVarLens "j" ℤ).get τ₁ = N := le_antisymm hN (not_lt.mp (of_decide_eq_false g1))
   rw [hjN, ← B1, ← B2] at key; exact key
@@ -446,7 +821,7 @@ theorem PIR_s'_uniform (x1 x2 : FSet ℤ) : 0 ≤ N → is_restr x1 N → is_res
   --     rewrite !restr_0 -set0E /=;smt (is_restr_fset0).
   equiv_auto
   rintro i _ rfl
-  refine ⟨⟨rfl, HN, is_restr_fset0 0, is_restr_fset0 0, by rw [restr_0, restr_0]⟩, ?_⟩
+  refine ⟨⟨rfl, HN, by rw [restr_0, restr_0]⟩, ?_⟩
   rintro τ₁ τ₂ ⟨-, -, hN, -, -, key⟩ g1 -
   have hjN : (localVarLens "j" ℤ).get τ₁ = N := le_antisymm hN (not_lt.mp (of_decide_eq_false g1))
   rw [hjN, ← B1, ← B2] at key; exact key

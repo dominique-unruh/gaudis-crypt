@@ -329,10 +329,12 @@ def phoareWhileRevStep (I V k ε : Lean.Expr) (g : MVarId) : TacticM (List MVarI
   -- some state reaches the postcondition: any state, when it is `true`
   let m ← tagged `hsat `sat
   let s ← saveState
-  let rest ← try evalTacticAt (← `(tactic| first
+  -- (without error recovery: `first` would run its last alternative with it, and `exact` then
+  -- logs its error and closes the goal by `sorry`)
+  let rest ← try Tactic.withoutRecover <| evalTacticAt (← `(tactic| first
       | exact ⟨⟨VariableAssignment.init, VariableAssignment.init⟩, rfl⟩
       | exact ⟨⟨VariableAssignment.init, VariableAssignment.init⟩, indicatorE_of trivial⟩)) m
-    catch _ => do s.restore; pure [m]
+    catch _ => do s.restore; pure [← try cleanSideGoal m catch _ => pure m]
   out := out ++ rest
   return out
 

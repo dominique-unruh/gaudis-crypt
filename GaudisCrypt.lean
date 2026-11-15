@@ -242,6 +242,9 @@ import GaudisCrypt.Syntax.ModuleVarTest
 import GaudisCrypt.Examples.BR93
 import GaudisCrypt.Lib.EC.Bigop
 import GaudisCrypt.Lib.EC.FSetOflist
+import GaudisCrypt.Logic.PHoareExact
+import GaudisCrypt.Logic.PHoareExactTactics
+import GaudisCrypt.Logic.PHoareExactTest
 import GaudisCrypt.Examples.PIR
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame

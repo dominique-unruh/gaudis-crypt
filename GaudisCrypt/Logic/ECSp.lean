@@ -359,6 +359,13 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
         h'.refl
         continue
       catch _ => s.restore
+    -- a `phoare` judgment: a global's `X.intoGlobal.get σ` in the new precondition as its read
+    -- `§x`, the form of the conditions the pHL tactics take (the side goals generalize the
+    -- reads: two forms of one read would be two variables)
+    let h ← if t.isAppOf ``phoareStmt then
+        (try Judgment.simpArg h 0 (``Lens.intoGlobal_get_eq :: HoareWp.simpReadsDecls) []
+          catch _ => pure h)
+      else pure h
     out := out ++ [h]
   return some out
 
