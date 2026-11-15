@@ -1,88 +1,138 @@
 import GaudisCrypt.Syntax.Syntax
-import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Syntax.PrSyntax
+import GaudisCrypt.Logic.DeclareModule
+import GaudisCrypt.Logic.ECModuleBinders
+import GaudisCrypt.Logic.PrTactics
+import GaudisCrypt.Logic.ECProc
+import GaudisCrypt.Logic.ECAuto
+import GaudisCrypt.Logic.ECAutoStrict
+import GaudisCrypt.Logic.ECClose
+import GaudisCrypt.Logic.ECCallAbstract
+import GaudisCrypt.Logic.ECCallEquiv
+import GaudisCrypt.Logic.ECRnd
 
 /-!
 # One-time pad: perfect secrecy against any adversary
 
 The adversary picks a message `m`, sees a ciphertext and guesses a bit.  In the real game the
 ciphertext is `m + k` for a fresh uniform key `k`; in the ideal game it is uniform, independent
-of `m`.  The two games are *equivalent*: for every adversary, from equal globals, the guesses are
-coupled to be equal — so every event about the guess (and the final globals) has the same
-probability in both.
+of `m`.  The two games are equivalent for every adversary (`real_ideal`), so the adversary's
+guess has the same distribution in both (`real_ideal_Pr`).
 
-The relational proof is EasyCrypt's: `proc; inline`, the calls to the adversary related by
-reflexivity (`call (_ : true)`), and the key coupled with the ciphertext along `k ↦ m + k`
-(`rnd`), a bijection that pushes the uniform key to the uniform ciphertext.  No assumption on
-the adversary at all: its procedures run on their own locals, and the game's state that differs
-(`k`, `c`) is local to `main`.
+Not an EasyCrypt file; written as one would be:
+
+```
+type msg.                        (* a finite group, written additively *)
+
+module type Adversary = {
+  proc choose() : msg
+  proc guess(c : msg) : bool
+}.
+
+module Real(A : Adversary) = {
+  proc main() : bool = {
+    var m, k, c, b;
+    m <@ A.choose();
+    k <$ dmsg;
+    c <- m + k;
+    b <@ A.guess(c);
+    return b;
+  }
+}.
+
+module Ideal(A : Adversary) = {
+  proc main() : bool = {
+    var m, c, b;
+    m <@ A.choose();
+    c <$ dmsg;
+    b <@ A.guess(c);
+    return b;
+  }
+}.
+
+section.
+declare module A <: Adversary.
+
+equiv real_ideal : Real(A).main ~ Ideal(A).main : ={glob A} ==> ={res, glob A}.
+proof.
+proc.
+call (_ : true); wp.
+rnd (fun k => m{1} + k) (fun c => c - m{1}).
+call (_ : true).
+by auto.
+qed.
+
+lemma real_ideal_Pr &m :
+  Pr[Real(A).main() @ &m : res] = Pr[Ideal(A).main() @ &m : res].
+proof. by byequiv real_ideal. qed.
+end section.
+```
+
+No assumption on the adversary: its procedures run on their own locals and globals, and the
+games' variables that differ (`k`, `c`) are local to `main`.
 -/
+
+set_option ec.strict true
+set_option linter.dupNamespace false
+set_option linter.unusedSectionVars false
 
 namespace GaudisCrypt.Examples.OTP
 
-open GaudisCrypt
+open GaudisCrypt GaudisCrypt.EC
 
-/-- The message (and key and ciphertext) space: a finite group. -/
-structure Space where
-  G : Type
-  [group : AddCommGroup G]
-  [fintype : Fintype G]
-  [nonempty : Nonempty G]
+/-- The theory's type: the messages (and keys and ciphertexts), a finite group. -/
+class Params (msg : outParam Type) [AddCommGroup msg] [Fintype msg] [Inhabited msg] : Prop
 
-@[reducible] instance (S : Space) : AddCommGroup S.G := S.group
-@[reducible] instance (S : Space) : Fintype S.G := S.fintype
-instance (S : Space) : Nonempty S.G := S.nonempty
-noncomputable instance (S : Space) : Inhabited S.G := ⟨Classical.arbitrary _⟩
+variable {msg : Type} [AddCommGroup msg] [Fintype msg] [Inhabited msg] [Params msg]
 
-variable (S : Space)
+/-- The uniform distribution on messages. -/
+noncomputable abbrev dmsg : SubProbability msg := SubProbability.uniform
 
 moduletype Adversary {
-  proc choose () -> S.G;
-  proc guess (c : S.G) -> Bool;
+  proc choose () -> msg;
+  proc guess (c : msg) -> Bool;
 }
 
-module Real using (A : Adversary S) {
+module Real using (A : Adversary) {
   proc main () : Bool {
-    var m : S.G, k : S.G, c : S.G, b : Bool;
+    var m : msg, k : msg, c : msg, b : Bool;
     m <- call A.choose ();
-    k <$ SubProbability.uniform;
+    k <$ dmsg;
     c <- $m + $k;
     b <- call A.guess ($c);
     return $b
   };
 }
 
-module Ideal using (A : Adversary S) {
+module Ideal using (A : Adversary) {
   proc main () : Bool {
-    var m : S.G, c : S.G, b : Bool;
+    var m : msg, c : msg, b : Bool;
     m <- call A.choose ();
-    c <$ SubProbability.uniform;
+    c <$ dmsg;
     b <- call A.guess ($c);
     return $b
   };
 }
 
-/-- **Perfect secrecy**: the real and the ideal game are equivalent, for every adversary. -/
-theorem real_ideal (A : Adversary S) :
-    equiv[ (Module.app (Real S) A) ~ (Module.app (Ideal S) A) :
-      §allGlobals{1} = §allGlobals{2} ==> ={res, allGlobals} ] := by
-  equiv_proc_to_stmt
-  stmt_inline 0
-  stmt_wp
-  equiv_call
-  stmt_wp{1}
-  equiv_rnd (fun k => §m{1} + k)
-  equiv_call
-  stmt_wp
-  equiv_skip
-  exact fun _ _ h => h
+section
 
-/-- **Perfect secrecy, as probabilities**: every event about the guess and the final globals has
-the same probability in the two games (EC's `byequiv`). -/
-theorem real_ideal_Pr (A : Adversary S) (E : Bool → VariableAssignment → Prop)
-    (m : VariableAssignment) :
-    Procedure.Pr (Module.Proc.procedure (Module.app (Real S) A)) () m E
-      = Procedure.Pr (Module.Proc.procedure (Module.app (Ideal S) A)) () m E :=
-  Procedure.Pr_eq_of_prhlProc (real_ideal S A)
-    (fun r₁ g₁ r₂ g₂ (h : r₁ = r₂ ∧ g₁ = g₂) => by rw [h.1, h.2]) rfl
+declare module A <: Adversary
+
+/-- **Perfect secrecy**: the real and the ideal game are equivalent, for every adversary. -/
+theorem real_ideal :
+    equiv[ Real(A).main ~ Ideal(A).main : ={glob A} ==> ={res, glob A} ] := by
+  equiv_proc
+  equiv_call (_ : True); stmt_wp
+  equiv_rnd (fun k => §m{1} + k) (fun c => c - §m{1})
+  equiv_call (_ : True)
+  equiv_auto
+
+/-- **Perfect secrecy, as probabilities**: the guess has the same distribution in the two
+games. -/
+theorem real_ideal_Pr (m : VariableAssignment) :
+    Pr[ Real(A).main () @ &m : §res ] = Pr[ Ideal(A).main () @ &m : §res ] := by
+  byequiv (real_ideal A)
+
+end
 
 end GaudisCrypt.Examples.OTP
