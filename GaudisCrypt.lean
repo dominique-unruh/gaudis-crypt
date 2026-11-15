@@ -212,6 +212,8 @@ import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Lib.EC.Logic
 import GaudisCrypt.Lib.EC.BitWordRing
 import GaudisCrypt.Logic.ECHints
+import GaudisCrypt.Logic.ECInlineParams
+import GaudisCrypt.Logic.ECInlineParamsTest
 import GaudisCrypt.Logic.ECRnd
 import GaudisCrypt.Logic.ECRndTest
 import GaudisCrypt.Logic.PHoareRnd

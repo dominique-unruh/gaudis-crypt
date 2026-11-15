@@ -177,6 +177,7 @@ the `while` row.
 | `have ->: Pr[…] = Pr[…] by …` (rewrite chain) | `calc` steps, or `have e : … := by …` then `simp only [e]` (`rw` on `Pr[ ]` goals often fails its instances-transparency check) |
 | `proc` | `equiv_proc` / `hoare_proc` / `phoare_proc` (to the body, params as locals; EC's counts) |
 | `inline*` | `stmt_inline*` (`hoare_inline*`, `phoare_inline*`) |
+| `inline*` of calls with several parameters, before a position (`swap n k`, `seq n m`) | `stmt_inline*` then `stmt_split_params` (`Logic/ECInlineParams.lean`, 2026-11-15): our inliner writes the parameters as one tuple assignment, EC as one assignment each; the tactic splits them (the tuple assignments after a `reset_vars`), so EC's positions and its swaps between two parameters apply.  A gap of the inliner: the line goes when `inline` does it |
 | `inline{i} M.f` / `inline M₁ M₂` / `inline{i}*` | `stmt_inline{i} (M.f)` / `stmt_inline (M₁) (M₂)` / `stmt_inline*{i}` (parens needed: `stmt_inline n` inlines call site `n`) |
 | `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` (EC positions) |
 | `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (EC positions; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |

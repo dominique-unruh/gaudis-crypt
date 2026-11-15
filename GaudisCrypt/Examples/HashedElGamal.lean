@@ -18,6 +18,7 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.StmtSwap
+import GaudisCrypt.Logic.ECInlineParams
 import GaudisCrypt.Logic.PHoareRnd
 import GaudisCrypt.Logic.ECRnd
 
@@ -46,7 +47,7 @@ Translation (as `Examples/ElGamal.lean`):
 Gap list (the examples' infrastructure batch; numbers as in `Examples/ElGamal.lean` where the
 gap is the same):
 * GAP 1: `inline` writes a call's parameters as one tuple assignment, EC as one per parameter:
-  `stmt_split_pair` before EC's `swap`s.
+  `stmt_split_params` after `stmt_inline*`.
 * GAP 2: `swap{1} 1 1` on the first statement of an inlined body: `inline` leaves a `reset_vars`
   of the callee's locals before it, which EC's count attaches to that statement, and the reset
   does not commute with the next statement (it resets its variable).  Written with our
@@ -214,9 +215,9 @@ theorem cpa_ddh0 (m : VariableAssignment) :
   -- EC: byequiv=> //; proc; inline *.
   byequiv; equiv_proc; stmt_inline*
   -- EC: swap{1} 1 1; swap{1} 8 -6; swap{2} 6 -3.
-  --     (GAP 1: the parameters of `enc` and of `DDHAdv(A).guess`, one assignment each, first;
+  --     (GAP 1: the parameters of the inlined calls, one assignment each, first;
   --     GAP 2: the first statement of the inlined `kg` by its position among ours)
-  stmt_split_pair{1} 7; stmt_split_pair{2} 3
+  stmt_split_params
   stmt_swap_raw{1} 2 1; stmt_swap{1} 8 -6; stmt_swap{2} 6 -3
   -- EC: auto; call (: true).
   equiv_auto; equiv_call (_ : ={glob A})
@@ -232,8 +233,8 @@ theorem ddh1_es1 (m : VariableAssignment) :
   -- EC: byequiv=> //; proc; inline *.
   byequiv; equiv_proc; stmt_inline*
   -- EC: swap{1} 7 -3; swap{2} [5..6] -4; swap{2} 4 -1.
-  --     (GAP 1: the parameters of the two `guess`, one assignment each, first)
-  stmt_split_pair{1} 4; stmt_split_pair{2} 3
+  --     (GAP 1)
+  stmt_split_params
   stmt_swap{1} 7 -3; stmt_swap{2} [5..6] -4; stmt_swap{2} 4 -1
   -- EC: auto; call (: true).
   equiv_auto; equiv_call (_ : ={glob A})
@@ -249,8 +250,8 @@ theorem es0_Gb (m : VariableAssignment) :
   -- EC: byequiv=> //; proc; inline *.
   byequiv; equiv_proc; stmt_inline*
   -- EC: swap{1} 2 1. swap{1} [3..4] 4. swap{2} 7 -2.
-  --     (GAP 1: the parameters of `ESAdv(A).guess`, one assignment each, first)
-  stmt_split_pair{1} 3
+  --     (GAP 1)
+  stmt_split_params
   stmt_swap{1} 2 1; stmt_swap{1} [3..4] 4; stmt_swap{2} 7 -2
   -- EC: auto; call (: true); wp.
   equiv_auto; equiv_call (_ : ={glob A}); stmt_wp

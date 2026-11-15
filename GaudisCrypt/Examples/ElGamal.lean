@@ -16,6 +16,7 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.StmtSwap
+import GaudisCrypt.Logic.ECInlineParams
 import GaudisCrypt.Logic.PHoareRnd
 import GaudisCrypt.Logic.ECRnd
 import GaudisCrypt.Lib.EC.Logic
@@ -42,7 +43,8 @@ Gap list (what keeps the file from reading as EC's; each is an item of the examp
 infrastructure batch):
 * GAP 1: `inline` writes a call's parameters as one tuple assignment, EC as one assignment per
   parameter, so EC's positions are off by the number of parameters less one, and a `swap`
-  between two parameters has nothing to move past: `stmt_split_pair` before EC's `swap`s.
+  between two parameters has nothing to move past: `stmt_split_params` after `stmt_inline*`
+  (`Logic/ECInlineParams.lean`), until the inliner does it.
 * GAP 2: EC's `call (_ : true)` on the adversary is written `equiv_call (_ : ={glob A})`: there
   is no `equiv_call (_ : I)` for a plain invariant.
 * GAP 3 (closed 2026-11-15): `Gb_half` is EC's script; pHL `rnd E` and `conseq` on an exact
@@ -121,8 +123,8 @@ theorem cpa_ddh0 (m : VariableAssignment) :
   -- EC: byequiv=> //; proc; inline *.
   byequiv; equiv_proc; stmt_inline*
   -- EC: swap{1} 7 -5.
-  --     (GAP 1: the parameters of `enc`, one assignment each, first)
-  stmt_split_pair{1} 6
+  --     (GAP 1: the parameters of the inlined calls, one assignment each, first)
+  stmt_split_params
   stmt_swap{1} 7 -5
   -- EC: auto; call (_:true).
   equiv_auto; equiv_call (_ : ={glob A})
@@ -138,8 +140,8 @@ theorem ddh1_gb (m : VariableAssignment) :
   -- EC: byequiv=> //; proc; inline *.
   byequiv; equiv_proc; stmt_inline*
   -- EC: swap{1} 3 2; swap{1} [5..6] 2; swap{2} 6 -2.
-  --     (GAP 1: the parameters of `DDHAdv(A).guess`, one assignment each, first)
-  stmt_split_pair{1} 4
+  --     (GAP 1)
+  stmt_split_params
   stmt_swap{1} 3 2; stmt_swap{1} [5..6] 2; stmt_swap{2} 6 -2
   -- EC: auto; call (_:true); wp.
   equiv_auto; equiv_call (_ : ={glob A}); stmt_wp
