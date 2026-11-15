@@ -203,6 +203,9 @@ the `while` row.
 | `rnd` / `rnd{i}` / `rnd f` | `equiv_rnd` / `equiv_rnd{i}` / `equiv_rnd f` (product samplings: `equiv_rnd_dprod`) |
 | `rnd f g` | `equiv_rnd f` where the push-forward of the left distribution along `f` is a known equation (`SHA3OSecurity` `rw_ideal`: `equiv_rnd (fun l => oget (of_list l))`, the side goal `dlist dbool size_out >>= pure ∘ f = dout` by the first port's `dlist_dout`); EC's three bijection conditions are not asked.  Otherwise **missing** |
 | pHL `rnd (pred1 v)` / `rnd` (lossless) | `rnd_pred1 v` / `rnd_bound` (on the expectation `phoare_auto` leaves at a sampling) |
+| pHL `rnd E` on an **exact** bound (`phoare[ c; x <$ d : P ==> Q ] = r`) | `phoare_rnd E` (`Logic/PHoareRnd.lean`, 2026-11-15): the goal becomes EC's `phoare[ c : P ==> mu d E = r ∧ ∀ v ∈ d, (E v ↔ Q v) ] = 1`; `E` may read variables (`phoare_rnd (pred1 §b')`).  `mu`, `mu_pred1`, `dbool1E_mu1`, `pred1E` for the closer |
+| `conseq (: _ ==> Q)` on `phoare[ … ] = 1` | `phoare_conseq (: _ ==> Q)` (same file): goals `post` (over values), then the judgment; `Q = True` gives `phoare[ … ==> 1 ] = 1` |
+| `islossless` (the tactic) | `islossless`: on `phoare[ c : P ==> 1 ] = 1` or `islossless M.f`, code without loops; assignments and samplings from `dbool`, the uniform distribution or a distribution with `is_lossless d` in the context are closed, each call leaves `islossless p`, the last call first — EC's `islossless; [apply Ag_ll \| apply Ac_ll]` is `islossless <;> [exact Ag_ll; exact Ac_ll]` |
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
 | `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` | `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)` (`Logic/ECConseqHoare.lean`): the right program's own Hoare triple, its conditions written with the tag (`size §bs{2} = §n{2} - 1`); goals `pre`, `post`, `hoare`, `judgment` |
@@ -780,6 +783,12 @@ Document each in the docstring when it applies.
 * **A theory's module variables kept in one namespace, used from another**:
   `export A.B (X.m Y.m)` inside `namespace C` makes `C.X.m` the same variable, so restriction
   lists written `-C.X.m` in other files keep reading.
+
+* **A constant function in a rule's statement is `fun _τ => r`, not `fun _ => r`** (2026-11-15):
+  the anonymous binder is named `x✝`, and the printer of statements refuses to show a program
+  variable `x` by name when some binder in the judgment is called `x` (`binderClashes` erases
+  the macro scopes): the goal then shows `(localVarLens "x" exp) <$ dt`.  To do: ignore
+  inaccessible names there.
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

@@ -16,13 +16,15 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.StmtSwap
+import GaudisCrypt.Logic.PHoareRnd
+import GaudisCrypt.Lib.EC.Logic
 
 /-!
 # ElGamal is IND-CPA under DDH (EasyCrypt `examples/elgamal.ec`)
 
 EC's file, declaration by declaration and script line by line (the pilot of the examples'
 re-port, 2026-11-15; `Examples/EasyCryptBench/ElGamal.lean` is the older version, to be replaced
-by this file once the gaps below are closed).
+by this file once the gaps below are closed).  All four lemmas are proven.
 
 Translation:
 * `clone DiffieHellman as DH. import DH.DDH DH.G DH.GP DH.FD DH.GP.ZModE.` clones the theory
@@ -42,10 +44,8 @@ infrastructure batch):
   between two parameters has nothing to move past: `stmt_split_pair` before EC's `swap`s.
 * GAP 2: EC's `call (_ : true)` on the adversary is written `equiv_call (_ : ={glob A})`: there
   is no `equiv_call (_ : I)` for a plain invariant.
-* GAP 3: `Gb_half` is not proven.  EC's script is pHL on an exact bound: `rnd (pred1 b')`,
-  `conseq (: _ ==> true)`, and the tactic `islossless`.  Here `rnd_pred1` works on the
-  expectation `phoare_auto` leaves and for upper bounds only, `phoare_conseq` likewise, and
-  there is no `islossless` tactic.
+* GAP 3 (closed 2026-11-15): `Gb_half` is EC's script; pHL `rnd E` and `conseq` on an exact
+  bound and the tactic `islossless` are `Logic/PHoareRnd.lean`.
 * GAP 4: EC's `module ElGamal : Scheme` has a third procedure, `dec`, which `Scheme` does not
   list.  `module M : T` wants exactly `T`'s procedures: `dec` is left out.
 * GAP 5: EC's `rnd f g` takes the bijection and its inverse; `equiv_rnd f` takes `f` and finds
@@ -160,12 +160,15 @@ include Ac_ll Ag_ll in
 theorem Gb_half (m : VariableAssignment) :
     Pr[ Gb(A).main () @ &m : §res ] = 1 / 2 := by
   -- EC: byphoare=> //; proc.
-  --     rnd  (pred1 b')=> //=.
-  --     conseq (: _ ==> true).
+  byphoare; phoare_proc
+  -- EC: rnd  (pred1 b')=> //=.
+  phoare_rnd (pred1 §b')
+  -- EC: conseq (: _ ==> true).
   --     + by move=> /> b; rewrite dbool1E pred1E.
-  --     islossless;[ apply Ag_ll | apply Ac_ll].
-  -- GAP 3: pHL `rnd (pred1 v)` and `conseq` on an exact bound, and `islossless`, are missing
-  sorry
+  phoare_conseq (: _ ==> True)
+  · smt_close [mu_pred1, dbool1E_mu1, pred1E]
+  -- EC: islossless;[ apply Ag_ll | apply Ac_ll].
+  islossless <;> [exact Ag_ll; exact Ac_ll]
 
 include Ac_ll Ag_ll in
 /-- EC's `lemma conclusion &m : `| Pr[CPA(ElGamal,A).main() @ &m : res] - 1%r/2%r | =

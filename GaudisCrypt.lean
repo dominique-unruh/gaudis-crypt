@@ -209,6 +209,9 @@ import GaudisCrypt.Logic.PRHL.Loops
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
+import GaudisCrypt.Lib.EC.Logic
+import GaudisCrypt.Logic.PHoareRnd
+import GaudisCrypt.Logic.PHoareRndTest
 import GaudisCrypt.Lib.EC.Group
 import GaudisCrypt.Lib.EC.DiffieHellman
 import GaudisCrypt.Lib.EC.PKE.PKE_CPA
