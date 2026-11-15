@@ -124,22 +124,15 @@ noncomputable def Squeeze (F : SLCommon.FUNCTIONALITY) : FUNCTIONALITY :=
   Indifferentiability.FUNCTIONALITY.mk state (List block × ℤ) (List block)
     { init := Module.app GaudisCrypt.SHA3.Gconcl_list.Squeeze.init_ F
       f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
-        (Module.app DSqueeze (Indifferentiability.FUNCTIONALITY.view state (List block) block F)) }
+        (Module.app DSqueeze (F : SLCommon.DFUNCTIONALITY)) }
 
--- EC's `A(D : DISTINGUISHER) : SLCommon.DISTINGUISHER`, with `D` a Lean parameter; `P` is
--- `SLCommon`'s `DPRIMITIVE`, repackaged as `BlockSponge`'s for `D` (one module type in EasyCrypt)
+-- EC's `A(D : DISTINGUISHER) : SLCommon.DISTINGUISHER`, with `D` a Lean parameter
 set_option linter.gaudisCrypt.using false in
 module A (D : DISTINGUISHER) using (F : SLCommon.DFUNCTIONALITY, P : SLCommon.DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
     _ <- call BlockSponge.C.init ();
-    b <- call (Module.app (DRestr D) (Module.pair
-      (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
-        { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
-            (Module.app DSqueeze F) })
-      (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
-        { f := Indifferentiability.DPRIMITIVE.f state (List block) block P
-          fi := Indifferentiability.DPRIMITIVE.fi state (List block) block P }))) ();
+    b <- call DRestr(D, DSqueeze(F), P).distinguish ();
     return $b
   };
 }
@@ -150,12 +143,7 @@ module NIndif using (F : FUNCTIONALITY, P : PRIMITIVE, D : DISTINGUISHER) {
     _ <- call BlockSponge.C.init ();
     _ <- call P.init ();
     _ <- call F.init ();
-    b <- call (Module.app D (Module.pair
-      (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
-        { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block) F })
-      (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
-        { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P
-          fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block) P }))) ();
+    b <- call D(F, P).distinguish ();
     return $b
   };
 }
@@ -200,23 +188,17 @@ set_option linter.gaudisCrypt.using false in
 module SimLast (S : SLCommon.SIMULATOR) using (F : DFUNCTIONALITY) : PRIMITIVE {
   proc init () : Unit {
     _ <- call BIRO2.IRO.init ();
-    _ <- call (Indifferentiability.PRIMITIVE.init state (List block) block
-      (Module.app S (Module.app Last (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ)
-        (List block) (Module.app Valid F))))) ();
+    _ <- call S(Last(Valid(F))).init ();
     return ()
   };
   proc f (x : state) : state {
     var y : state;
-    y <- call (Indifferentiability.PRIMITIVE.f state (List block) block
-      (Module.app S (Module.app Last (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ)
-        (List block) (Module.app Valid F))))) ($x);
+    y <- call S(Last(Valid(F))).f ($x);
     return $y
   };
   proc fi (x : state) : state {
     var y : state;
-    y <- call (Indifferentiability.PRIMITIVE.fi state (List block) block
-      (Module.app S (Module.app Last (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ)
-        (List block) (Module.app Valid F))))) ($x);
+    y <- call S(Last(Valid(F))).fi ($x);
     return $y
   };
 }
@@ -867,7 +849,7 @@ set_option linter.gaudisCrypt.using false in
 module DValid (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
-    b <- call (Module.app D (Module.pair (Module.app FValid F) P)) ();
+    b <- call D(FValid(F), P).distinguish ();
     return $b
   };
 }
@@ -876,20 +858,17 @@ module DValid (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
 -- returns `SLCommon`'s), its procedures are calls of `S(Last(F))`'s (exception E5)
 module S2 using (F : DFUNCTIONALITY) : PRIMITIVE {
   proc init () : Unit {
-    _ <- call (Indifferentiability.PRIMITIVE.init state (List block) block
-      (Module.app Gconcl.S (Module.app Last F))) ();
+    _ <- call Gconcl.S(Last(F)).init ();
     return ()
   };
   proc f (x : state) : state {
     var y : state;
-    y <- call (Indifferentiability.PRIMITIVE.f state (List block) block
-      (Module.app Gconcl.S (Module.app Last F))) ($x);
+    y <- call Gconcl.S(Last(F)).f ($x);
     return $y
   };
   proc fi (x : state) : state {
     var y : state;
-    y <- call (Indifferentiability.PRIMITIVE.fi state (List block) block
-      (Module.app Gconcl.S (Module.app Last F))) ($x);
+    y <- call Gconcl.S(Last(F)).fi ($x);
     return $y
   };
 }
@@ -1575,7 +1554,7 @@ set_option linter.gaudisCrypt.using false in
 module Neg_D (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
-    b <- call (Module.app D (Module.pair F P)) ();
+    b <- call D(F, P).distinguish ();
     return !$b
   };
 }
@@ -1712,9 +1691,8 @@ end IRO2
 -- that `L` (which applies it to its own parameter) is an `IRO2.RO_Distinguisher`
 module Simu using (FRO : IRO2.RO_T, F : DFUNCTIONALITY) : PRIMITIVE {
   proc init () : Unit {
-    _ <- call (Indifferentiability.PRIMITIVE.init state (List block × ℤ) (List block)
-      (Module.app Simulator F)) ();
-    _ <- call (PROM.FullRO.RO_T.init (List block × ℤ) block FRO) ();
+    _ <- call Simulator(F).init ();
+    _ <- call FRO.init ();
     return ()
   };
   proc f (x : state) : state {
@@ -1731,10 +1709,10 @@ module Simu using (FRO : IRO2.RO_T, F : DFUNCTIONALITY) : PRIMITIVE {
           if (decide (0 < $k)) {
             i <- 0;
             while ($i < $k) {
-              _ <- call (PROM.FullRO.RO_T.sample (List block × ℤ) block FRO) (($q, $i));
+              _ <- call FRO.sample (($q, $i));
               i <- $i + 1;
             }
-            y1 <- call (PROM.FullRO.RO_T.get (List block × ℤ) block FRO) (($q, $k - 1));
+            y1 <- call FRO.get (($q, $k - 1));
           } else {
             y1 <- b0;
           }

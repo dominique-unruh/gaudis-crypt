@@ -85,6 +85,12 @@ abbrev ODISTINGUISHER :=
 noncomputable abbrev OIndif := OptionIndifferentiability.OIndif state (List Bool × ℤ) (List Bool)
 noncomputable abbrev OGReal := OptionIndifferentiability.OGReal state (List Bool × ℤ) (List Bool)
 noncomputable abbrev OGIdeal := OptionIndifferentiability.OGIdeal state (List Bool × ℤ) (List Bool)
+
+/-- EC's subtyping `OPRIMITIVE <: ODPRIMITIVE` (its `f`, `fi`). -/
+module_subtype OPRIMITIVE <: ODPRIMITIVE
+
+/-- EC's subtyping `OFUNCTIONALITY <: ODFUNCTIONALITY` (its `f`). -/
+module_subtype OFUNCTIONALITY <: ODFUNCTIONALITY
 end OIndif
 
 open OIndif
@@ -256,15 +262,7 @@ module ODRestr (D : ODISTINGUISHER) using (F : ODFUNCTIONALITY, P : ODPRIMITIVE)
   proc distinguish () : Bool {
     var b : Bool;
     _ <- call Counter.init ();
-    b <- call (Module.app D (Module.pair
-      (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ) (List Bool)
-        { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
-            (Module.app OFC F) })
-      (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ) (List Bool)
-        { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
-            (Module.app OPC P)
-          fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
-            (Module.app OPC P) }))) ();
+    b <- call D(OFC(F), OPC(P)).distinguish ();
     return $b
   };
 }
@@ -302,15 +300,7 @@ module OD (D : ODISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
     _ <- call Counter.init ();
-    b <- call (Module.app D (Module.pair
-      (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ) (List Bool)
-        { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
-            (Module.app OFC (Module.app DFSome F)) })
-      (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ) (List Bool)
-        { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
-            (Module.app OPC (Module.app DPSome P))
-          fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
-            (Module.app OPC (Module.app DPSome P)) }))) ();
+    b <- call D(OFC(DFSome(F)), OPC(DPSome(P))).distinguish ();
     return $b
   };
 }

@@ -58,8 +58,10 @@ Translation:
   them (`-ERO.RO.m, -ERO.FRO.m`).
 
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: `Perm.f` behind the first port's `PRIMITIVE.view`s is not opened by `equiv_proc`
-  (GAP 11 of `SmartCounter/Gconcl_list.lean`): `sim_perm_f`.
+* GAP 1: a procedure of a module of one clone's module type, read at another clone's (EC: one
+  module type; `LowerDist(Dist)` hands `BlockSponge`'s primitive to the bit sponge's `Dist`), is
+  not opened by `equiv_proc`: `module_norm` first.  (`Perm` itself is passed by EC's subtyping,
+  `module_subtype`: `proc; sim` opens `Perm.f`.)
 * GAP 2: inside the library's `RO.sample` the callee is the library's `RO.get` itself, not the
   procedure of the module `ERO.RO`, so EC's `inline ERO.RO.get` does not name it: by index.
 * GAP 3: after a call whose result is discarded, the strict `auto` does not read through the
@@ -217,6 +219,16 @@ noncomputable abbrev RealIndif :=
 noncomputable abbrev IdealIndif :=
   Indifferentiability.GIdeal (block × capacity) (List Bool × ℤ) (List Bool)
 
+/-- EC's subtyping `PRIMITIVE <: DPRIMITIVE` (its `f`, `fi`). -/
+module_subtype PRIMITIVE <: DPRIMITIVE
+
+/-- EC's subtyping `FUNCTIONALITY <: DFUNCTIONALITY` (its `f`). -/
+module_subtype FUNCTIONALITY <: DFUNCTIONALITY
+
+/-- `BlockSponge`'s `PRIMITIVE` where the bit sponge's `DPRIMITIVE` is expected (one module type in
+EC: both are `Indifferentiability`'s at `block * capacity`). -/
+module_subtype BlockSponge.PRIMITIVE <: DPRIMITIVE
+
 /-! ## The ideal functionality: `clone import IRO as BIRO with type from <- bool list,
 type to <- bool, op valid <- valid_toplevel, op dto <- dbool` -/
 
@@ -336,12 +348,7 @@ module LowerDist (D : DISTINGUISHER)
     using (F : BlockSponge.DFUNCTIONALITY, P : BlockSponge.DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
-    b <- call (Module.app D (Module.pair (Module.app RaiseFun F)
-      (Indifferentiability.DPRIMITIVE.mk (block × capacity) (List Bool × ℤ) (List Bool)
-        { f := Indifferentiability.DPRIMITIVE.f (block × capacity) (List block × ℤ)
-            (List block) P
-          fi := Indifferentiability.DPRIMITIVE.fi (block × capacity) (List block × ℤ)
-            (List block) P }))) ();
+    b <- call D(RaiseFun(F), P).distinguish ();
     return $b
   };
 }
@@ -377,7 +384,7 @@ module HybridIROExper using (HI : HYBRID_IRO, D : HYBRID_IRO_DIST) {
   proc main () : Bool {
     var b : Bool;
     _ <- call HI.init ();
-    b <- call (Module.app D HI) ();
+    b <- call D(HI).distinguish ();
     return $b
   };
 }
@@ -500,7 +507,7 @@ module EROExper using (O : ERO.RO_T, D : ERO.RO_Distinguisher) {
   proc main () : Bool {
     var b : Bool;
     _ <- call O.init ();
-    b <- call (Module.app D O) (());
+    b <- call D(O).distinguish (());
     return $b
   };
 }
@@ -1106,17 +1113,9 @@ module HybridIRODist (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
     using (HI : HybridIRO.HYBRID_IRO) {
   proc distinguish () : Bool {
     var b : Bool;
-    _ <- call (Indifferentiability.PRIMITIVE.init (block × capacity) (List block × ℤ) (List block)
-      (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO HI))) ();
-    b <- call (Module.app Dist (Module.pair
-      (Indifferentiability.DFUNCTIONALITY.mk (block × capacity) (List Bool × ℤ) (List Bool)
-        { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
-            (Module.app HybridIRO.RaiseHybridIRO HI) })
-      (Indifferentiability.DPRIMITIVE.mk (block × capacity) (List Bool × ℤ) (List Bool)
-        { f := Indifferentiability.PRIMITIVE.f (block × capacity) (List block × ℤ) (List block)
-            (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO HI))
-          fi := Indifferentiability.PRIMITIVE.fi (block × capacity) (List block × ℤ) (List block)
-            (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO HI)) }))) ();
+    _ <- call BlockSim(HybridIRO.LowerHybridIRO(HI)).init ();
+    b <- call Dist(HybridIRO.RaiseHybridIRO(HI),
+      BlockSim(HybridIRO.LowerHybridIRO(HI))).distinguish ();
     return $b
   };
 }
@@ -3540,31 +3539,15 @@ end HybridIRO
 
 /-! ## `Sponge_Raise_BlockSponge_f` (EC l. 1922), the second tactic experiment -/
 
-/-! EC's subtyping of module types, as coercions (the old port has the views, not
-`module_subtype`). -/
+/-- `Perm` (EC's `RP`, a `PRP`) where a `DPRIMITIVE` is expected: its `f`, `fi`. -/
+module_subtype (PRP.StrongPRP.PRP (block × capacity)) <: DPRIMITIVE
 
-noncomputable instance : CoeOut (PRP.StrongPRP.PRP (block × capacity)) DPRIMITIVE :=
-  ⟨fun P => Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ) (List Bool) P⟩
-
-noncomputable instance : CoeOut (PRP.StrongPRP.PRP (block × capacity)) BlockSponge.DPRIMITIVE :=
-  ⟨fun P => Indifferentiability.PRIMITIVE.view (block × capacity) (List block × ℤ) (List block) P⟩
-
-noncomputable instance : CoeOut BlockSponge.FUNCTIONALITY BlockSponge.DFUNCTIONALITY :=
-  ⟨fun F => Indifferentiability.FUNCTIONALITY.view (block × capacity) (List block × ℤ)
-    (List block) F⟩
+/-- `Perm` where a `BlockSponge.DPRIMITIVE` is expected. -/
+module_subtype (PRP.StrongPRP.PRP (block × capacity)) <: BlockSponge.DPRIMITIVE
 
 /-- `BlockSponge.Sponge(Perm)`, as `stmt_inline` names the callee. -/
-noncomputable abbrev BlockSpongePerm : BlockSponge.DFUNCTIONALITY :=
-  (Module.app BlockSponge.Sponge (Perm : BlockSponge.DPRIMITIVE) : BlockSponge.FUNCTIONALITY)
-
-/-- EC's `sim` on `Perm.f ~ Perm.f` after `call (_ : ={glob Perm})`.  The two sides are `Perm.f`
-behind the first port's two `PRIMITIVE.view`s (the bit sponge's and the block sponge's), which
-`equiv_proc` does not open (GAP 11 of `SmartCounter/Gconcl_list.lean`): the views are unfolded
-first. -/
-local macro "sim_perm_f" : tactic => `(tactic| (
-  simp only [Indifferentiability.PRIMITIVE.view, SHA3.Indifferentiability.PRIMITIVE.f, Perm,
-    PRP.RP.RP, PRP.StrongPRP.PRP.mk, SHA3.Indifferentiability.DPRIMITIVE.f.mk_simp]
-  equiv_proc; sim))
+noncomputable abbrev BlockSpongePerm : BlockSponge.FUNCTIONALITY :=
+  Module.app BlockSponge.Sponge (Perm : BlockSponge.DPRIMITIVE)
 
 /-- EC's `local lemma Sponge_Raise_BlockSponge_f : equiv[Sponge(Perm).f ~
 RaiseFun(BlockSponge.Sponge(Perm)).f : ={bs, n, glob Perm} ==> ={res, glob Perm}]`, its proof EC's
@@ -3586,7 +3569,7 @@ theorem Sponge_Raise_BlockSponge_f :
       case body =>
         -- EC: wp. call (_ : ={glob Perm}). sim. auto.
         stmt_wp; equiv_call (_ : ={glob Perm})
-        · sim_perm_f
+        · equiv_proc; sim
         equiv_auto
       case guard => intros; simp_all
       case exit => intros; simp_all
@@ -3601,7 +3584,7 @@ theorem Sponge_Raise_BlockSponge_f :
           · hoare_auto
           -- EC: call (_ : ={glob Perm}); first sim.
           equiv_call (_ : ={glob Perm})
-          · sim_perm_f
+          · equiv_proc; sim
           -- EC's `auto; progress; by rewrite -cats1 blocks2bits_cat blocks2bits_sing`
           equiv_auto; intros; simp_all [rcons, blocks2bits_cat, blocks2bits_sing]
         · stmt_rcondf{1} 3
@@ -3612,14 +3595,6 @@ theorem Sponge_Raise_BlockSponge_f :
       case guard => intros; simp_all
       case exit => intros; simp_all
       case hpre => equiv_auto; intros; simp_all [blocks2bits_nil]
-
-/-- EC's `sim` on `Perm.f ~ Perm.f` and `Perm.fi ~ Perm.fi` as oracles of a distinguisher: the
-two sides are `Perm`'s procedures behind the first port's records (`DPRIMITIVE.mk`), which
-`equiv_proc` does not open (GAP 1): the records are simplified away first. -/
-local macro "sim_perm" : tactic => `(tactic| (
-  simp only [Perm, PRP.RP.RP, PRP.StrongPRP.PRP.f.mk_simp, PRP.StrongPRP.PRP.fi.mk_simp,
-    SHA3.Indifferentiability.DPRIMITIVE.f.mk_simp, SHA3.Indifferentiability.DPRIMITIVE.fi.mk_simp]
-  equiv_proc; sim))
 
 /-! ### Footprints of the concrete modules of the final section
 
@@ -3716,8 +3691,10 @@ theorem RealIndif_Sponge_BlockSponge (m : VariableAssignment) :
   -- EC: call (_ : ={glob Perm}); first 2 sim.
   --     (as an invariant: the oracles' goals are then EC's, `glob Dist` framed by the rule)
   equiv_call (_ : §Perm.m{1} = §Perm.m{2} ∧ §Perm.mi{1} = §Perm.mi{2})
-  · sim_perm
-  · sim_perm
+  --     (GAP 1, what is left of it: on the right `Perm` is `BlockSponge`'s primitive read at the
+  --     bit sponge's module type, one module type in EC; `proc` does not open it: `module_norm`)
+  · module_norm; equiv_proc; sim
+  · module_norm; equiv_proc; sim
   -- EC: conseq Sponge_Raise_BlockSponge_f=> //.
   · equiv_conseq Sponge_Raise_BlockSponge_f
     · rintro a₁ g₁ a₂ g₂ ⟨rfl, hm, hmi⟩

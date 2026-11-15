@@ -47,6 +47,12 @@ noncomputable abbrev IdealIndif := Indifferentiability.GIdeal state (List block 
 abbrev distHoles := Indifferentiability.distHoles state (List block × ℤ) (List block)
 noncomputable abbrev distExt := Indifferentiability.distExt state (List block × ℤ) (List block)
 
+/-- EC's subtyping `PRIMITIVE <: DPRIMITIVE` (its `f`, `fi`). -/
+module_subtype PRIMITIVE <: DPRIMITIVE
+
+/-- EC's subtyping `FUNCTIONALITY <: DFUNCTIONALITY` (its `f`). -/
+module_subtype FUNCTIONALITY <: DFUNCTIONALITY
+
 /-! ## The ideal functionality: `clone import IRO as BIRO with type from <- block list,
 type to <- block, op valid <- valid_block, op dto <- bdistr` -/
 
@@ -162,15 +168,7 @@ module DRestr (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
     _ <- call C.init ();
-    b <- call (Module.app D (Module.pair
-      (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
-        { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
-            (Module.app FC F) })
-      (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
-        { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
-            (Module.app PC P)
-          fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
-            (Module.app PC P) }))) ();
+    b <- call D(FC(F), PC(P)).distinguish ();
     return $b
   };
 }

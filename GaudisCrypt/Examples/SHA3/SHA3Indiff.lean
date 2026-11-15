@@ -187,15 +187,7 @@ module DRestr (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
     _ <- call Cntr.init ();
-    b <- call (Module.app D (Module.pair
-      (Indifferentiability.DFUNCTIONALITY.mk (block × capacity) (List Bool × ℤ) (List Bool)
-        { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
-            (Module.app FC F) })
-      (Indifferentiability.DPRIMITIVE.mk (block × capacity) (List Bool × ℤ) (List Bool)
-        { f := Indifferentiability.PRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
-            (Module.app PC P)
-          fi := Indifferentiability.PRIMITIVE.fi (block × capacity) (List Bool × ℤ) (List Bool)
-            (Module.app PC P) }))) ();
+    b <- call D(FC(F), PC(P)).distinguish ();
     return $b
   };
 }
@@ -290,9 +282,10 @@ set_option ec.strict true
 * GAP 2: our inliner renames a callee's locals per side (`x3, n0` against `x0, n` in
   `equiv_sim_f`'s IRO loops), so `sim` cannot relate loops by name where EC's does: `while` with
   the renamed variables' equalities.
-* GAP 6: the first port's `LowerDist(D, F, P)` passes `P` on as the record of its procedures
-  (the bit-level module type's view of a block-level primitive), where EC's alias passes `P`:
-  in `security`, `Dist_lossless` is applied at that record.
+* GAP 6: `LowerDist(D, F, P)` passes `P`, `BlockSponge`'s primitive, to the bit sponge's `D` (one
+  module type in EC).  A procedure of a module read at another clone's module type is not opened
+  by `equiv_proc`: `module_norm` first, in the oracles' goals of `drestr_commute1`,
+  `drestr_commute2`.
 * GAP 1: inline by name: EC's paths over `Perm` (`BlockSponge.FC(BlockSponge.Sponge(Perm)).f`) do
   not elaborate over the old declarations (`Perm` is not a `BlockSponge.DPRIMITIVE`; Gcol's GAP 2):
   by index.
@@ -373,11 +366,15 @@ theorem drestr_commute1 (m : VariableAssignment) :
   -- EC: call (_ : ={c}(Cntr, BlockSponge.C) /\ ={Perm.m, Perm.mi}).
   equiv_call (_ : ={Perm.m, Perm.mi} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
   -- EC: proc; sp; if=> //; sp; sim.
-  · equiv_proc; stmt_sp; stmt_if
+  --     (GAP 6: the oracle is `BlockSponge`'s primitive read at the bit sponge's module type,
+  --     one module type in EC: `module_norm` before `proc`)
+  · module_norm; equiv_proc; stmt_sp; stmt_if
     · auto_close
     all_goals (stmt_sp; sim)
   -- EC: proc; sp; if=> //; sp; sim.
-  · equiv_proc; stmt_sp; stmt_if
+  --     (GAP 6: the oracle is `BlockSponge`'s primitive read at the bit sponge's module type,
+  --     one module type in EC: `module_norm` before `proc`)
+  · module_norm; equiv_proc; stmt_sp; stmt_if
     · auto_close
     all_goals (stmt_sp; sim)
   -- EC: proc=> /=.
@@ -440,11 +437,13 @@ theorem drestr_commute2 (m : VariableAssignment) :
   equiv_call (_ : ={BlockSponge.BIRO.IRO.mp, Gconcl_list.BIRO2.IRO.mp, Gconcl.S.m, Gconcl.S.mi,
       Gconcl.S.paths} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
   -- EC: proc; sp; if=> //; sim.
-  · equiv_proc; stmt_sp; stmt_if
+  --     (GAP 6, as above)
+  · module_norm; equiv_proc; stmt_sp; stmt_if
     · auto_close
     all_goals sim
   -- EC: proc; sp; if=> //; sim.
-  · equiv_proc; stmt_sp; stmt_if
+  --     (GAP 6, as above)
+  · module_norm; equiv_proc; stmt_sp; stmt_if
     · auto_close
     all_goals sim
   -- EC: proc=> /=.
@@ -647,18 +646,9 @@ theorem security (m : VariableAssignment) :
       phoare_proc; phoare_call hf'; phoare_auto
     --     (E5: `LowerDist(Dist)` wraps EC's alias in a call; EC checks `RaiseFun(F)`'s
     --     restriction, here its declaration by `fp_finite`, `fp_disjoint`)
-    --     (GAP 6: the first port's `LowerDist` passes `P` on as the record of its procedures,
-    --     at the bit-level module type: `Dist_lossless` at that record)
     phoare_proc
-    phoare_call (@Dist_lossless (Module.app RaiseFun F) ⟨by fp_finite, by fp_disjoint⟩
-      (SHA3.Indifferentiability.DPRIMITIVE.mk (block × capacity) (List Bool × ℤ) (List Bool)
-        { f := SHA3.Indifferentiability.DPRIMITIVE.f (block × capacity) (List block × ℤ)
-            (List block) P
-          fi := SHA3.Indifferentiability.DPRIMITIVE.fi (block × capacity) (List block × ℤ)
-            (List block) P })
-      ⟨by fp_finite, by fp_disjoint⟩
-      (by simpa only [SHA3.Indifferentiability.DPRIMITIVE.f.mk_simp] using hp)
-      (by simpa only [SHA3.Indifferentiability.DPRIMITIVE.fi.mk_simp] using hpi) hf)
+    phoare_call (@Dist_lossless (Module.app RaiseFun F) ⟨by fp_finite, by fp_disjoint⟩ P
+      ⟨by fp_finite, by fp_disjoint⟩ hp hpi hf)
     phoare_auto
   -- EC: rewrite(drestr_commute1 &m) (drestr_commute2 &m).
   rw [drestr_commute1 Dist m, drestr_commute2 Dist m]
