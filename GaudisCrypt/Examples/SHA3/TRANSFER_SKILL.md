@@ -760,6 +760,27 @@ Document each in the docstring when it applies.
   *previous* run's (the raw log is empty).  Check the raw log's size before reading results;
   run long compiles in the background.
 
+* **A game's oracles are written as EC's path, never as records** (2026-11-15):
+  `b <- call D(FC(F), PC(P)).distinguish ();` with `module_subtype FUNCTIONALITY <:
+  DFUNCTIONALITY` (and `PRIMITIVE <: DPRIMITIVE`) declared once next to the module types — also
+  over module types that are abbreviations with explicit type parameters.  The coercion is the
+  record a hand-written view builds, so turning `Module.app D (Module.pair (T.mk … { f := … })
+  …)` into the path changes no term.  A concrete module of another module type with more
+  procedures (`Perm`, a `PRP`, where a `DPRIMITIVE` is expected) gets its own
+  `module_subtype (PRP …) <: DPRIMITIVE`: the record then holds `Perm`'s own procedures and
+  `proc; sim` opens them (a view through an intermediate type, `PRIMITIVE.view`, does not).
+* **A module of one clone's module type handed to an adversary of another clone** (EC: one
+  module type; `LowerDist(D, F, P) = D(RaiseFun(F), P)`): pass it as it is.  Its procedure in an
+  oracle goal is then an accessor of one clone on a module of the other, which `equiv_proc`
+  does not open: `module_norm; equiv_proc; …` (a gap, `TacticReview.md`, last section).
+* **Both namespaces in one file**: in `namespace GaudisCrypt.SHA3.Pilot.Z`, `Y.name` is
+  `GaudisCrypt.SHA3.Pilot.Y.name` when that exists, whatever is opened; the first port's is
+  `SHA3.Y.name`.  A `simp only [Y.T.f.mk_simp]` that silently becomes the other clone's lemma
+  shows up as "no concrete procedure body" at the next `proc`.
+* **A theory's module variables kept in one namespace, used from another**:
+  `export A.B (X.m Y.m)` inside `namespace C` makes `C.X.m` the same variable, so restriction
+  lists written `-C.X.m` in other files keep reading.
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in

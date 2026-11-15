@@ -797,5 +797,45 @@ pilots promoted.
    `Examples/SHA3/TRANSFER_SKILL.md`; the day-to-day check keeps its name
    (`GaudisCrypt.PilotCheck`).
 
-Open: renaming the namespaces (`Pilot.X` → `X`, the first port's remnants elsewhere), and
-re-proving the remaining first-port declarations a pilot lemma duplicates in EC's form.
+## Aligning the first port's remainder (2026-11-15)
+
+What a file still has of the first port (its section `FirstPort`) was brought to the port's
+form, bottom-up, the pilot check green at each commit.
+
+* **Games in EC's paths.**  A game that spelled its oracles as records
+  (`Module.app D (Module.pair (DFUNCTIONALITY.mk … { f := FUNCTIONALITY.f … (Module.app FC F) })
+  …)`) now reads `D(FC(F), PC(P)).distinguish`.  `module_subtype S <: T` builds the record a
+  hand-written view does, so the term is the same and no proof changes; declared once, next to
+  the module types.  Where the first port repackaged a module for another clone's module type
+  (`A`'s `P`, `LowerDist`'s `P`) the path passes it as it is, as EC does.
+* **`Perm` by subtyping** (`Sponge`): `module_subtype (PRP …) <: DPRIMITIVE`, the record of
+  `Perm`'s own procedures, instead of `PRIMITIVE.view` (whose record reads `Perm` through
+  `PRIMITIVE`'s accessors).  `proc; sim` then opens `Perm.f`: the macros that unfolded the views
+  first are gone.
+* **`global_var`s for lens parameters** (`Sponge`'s theory `HybridIRO` and its clone `ERO`): the
+  port's wrappers that applied the modules at its own variables are gone, the names exported
+  (`export … (HybridIROLazy.mp …)`) so that the restriction lists of the files above read as
+  before.
+* **Duplicates removed** (`ConcreteF`: `CF` as a `def`, the `Switching` clone with lens
+  parameters, the view lemmas, `Perm_f_ll`; `SLCommon`'s `fvP_*`): the port had each in EC's form.
+  `Handle` uses the port's `CF` (no `unfold CF`).
+
+Lessons:
+* The first port's module types and the port's are equal by definition (one `moduletype`
+  command, explicit type parameters against `[Params]`), so a file converts alone.  But an
+  accessor and a `mk` must belong to one `Structure`: switching a file's abbreviations to a
+  `clone` breaks every record written with `Indifferentiability.X.mk`/`.f` over those types
+  (tried on `SLCommon`, taken back).  The clone comes last, after the records.
+* In a file with both namespaces, `Y.name` inside `Pilot.Z` is `Pilot.Y.name` when that exists:
+  write `SHA3.Y.name` for the first port's.
+* A stated footprint (`@[fp_bound]`) can only go if the build says so: frames of `call` on a
+  concrete callee ask `fp_le` for it.
+
+Not done, and why: `notes/SHA3/TacticReview.md`, last section (four limits of the
+infrastructure: procedures across clones' module types, EC's aliases as modules, `clone`'s shared
+variables, `fp_le` on procedures).  With those, the first port's `Indifferentiability` and
+`OptionIndifferentiability` (module types with explicit parameters, `view`, `GReal`/`GIdeal` as
+`def`s), `IRO` (a lens parameter), and `Gconcl_list`'s four lazy/eager steps can go.
+
+Open: renaming the namespaces (`Pilot.X` → `X`; the declarations of a file are in
+`GaudisCrypt.SHA3.X`, its lemmas in `GaudisCrypt.SHA3.Pilot.X`).

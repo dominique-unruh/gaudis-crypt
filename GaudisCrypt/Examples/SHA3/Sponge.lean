@@ -52,8 +52,7 @@ Translation:
   parameters as one tuple there, so a statement names them at the triple
   (`StdSponge(P).f (x) ~ …`, `HybridIROLazy.f (xs, n) ~ …`);
 * the theory `HybridIRO` is a namespace; its module variables `HybridIROLazy.mp`,
-  `HybridIROEager.mp` and those of the local clone `ERO` are `global_var`s, and the first port's
-  modules (which take them as lens parameters) are applied at them;
+  `HybridIROEager.mp` and those of the local clone `ERO` are `global_var`s;
 * a local clone's variables are fresh for a declared module in EC; here the restriction names
   them (`-ERO.RO.m, -ERO.FRO.m`).
 
@@ -359,8 +358,8 @@ noncomputable def RaiseSim (S : BlockSponge.SIMULATOR) : SIMULATOR := Module.com
 
 /-! ## The abstract theory of hybrid IROs (`abstract theory HybridIRO`)
 
-Hybrid IROs map a block list and an index to a bit.  The theory's module variables are lens
-parameters: its one clone (`HIRO`, in the last section) passes its own. -/
+Hybrid IROs map a block list and an index to a bit.  The theory has no parameters and is cloned
+once (`HIRO`, in the last section): its declarations are the clone's. -/
 
 namespace HybridIRO
 
@@ -389,24 +388,23 @@ module HybridIROExper using (HI : HYBRID_IRO, D : HYBRID_IRO_DIST) {
   };
 }
 
-section HybridIROLazy
-/-! `HybridIROLazy`'s module variable `mp` is a parameter. -/
-variable (HybridIROLazy_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
+/-- EC's `HybridIROLazy.mp`. -/
+global_var HybridIROLazy.mp : FMap (List block × ℤ) Bool
 
 -- Lazy implementation of hybrid IROs (EC: `module HybridIROLazy : HYBRID_IRO`; it has more
 -- procedures than `HYBRID_IRO`, so no type annotation: `HybridIROLazy.asHI` is its view)
 module HybridIROLazy {
   proc init () : Unit {
-    HybridIROLazy_mp <- (FMap.empty : FMap (List block × ℤ) Bool);
+    HybridIROLazy.mp <- (FMap.empty : FMap (List block × ℤ) Bool);
     return ()
   };
   proc fill_in (xs : List block, i : ℤ) : Bool {
     var r : Bool;
-    if (!(decide (FMap.dom ($HybridIROLazy_mp : FMap (List block × ℤ) Bool) ($xs, $i)))) {
+    if (!(decide (FMap.dom ($HybridIROLazy.mp : FMap (List block × ℤ) Bool) ($xs, $i)))) {
       r <$ dbool;
-      HybridIROLazy_mp <- FMap.set $HybridIROLazy_mp ($xs, $i) $r;
+      HybridIROLazy.mp <- FMap.set $HybridIROLazy.mp ($xs, $i) $r;
     }
-    return oget (FMap.get $HybridIROLazy_mp ($xs, $i))
+    return oget (FMap.get $HybridIROLazy.mp ($xs, $i))
   };
   proc f (xs : List block, n : ℤ) : (List Bool) {
     var b : Bool, bs : List Bool, i : ℤ;
@@ -414,7 +412,7 @@ module HybridIROLazy {
     bs <- [];
     if (decide (valid_block $xs)) {
       while ($i < $n) {
-        b <- call (HybridIROLazy.fill_in HybridIROLazy_mp) ($xs, $i);
+        b <- call HybridIROLazy.fill_in ($xs, $i);
         bs <- rcons $bs $b;
         i <- $i + 1;
       }
@@ -425,30 +423,26 @@ module HybridIROLazy {
 
 /-- `HybridIROLazy` at its type `HYBRID_IRO`. -/
 noncomputable def HybridIROLazy.asHI : HYBRID_IRO :=
-  HYBRID_IRO.mk
-    { init := HybridIROLazy.init HybridIROLazy_mp, f := HybridIROLazy.f HybridIROLazy_mp }
+  HYBRID_IRO.mk { init := HybridIROLazy.init, f := HybridIROLazy.f }
 
-end HybridIROLazy
-
-section HybridIROEager
-/-! `HybridIROEager`'s module variable `mp` is a parameter. -/
-variable (HybridIROEager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
+/-- EC's `HybridIROEager.mp`. -/
+global_var HybridIROEager.mp : FMap (List block × ℤ) Bool
 
 -- Eager implementation of hybrid IROs: the lazy one, except that `f` also fills in the bits up to
 -- the next multiple of `r` (EC: `module HybridIROEager : HYBRID_IRO`; no type annotation, as for
 -- `HybridIROLazy`)
 module HybridIROEager {
   proc init () : Unit {
-    HybridIROEager_mp <- (FMap.empty : FMap (List block × ℤ) Bool);
+    HybridIROEager.mp <- (FMap.empty : FMap (List block × ℤ) Bool);
     return ()
   };
   proc fill_in (xs : List block, i : ℤ) : Bool {
     var r : Bool;
-    if (!(decide (FMap.dom ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i)))) {
+    if (!(decide (FMap.dom ($HybridIROEager.mp : FMap (List block × ℤ) Bool) ($xs, $i)))) {
       r <$ dbool;
-      HybridIROEager_mp <- FMap.set $HybridIROEager_mp ($xs, $i) $r;
+      HybridIROEager.mp <- FMap.set $HybridIROEager.mp ($xs, $i) $r;
     }
-    return oget (FMap.get $HybridIROEager_mp ($xs, $i))
+    return oget (FMap.get $HybridIROEager.mp ($xs, $i))
   };
   proc f (xs : List block, n : ℤ) : (List Bool) {
     var b : Bool, bs : List Bool, m : ℤ, i : ℤ;
@@ -457,12 +451,12 @@ module HybridIROEager {
     bs <- [];
     if (decide (valid_block $xs)) {
       while ($i < $n) {
-        b <- call (HybridIROEager.fill_in HybridIROEager_mp) ($xs, $i);
+        b <- call HybridIROEager.fill_in ($xs, $i);
         bs <- rcons $bs $b;
         i <- $i + 1;
       }
       while ($i < $m) { -- eager part
-        _ <- call (HybridIROEager.fill_in HybridIROEager_mp) ($xs, $i);
+        _ <- call HybridIROEager.fill_in ($xs, $i);
         i <- $i + 1;
       }
     }
@@ -472,36 +466,29 @@ module HybridIROEager {
 
 /-- `HybridIROEager` at its type `HYBRID_IRO`. -/
 noncomputable def HybridIROEager.asHI : HYBRID_IRO :=
-  HYBRID_IRO.mk
-    { init := HybridIROEager.init HybridIROEager_mp, f := HybridIROEager.f HybridIROEager_mp }
-
-end HybridIROEager
+  HYBRID_IRO.mk { init := HybridIROEager.init, f := HybridIROEager.f }
 
 /-! ### Lazy = eager: EasyCrypt's section with `declare module D <: HYBRID_IRO_DIST
 {-HybridIROEager, -HybridIROLazy}`
 
 `local clone import PROM.FullRO as ERO with type in_t <- block list * int, type out_t <- bool,
-op dout _ <- dbool, type d_in_t <- unit, type d_out_t <- bool`: the clone is local, so its module
-variables `ERO.RO.m`, `ERO.FRO.m` are the lens parameters `ERO_RO_m`, `ERO_FRO_m` of the local
-declarations, fresh for `D` by hypothesis (exception E6). -/
+op dout _ <- dbool, type d_in_t <- unit, type d_out_t <- bool`: the namespace `ERO` of
+`PROM.FullRO` at the clone's types, its module variables `global_var`s. -/
 
 namespace ERO
 noncomputable abbrev dout : List block × ℤ → SubProbability Bool := fun _ => dbool
 abbrev RO_T := PROM.FullRO.RO_T (List block × ℤ) Bool
 abbrev RO_Distinguisher := PROM.FullRO.RO_Distinguisher (List block × ℤ) Bool Unit Bool
 noncomputable abbrev RO_ext := PROM.FullRO.RO_ext (List block × ℤ) Bool
-section
-variable (ERO_RO_m : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
-noncomputable abbrev RO := PROM.FullRO.RO.asRO (List block × ℤ) Bool dout ERO_RO_m
-noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) Bool dout ERO_RO_m
-end
+/-- The clone's module variable `ERO.RO.m`. -/
+global_var RO.m : FMap (List block × ℤ) Bool
+/-- The clone's module variable `ERO.FRO.m`. -/
+global_var FRO.m : FMap (List block × ℤ) (Bool × flag)
+noncomputable abbrev RO := PROM.FullRO.RO.asRO (List block × ℤ) Bool dout RO.m
+noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) Bool dout RO.m
 end ERO
 
 section LazyEager
-
--- one binder each: a `module` takes a whole binder group when it mentions one of its names
-variable (HybridIROLazy_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
-  (HybridIROEager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
 
 module EROExper using (O : ERO.RO_T, D : ERO.RO_Distinguisher) {
   proc main () : Bool {
@@ -590,8 +577,6 @@ theorem fvP_RODist_le (D : HYBRID_IRO_DIST) : FVP.fvP (RODist D) ≤ FVP.fvP D :
 end LazyEager
 
 section Hybrid
-
-variable (HybridIROEager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
 
 -- Turn a hybrid IRO implementation (lazy or eager) into the top-level ideal functionality
 module RaiseHybridIRO using (HI : HYBRID_IRO) : FUNCTIONALITY {
@@ -790,7 +775,7 @@ module HybridIROEagerTrans {
   proc next_block (xs : List block, i : ℤ, m : ℤ, bs : List Bool) : (List Bool × ℤ) {
     var b : Bool;
     while ($i < $m) {
-      b <- call (HybridIROEager.fill_in HybridIROEager_mp) ($xs, $i);
+      b <- call HybridIROEager.fill_in ($xs, $i);
       bs <- rcons $bs $b;
       i <- $i + 1;
     }
@@ -800,9 +785,9 @@ module HybridIROEagerTrans {
   -- `block_bits_dom_all_in_or_out xs i HybridIROEager.mp`
   proc next_block_split (xs : List block, i : ℤ, m : ℤ, bs : List Bool) : (List Bool × ℤ) {
     var b : Bool, j : ℤ, cs : List Bool;
-    if (decide (FMap.dom ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i))) {
+    if (decide (FMap.dom ($HybridIROEager.mp : FMap (List block × ℤ) Bool) ($xs, $i))) {
       while ($i < $m) {
-        b <- oget (FMap.get ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i));
+        b <- oget (FMap.get ($HybridIROEager.mp : FMap (List block × ℤ) Bool) ($xs, $i));
         bs <- rcons $bs $b;
         i <- $i + 1;
       }
@@ -816,7 +801,7 @@ module HybridIROEagerTrans {
       }
       bs <- $bs ++ $cs;
       while ($i < $m) {
-        HybridIROEager_mp <- FMap.set $HybridIROEager_mp ($xs, $i) (nth true $bs $i);
+        HybridIROEager.mp <- FMap.set $HybridIROEager.mp ($xs, $i) (nth true $bs $i);
         i <- $i + 1;
       }
     }
@@ -828,7 +813,7 @@ module HybridIROEagerTrans {
     i <- 0;
     bs <- [];
     while ($i < $n * r) {
-      b <- call (HybridIROEager.fill_in HybridIROEager_mp) ($xs, $i);
+      b <- call HybridIROEager.fill_in ($xs, $i);
       bs <- rcons $bs $b;
       i <- $i + 1;
     }
@@ -1302,41 +1287,32 @@ namespace HybridIRO
 open GaudisCrypt.SHA3.Sponge.HybridIRO (HYBRID_IRO HYBRID_IRO_DIST HybridIROExper HIRO EROExper
   RODist)
 
-/-- EC's `HybridIROLazy.mp`. -/
-global_var HybridIROLazy.mp : FMap (List block × ℤ) Bool
-/-- EC's `HybridIROEager.mp`. -/
-global_var HybridIROEager.mp : FMap (List block × ℤ) Bool
+export GaudisCrypt.SHA3.Sponge.HybridIRO (HybridIROLazy.mp HybridIROEager.mp)
 
 /-- EC's `HybridIROLazy`, at its type `HYBRID_IRO`. -/
 noncomputable abbrev HybridIROLazy : HYBRID_IRO :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI HybridIROLazy.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.asHI
 -- (`init` and `f` as the module type's procedures of `HybridIROLazy`: the form in which a call
 -- of an oracle `HI.f` names them)
 noncomputable abbrev HybridIROLazy.init := HYBRID_IRO.init HybridIROLazy
 noncomputable abbrev HybridIROLazy.f := HYBRID_IRO.f HybridIROLazy
 noncomputable abbrev HybridIROLazy.fill_in :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.fill_in HybridIROLazy.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROLazy.fill_in
 
 /-- EC's `HybridIROEager`, at its type `HYBRID_IRO`. -/
 noncomputable abbrev HybridIROEager : HYBRID_IRO :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI HybridIROEager.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.asHI
 noncomputable abbrev HybridIROEager.init := HYBRID_IRO.init HybridIROEager
 noncomputable abbrev HybridIROEager.f := HYBRID_IRO.f HybridIROEager
 noncomputable abbrev HybridIROEager.fill_in :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.fill_in HybridIROEager.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEager.fill_in
 
 /-! EC's `local clone import PROM.FullRO as ERO with type in_t <- block list * int,
-type out_t <- bool, op dout _ <- dbool, type d_in_t <- unit, type d_out_t <- bool`: the clone's
-module variables are `global_var`s (the first port's are lens parameters). -/
+type out_t <- bool, op dout _ <- dbool, type d_in_t <- unit, type d_out_t <- bool`: the namespace
+`ERO` of the section `FirstPort`. -/
 
 namespace ERO
-export GaudisCrypt.SHA3.Sponge.HybridIRO.ERO (dout RO_T RO_Distinguisher)
-/-- The clone's module variable `ERO.RO.m`. -/
-global_var RO.m : FMap (List block × ℤ) Bool
-/-- The clone's module variable `ERO.FRO.m`. -/
-global_var FRO.m : FMap (List block × ℤ) (Bool × flag)
-noncomputable abbrev RO := PROM.FullRO.RO.asRO (List block × ℤ) Bool dout RO.m
-noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) Bool dout RO.m
+export GaudisCrypt.SHA3.Sponge.HybridIRO.ERO (dout RO_T RO_Distinguisher RO.m FRO.m RO LRO)
 end ERO
 
 set_option hygiene false in
@@ -1812,14 +1788,14 @@ open GaudisCrypt.SHA3.Sponge.HybridIRO (eager_invar block_bits_all_in_dom block_
 
 /-! ### `HybridIROEagerTrans` (EC l. 904–1186)
 
-The module is the first port's, applied at `HybridIROEager.mp`. -/
+The module is declared in the section `FirstPort`. -/
 
 noncomputable abbrev HybridIROEagerTrans.next_block :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.next_block HybridIROEager.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.next_block
 noncomputable abbrev HybridIROEagerTrans.next_block_split :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.next_block_split HybridIROEager.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.next_block_split
 noncomputable abbrev HybridIROEagerTrans.loop :=
-  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.loop HybridIROEager.mp
+  GaudisCrypt.SHA3.Sponge.HybridIRO.HybridIROEagerTrans.loop
 
 set_option maxHeartbeats 4000000 in
 -- one declaration: two cases, three loops with their invariants
@@ -3598,10 +3574,10 @@ theorem Sponge_Raise_BlockSponge_f :
 
 /-! ### Footprints of the concrete modules of the final section
 
-EC reads a concrete module's globals off its code; for the first port's modules, which take their
-variables as lens parameters, the bounds are stated (`@[fp_bound]`), each proved by `fp_module`.
-They are what the frames of `call H`, `conseq H` and `proc (I)` below are found from.  Not EC
-lemmas. -/
+EC reads a concrete module's globals off its code; the frame rules ask `fp_le` for a bound on a
+concrete callee, which it has for the modules it can read and otherwise takes from the lemmas
+stated here (`@[fp_bound]`), each proved by `fp_module`.  They are what the frames of `call H`,
+`conseq H` and `proc (I)` below are found from.  Not EC lemmas. -/
 
 /-- `HybridIROEager.f` touches `HybridIROEager.mp`. -/
 @[fp_bound] theorem fvP_HybridIROEager_f :

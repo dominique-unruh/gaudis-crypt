@@ -712,3 +712,95 @@ from that section's proofs.  One finding for the batch:
    names per side only; and an error (or a warning) when a relational condition reads a
    local that the side's statement does not declare.
 
+## Aligning the first port's remainder (2026-11-15): what the declarations could not fix
+
+After the promotion (`Refactor.md`, last sections) the first port's remaining declarations were
+brought to the port's form where that is a matter of how they are written: games in EC's paths
+with `module_subtype` in place of hand-built records, `global_var`s in place of lens parameters,
+aliases in place of `def`s, duplicates of what the port has removed.  No shared tactic was
+changed.  What is left of the misalignment comes from four limits of the infrastructure, each
+with the glue it costs today:
+
+1. **A procedure of a module of one clone's module type, read at another clone's** (EC: one
+   module type).  `LowerDist(D, F, P)` hands `BlockSponge`'s primitive to the bit sponge's `D`;
+   `Indifferentiability`'s `GReal` reads a `PRP` as a `PRIMITIVE` and that as a `DPRIMITIVE`.
+   `*_proc` and `inline` do not open such a procedure (`Flatten.moduleStep?` switches the
+   accessor only for `Module.app` arguments, or with `views := true`, which `module_norm` and
+   `accessorNorm` use).  Glue: `module_norm` before `equiv_proc` at six goals (`Sponge`,
+   `SHA3Indiff`); the `simp only [PRIMITIVE.view, Perm, PRP.RP.RP, …]` lists of GAP 1 in
+   `SHA3Security`, `SHA3_OIndiff` and GAP 3 in `SHA3OSecurity`; `P_view` (GAP 11 of
+   `Gconcl_list`).  It is also why the module types cannot yet become clones of the port's
+   `Indifferentiability`: an accessor and a `mk` of two clones do not reduce
+   (`T.f.mk_simp` is stated per instance).  To do: `*_proc` (and `inline`'s head step) retry
+   after `ECProc.accessorNorm` when the head has no body; `views` was off by default because
+   it changed goals of the first port's proofs, which are gone.  Golden test: an adversary of
+   one clone given a module of another's type, `proc` on its oracle.
+2. **EC's procedure aliases used as a module (exception E5)**: `call (RO_LRO_D (D2(D)) _)` on a
+   goal whose call is the alias's target.  Our `D2 D` is a module with one procedure that calls
+   the target, so the judgment is about another procedure than the goal's call.  Glue: the
+   first port's `D2o`/`D2`/`D2o_D2`/`D2_D2o`/`L2_RO_LRO` and the three like it in
+   `Gconcl_list` (about 400 lines, used once each in `equiv_ideal`, a declared deviation), and
+   the port's own bridging equations `b1`, `b2` in `Simplify_simulator`.  To do: `equiv_call H`
+   (and `byequiv H`) accept an `H` about a one-call wrapper of the goal's callee.
+3. **`clone`**: two clones of one theory at the same types share its module variables, and
+   with different operators they are not supported.  `IRO` is cloned as `BIRO` (`valid_block`)
+   and `BIRO2` (`predT`) at the same types, so both still apply the first port's `IRO`, a module
+   with a lens parameter, and the port's own `IRO` (with `module_var`s) has no user.  Same for
+   `F`, `F2` (clones of `PROM.FullRO`, a library theory in the old style).  To do: per-clone
+   module variables (the slot named after the clone), and the clone's operators selected by the
+   clone, not by the types.
+4. **`fp_le` has no bound for a `module`-declared procedure it is not told about**
+   (`fp_le: no bound for FVP.fvP { expression := (ModuleExpression.proc X.f.procedure).reduce … }`).
+   The frame rules of `call` on a concrete callee ask for one.  Glue: about 45 `@[fp_bound]`
+   lemmas, each `by fp_module L` (tried without: `SLCommon`'s four were not needed; `Handle`'s
+   and `Sponge`'s are).  To do: `fp_le` reads the procedure's code, as `fp_disjoint` does for a
+   module (`Logic/ModuleFootprint.lean`).
+
+Items 1 and 2 remove the most text; 1 also unblocks the clone-style module types.
+
+### To do (saved 2026-11-15, not started): the plan for the four, in this order
+
+Every change to a shared tactic invalidates the whole pilot check (about an hour): develop each
+against its golden test and the fast files (`Sponge.lean` builds in a minute, `SHA3Indiff.lean`
+in one and a half), then one full rebuild per item.
+
+1. **Procedures across clones' module types** (item 1 above; the code is read, the fix small).
+   `equiv_proc`, `hoare_proc`, `phoare_proc` are `ECProc.procStep` followed by
+   `ECProc.accessorNorm`; `accessorNorm` (which `module_norm` is) already reads a procedure off
+   a module of another module type (`Flatten.moduleStep?` with `views := true`).  Change: when
+   `procStep` finds no body at the head, `accessorNorm` first and retry; the same retry in
+   `inline`'s head step (`Flatten.unfoldProcedure`, as `GlobWrites` and `SyntacticFrame`
+   already do with `catch _ => … (views := true)`).  Nothing that passes today changes: it acts
+   only where `proc` fails.  Golden test: an adversary of one clone given a module of another
+   clone's module type, `proc` on its oracle.  Then remove: the six `module_norm`s (`Sponge`,
+   `SHA3Indiff`), the `simp only [PRIMITIVE.view, Perm, PRP.RP.RP, …]` lists (`SHA3Security`,
+   `SHA3_OIndiff`, `SHA3OSecurity`), `P_view` (`Gconcl_list`).  Then the module types: the
+   abbreviation blocks of `SLCommon`, `BlockSponge`, `Sponge`, `SHA3Security`, `SHA3_OIndiff`,
+   `SHA3OSecurity` become `clone … Indifferentiability as … with type p <- …` (the alias
+   modules written with `T.mk` take the clone's `mk`), and the first port's
+   `Indifferentiability`/`OptionIndifferentiability` (`view`, `GReal`, `GIdeal`) go.
+2. **`fp_le` on procedures** (item 4 above; mechanical).  `fp_disjoint` reads a concrete
+   module's globals off its code (`ModuleFootprint.concreteBound`, cached); `fp_le`
+   (`Logic/FootprintUpper.lean`) never asks it, and `concreteBound` knows whole modules only
+   (`isModule`), not a procedure module such as `HybridIROEager.fill_in`.  Change:
+   `concreteBound` for a `module`'s procedure (`X.f` with `X.f.procedure`), and `fp_le` falls
+   back to the hook after the `@[fp_bound]` lemmas.  Then delete the stated footprint lemmas
+   group by group, the build as judge; watch the timings (`concreteBound` runs `fp_module`).
+3. **EC's aliases used as modules** (item 2 above; one probe, then a choice).
+   Option A, the real fix: `module` accepts `proc f = M(args).g` with no body, the procedure
+   being the target by definition (`apply_simp` gives it); exception E5 goes everywhere, not
+   only in `Gconcl_list`.  Option B, the fallback: `equiv_call H` and `byequiv H` accept an `H`
+   about a one-call wrapper of the goal's callee.  Probe first: whether a procedure taking `()`
+   and one taking a `unit` argument have the same signature here (EC identifies them;
+   `RO_Distinguisher`'s `distinguish` takes `d_in_t = unit`, and our wrappers are called with
+   `(())`).  Then: `D2`, `D3`, `D5`, `D6` in `Gconcl_list` as EC's aliases, `equiv_ideal`'s
+   four steps by `call (F.FullEager.RO_LRO_D (D2 D))` (the clone-level lemma stated once, as
+   `SecureORO`'s), and the first port's `D2o`…`L4_F2_RO_LRO` deleted.
+4. **`clone`'s module variables** (item 3 above; a design decision, the least certain).
+   First a test (`Syntax/CloneTest.lean`): two clones of one theory at the same types with
+   different operators, to see what breaks in fact (used through their namespaces they may
+   mostly work).  Per-clone variables need the slot to depend on the clone; candidate: a tag
+   carried by the theory's instance, which `module_var` puts in the slot's name.  It touches how
+   variables are declared, next to `Language/`: to be agreed with Dominique before building.
+   Then: `BIRO`, `BIRO2` (and `Sponge`'s `BIRO`) as clones of the port's `IRO`, and the first
+   port's `IRO` (a lens parameter) goes.
