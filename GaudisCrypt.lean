@@ -232,6 +232,13 @@ import GaudisCrypt.Logic.PHoareWhileRev
 import GaudisCrypt.Logic.PHoareWhileRevTest
 import GaudisCrypt.Logic.ECCallTrueTest
 import GaudisCrypt.Examples.WhileSampling
+import GaudisCrypt.Lib.EC.ROM
+import GaudisCrypt.Lib.EC.OW
+import GaudisCrypt.Lib.EC.IsUniform
+import GaudisCrypt.Lib.EC.ListFind
+import GaudisCrypt.Logic.ECCallFrameRel
+import GaudisCrypt.Logic.ECCallMultiProcTest
+import GaudisCrypt.Examples.BR93
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.OTP

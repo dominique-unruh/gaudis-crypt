@@ -459,12 +459,32 @@ elab_rules : tactic
     let s ← saveState
     let g ← getMainGoal
     let some g ← PHoareRnd.boundOne g | throwUnsupportedSyntax
-    let he ← try elabTerm h none catch _ => (do s.restore; throwUnsupportedSyntax)
+    -- `?_` holes in `h` are EC's subgoals of `call` (`A_ll O ?_`: the oracle is lossless); a
+    -- `_` (the oracle) is read off the call
+    let (he, holes) ← try elabTermWithHoles h none `call (allowNaturalHoles := true)
+      catch _ => (do s.restore; throwUnsupportedSyntax)
     let hty ← whnfR (← instantiateMVars (← inferType he))
-    unless hty.isAppOf ``Procedure.IsLossless && !he.hasExprMVar do
+    unless hty.isAppOf ``Procedure.IsLossless do
       s.restore; throwUnsupportedSyntax
+    for m in holes do m.setKind .natural
     let some g ← PHoareRnd.eventCall he g | (do s.restore; throwUnsupportedSyntax)
-    replaceMainGoal [g]
+    -- the holes left: a restriction (`Module.Declared O S`) is checked, as EC checks it; the
+    -- others are goals, before the judgment (EC's order)
+    let mut rest : List MVarId := []
+    for m in holes do
+      if ← m.isAssigned then continue
+      m.setKind .syntheticOpaque
+      let ty ← instantiateMVars (← m.getType)
+      if ty.isAppOf ``Module.Declared then
+        let s' ← saveState
+        try
+          let gs ← evalTacticAt (← `(tactic| first
+            | exact inferInstance | exact ⟨by fp_finite, by fp_disjoint⟩)) m
+          if gs.isEmpty then continue
+          s'.restore
+        catch _ => s'.restore
+      rest := rest ++ [m]
+    replaceMainGoal (rest ++ [g])
 
 open Lean Meta Elab Tactic in
 /-- **EC's `auto`** on `phoare[ c : P ==> Q ] = 1`, `Q` an event (`PHoareRnd.eventAuto`): the
@@ -491,6 +511,19 @@ theorem phoareStmt_conseq_ge {A A' : ProgramState → Prop} {c : Stmt}
   by_cases hτ : Q' τ
   · rw [indicatorE_of hτ, indicatorE_of (hpost σ hA τ hτ)]
   · rw [indicatorE_of_not hτ]; exact bot_le
+
+/-- **EC's `conseq (: _ ==> true) (: _ ==> Q)`** on `phoare[ c : P ==> Q ] = 1`: the code is
+lossless, and `Q` holds after it (a Hoare triple). -/
+theorem phoareStmt_eq_one_of_hoare_lossless {A : ProgramState → Prop} {c : Stmt}
+    {Q : ProgramState → Prop}
+    (hl : phoareStmt A c (fun _τ => 1) Eq (fun _τ => 1)) (hh : hoareStmt A c Q) :
+    phoareStmt A c (fun τ => indicatorE (Q τ)) Eq (fun _τ => 1) := by
+  intro σ hA
+  have h0 : c.ewp (fun τ => indicatorE (¬ Q τ)) σ = 0 := hoareStmt_iff_phoareStmt.mp hh σ hA
+  have h1 : c.ewp (fun τ => indicatorE (Q τ) + indicatorE (¬ Q τ)) σ = 1 := by
+    simp only [indicatorE_add_not]; exact hl σ hA
+  rw [Stmt.ewp_add, h0, add_zero] at h1
+  exact h1
 
 namespace PHoareRnd
 
@@ -569,6 +602,24 @@ elab "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainCon
     | `post => return some (← PHoareRnd.cleanTwoStates g)
     | _ => return some g
   setGoals gs
+
+open Lean Meta Elab Tactic PHoareWp in
+/-- **EC's `conseq (: _ ==> true) (: _ ==> Q)`** on `phoare[ c : P ==> Q ] = 1`
+(`phoareStmt_eq_one_of_hoare_lossless`): goals `hoare` (the triple `hoare[ c : P ==> Q ]`), then
+`lossless` (`phoare[ c : P ==> true ] = 1`) — EC's order. -/
+elab "phoare_conseq" " (" ": " "_" " ==> " &"True" ")" " (" ": " "_" " ==> " "_" ")" : tactic =>
+    withMainContext do
+  let g ← getMainGoal
+  let some g ← PHoareRnd.boundOne g
+    | throwError "phoare_conseq: not `phoare[ c : P ==> Q ] = 1`{indentExpr (← g.getType)}"
+  let some g ← PHoareRnd.foldEvent g
+    | throwError "phoare_conseq: the postcondition is not an event{indentExpr (← g.getType)}"
+  replaceMainGoal [g]
+  evalTactic (← `(tactic| refine phoareStmt_eq_one_of_hoare_lossless ?lossless ?hoare))
+  let gs ← getGoals
+  for g in gs do g.setTag (← g.getTag).eraseMacroScopes
+  let hoare ← gs.filterM fun g => return (← g.getTag) == `hoare
+  setGoals (hoare ++ gs.filter (!hoare.contains ·))
 
 /-- The uniform distribution on a finite nonempty type is lossless, as the sum `phoare_auto`
 leaves at a sampling from it. -/
@@ -666,7 +717,9 @@ open Lean Meta Elab Tactic in
 elab_rules : tactic | `(tactic| islossless) => do
   let g ← getMainGoal
   if (← instantiateMVars (← g.getType)).cleanupAnnotations.isAppOf ``Procedure.IsLossless then
-    evalTactic (← `(tactic| phoare_proc))
+    -- (a procedure reached through a module type's accessor, a clone's alias: named as the
+    -- module's own first, `module_norm`)
+    evalTactic (← `(tactic| first | phoare_proc | (module_norm; phoare_proc)))
   let rest := (← getGoals).drop 1
   setGoals [← getMainGoal]
   let calls ← PHoareRnd.islosslessLoop 64 #[]

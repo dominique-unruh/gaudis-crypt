@@ -837,7 +837,17 @@ def swapPair (a b : Lean.Expr) : MetaM Lean.Expr := do
           (← mkEq (← mkAppM ``Getter.get #[e, σ]) (← mkAppM ``Getter.get #[e, τ]))
     let .forallE _ α _ _ ← whnf (← inferType (← mkAppM ``Setter.set #[x])) | failure
     let hs ← withLocalDeclD `a α fun av => do
-      mkLambdaFVars #[av] (← commutesOf s (← mkAppM ``Setter.set #[x, av]) X?)
+      -- a sampling into a global variable, past a call: the write of the sampled value is the
+      -- assignment of a constant (`callGlobal`: the variable outside the callee's footprint)
+      let e? ← (do
+        match X? with
+        | some X =>
+          if X.isAppOf ``Lens.intoGlobal then
+            return some (← mkAppM ``Getter.mk
+              #[Lean.Expr.lam `σ (mkConst ``ProgramState) av .default])
+          else return none
+        | none => return none : MetaM (Option Lean.Expr))
+      mkLambdaFVars #[av] (← commutesOf s (← mkAppM ``Setter.set #[x, av]) X? e?)
     -- a distribution constant up to reducible unfolding (a clone's `op dout _ <- bdistr`: the
     -- sampling `r <$ dout x` does not read `x`), by `rfl`
     let constRefl? ← withLocalDeclD `σ (mkConst ``ProgramState) fun σ =>

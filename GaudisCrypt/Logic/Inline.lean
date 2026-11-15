@@ -3,6 +3,7 @@ import GaudisCrypt.Language.Modules
 import GaudisCrypt.Logic.Hoare
 import GaudisCrypt.Logic.TacticMisc
 import GaudisCrypt.Logic.ModuleComp
+import GaudisCrypt.Syntax.CloneRegistry
 
 /-!
 # Flattening calls whose callee is spelled out
@@ -1130,6 +1131,14 @@ section Clean
     (StmtWithHoles.call (h := h) x p args).applyLens l
       = StmtWithHoles.call (l.chainSetter x) p (l.chainGetter args) := rfl
 
+/-- `Stmt.call` (the call at no holes, as the rules about statements state it: what `swap`
+leaves) under a renaming, as `StmtWithHoles.applyLens_call`. -/
+@[simp] theorem Stmt.applyLens_call {sig : ProcedureSignature}
+    (l : Lens ProgramState ProgramState) (x : Setter sig.ret ProgramState) (p : Procedure sig)
+    (args : Getter sig.ParamType ProgramState) :
+    (Stmt.call x p args).applyLens l
+      = Stmt.call (l.chainSetter x) p (l.chainGetter args) := rfl
+
 @[simp] theorem StmtWithHoles.applyLens_hole {h : HoleSigs} {sig : ProcedureSignature}
     (l : Lens ProgramState ProgramState) (n : HoleIndex h sig) (x : Setter sig.ret ProgramState)
     (p : Getter sig.ParamType ProgramState) :
@@ -2016,7 +2025,7 @@ def cleanLemmas : List Name :=
   -- through the statement wrappers
   [``StmtWithHoles.applyLens_skip, ``StmtWithHoles.applyLens_sample,
    ``StmtWithHoles.applyLens_assign,
-   ``StmtWithHoles.applyLens_call', ``StmtWithHoles.applyLens_call,
+   ``StmtWithHoles.applyLens_call', ``StmtWithHoles.applyLens_call, ``Stmt.applyLens_call,
    ``StmtWithHoles.applyLens_hole,
    ``StmtWithHoles.applyLens_seq, ``StmtWithHoles.applyLens_ifThenElse,
    ``StmtWithHoles.applyLens_while,
@@ -2524,6 +2533,14 @@ partial def moduleStep? (e : Expr) (views : Bool := false) : MetaM (Option Simp.
       return some { expr := (mkAppN v e.getAppArgs).headBeta }
   let some c := e.getAppFn.constName? | return none
   let args := e.getAppArgs
+  -- (0') an accessor under a clone's alias (`H.Oracle.o`, the clone `H`'s name for the theory's
+  -- `Oracle.o`): the theory's, by definition — before its argument is evaluated, so that the
+  -- theory's steps apply to it (the field of the record a clone's module unfolds to, (2))
+  if (cloneOf? (← getEnv) c).isSome && !args.isEmpty then
+    if let some e' ← unfoldDefinition? e then
+      let e' := e'.headBeta
+      if let some c' := e'.getAppFn.constName? then
+        if c' != c && (← isAccessor c') then return some { expr := e' }
   -- (1) applying a `module`-declared module, or one of its procedures, to its parameters
   if let some hc := (moduleAppHead e).getAppFn.constName? then
     if let some (rhs, h) ← rewriteHead? (hc ++ `apply_simp) e then

@@ -23,6 +23,7 @@ import GaudisCrypt.Logic.PHoareRndTest
 import GaudisCrypt.Logic.ECRndTest
 import GaudisCrypt.Logic.PHoareWhileRevTest
 import GaudisCrypt.Logic.ECCallTrueTest
+import GaudisCrypt.Logic.ECCallMultiProcTest
 import GaudisCrypt.Logic.ECInlineParamsTest
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHLWpTest

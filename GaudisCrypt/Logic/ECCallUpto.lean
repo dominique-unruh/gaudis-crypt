@@ -139,6 +139,42 @@ theorem prhlProc_abstract_call_upto_ecF {T : Type 1} [IsModule T] {sig : Procedu
   · exact Or.inl ⟨hb, h⟩
   · exact Or.inr ⟨h.1, h.2.1, h.2.2, hb⟩
 
+open Classical in
+/-- `prhlProc_abstract_call_upto_ecF` with EC's precondition in full: the bad event may have
+happened before the call (then only `bad` and `J` are asked: EC's `if bad{2} then J else
+={args, glob} /\ I`). -/
+theorem prhlProc_abstract_call_upto_ecF_bad {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {holes : HoleSigs} (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (F : Footprint VariableAssignment) (hDF : FVP.fvP D ≤ F)
+    (hFL : F ≤ (L.footprint)ᶜ)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (bad : Ω → Prop) (I Q : Ω → Ω → Prop) (O₁ O₂ : T)
+    (hll₁ : (Module.app D O₁).procedure.IsLossless)
+    (hll₂ : (Module.app D O₂).procedure.IsLossless)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      prhlProc (fun a₁ g₁ a₂ g₂ => ¬ bad (L.get g₂) ∧ a₁ = a₂ ∧
+          F.touched_getter.get g₁ = F.touched_getter.get g₂ ∧ I (L.get g₁) (L.get g₂))
+        ((ext O₁).lookup n) ((ext O₂).lookup n)
+        (fun r₁ g₁ r₂ g₂ => if bad (L.get g₂) then Q (L.get g₁) (L.get g₂)
+          else r₁ = r₂ ∧ F.touched_getter.get g₁ = F.touched_getter.get g₂ ∧
+            I (L.get g₁) (L.get g₂)))
+    (hQ₁ : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig') (ω₂ : Ω), bad ω₂ →
+      hoareProc (fun _ g => Q (L.get g) ω₂) ((ext O₁).lookup n) (fun _ g => Q (L.get g) ω₂))
+    (hQ₂ : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig') (ω₁ : Ω),
+      phoareProc (fun _ g => bad (L.get g) ∧ Q ω₁ (L.get g)) ((ext O₂).lookup n)
+        (fun _ g => indicatorE (bad (L.get g) ∧ Q ω₁ (L.get g))) Eq (fun _ _ => 1)) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => badInv L bad Q g₁ g₂ ∨ (a₁ = a₂ ∧ syncInv L F I bad g₁ g₂))
+      (Module.app D O₁).procedure (Module.app D O₂).procedure
+      (fun r₁ g₁ r₂ g₂ => badInv L bad Q g₁ g₂ ∨ (r₁ = r₂ ∧ syncInv L F I bad g₁ g₂)) := by
+  refine prhlProc_conseq (prhlProc_abstract_call_upto_module L D ext hD F hDF hFL hc bad I Q O₁ O₂
+    hll₁ hll₂ (fun n => prhlProc_conseq (horacle n)
+      (fun _ _ _ _ ⟨ha, hF, hI, hb⟩ => ⟨hb, ha, hF, hI⟩) (fun _ _ _ _ h => ?_)) hQ₁
+    (fun n ω₁ => hoareProc_of_phoareProc_eq_one (hQ₂ n ω₁)))
+    (fun _ _ _ _ h => h) (fun _ _ _ _ h => h)
+  split_ifs at h with hb
+  · exact Or.inl ⟨hb, h⟩
+  · exact Or.inr ⟨h.1, h.2.1, h.2.2, hb⟩
+
 /-- **EC's abstract `call (_: ={…} /\ I)`** with the region `glob D` alone: the oracles' judgments
 are EC's `={arg} /\ I ==> ={res} /\ I`, `={glob D}` framed syntactically (their writes keep
 `glob D`, `StmtWithHoles.WritesKeep`). -/
@@ -304,8 +340,8 @@ def holeComp (nprocs : Array Nat) (i : Nat) : Nat × Nat := Id.run do
 
 /-- EC's `D_ll`: `∀ (X₁ : C₁) [Module.Declared X₁ G] …, islossless (in `order`) → islossless
 D(X₁, …)`, over the oracles' component module types `Cs`. -/
-def llStatement (D G : Lean.Expr) (Cs : Array Lean.Expr) (order : Array Nat) :
-    MetaM Lean.Expr := do
+def llStatement (D G : Lean.Expr) (Cs : Array Lean.Expr) (order : Array Nat)
+    (accFn? : Option Lean.Expr := none) : MetaM Lean.Expr := do
   let rec go (j : Nat) (xs : Array Lean.Expr) : MetaM Lean.Expr := do
     if h : j < Cs.size then
       withLocalDecl (Name.mkSimple s!"O{j}") .default Cs[j] fun X => do
@@ -321,8 +357,13 @@ def llStatement (D G : Lean.Expr) (Cs : Array Lean.Expr) (order : Array Nat) :
         let (c, off) := holeComp nprocs i
         let pc := ps[c]!
         mkAppM ``Procedure.IsLossless #[pc[off]!]
+      -- (a declared module with several procedures: the one called, `acc (D(…))`)
+      let DO ← mkAppM ``GaudisCrypt.Module.app #[D, O]
+      let M := match accFn? with
+        | some acc => mkApp acc DO
+        | none => DO
       let concl ← mkAppM ``Procedure.IsLossless #[← mkAppM ``GaudisCrypt.Module.Proc.procedure
-        #[← mkAppM ``GaudisCrypt.Module.app #[D, O]]]
+        #[M]]
       prems.foldrM (fun p acc => mkArrow p acc) concl
   go 0 #[]
 
@@ -368,7 +409,11 @@ elab_rules (kind := equivCallUpto) : tactic
       let IS ← Term.exprToSyntax preds[1]!
       let QS ← Term.exprToSyntax preds[2]!
       let D := callee.getArg! 4
-      if globs.isEmpty then
+      -- a declared module with several procedures: the callee is an accessor of `D(O)`, and
+      -- the rule is the one at a region (`glob D`), about the accessor composed with `D`
+      let acc? ← accessorOfCall? last callee
+      let (wrap, repr, fple) ← accPieces acc? extS
+      if globs.isEmpty && acc?.isNone then
         evalTactic (← `(tactic| refine prhlStmt_seq_call
             (prhlProc_abstract_call_upto_ec (L := $LS) _ $extS
               (Module.Declared.ecModule _ $extS).representable ?hdisj ?hc $badS $IS $QS _ _
@@ -378,10 +423,17 @@ elab_rules (kind := equivCallUpto) : tactic
         let DS ← Term.exprToSyntax D
         let gs := #[← `(FVP.fvP $DS)] ++ globs
         let FS ← gs.pop.foldrM (fun x acc => `($x ⊔ $acc)) gs.back!
-        evalTactic (← `(tactic| refine prhlStmt_seq_call
-            (prhlProc_abstract_call_upto_ecF (L := $LS) _ $extS
-              (Module.Declared.ecModule _ $extS).representable $FS (by fp_le) ?hdisj ?hc $badS
-              $IS $QS _ _ ?ll₁ ?ll₂ ?oracle ?left ?right) ?pre))
+        -- (for a procedure of a module with several: EC's precondition in full, the bad event
+        -- before the call included)
+        let rule := mkIdent (if acc?.isSome then ``prhlProc_abstract_call_upto_ecF_bad
+          else ``prhlProc_abstract_call_upto_ecF)
+        let inner ← wrap (← `($rule (L := $LS) _ $extS
+              $repr $FS $fple ?hdisj ?hc $badS
+              $IS $QS _ _ ?ll₁ ?ll₂ ?oracle ?left ?right))
+        try evalTactic (← seqCallTactic acc? inner ty)
+        catch e => throwError "equiv_call: the up-to-bad rule does not apply to this \
+          call{indentD e.toMessageData}"
+      accGoalsBack acc?
       untagGoals
       -- the oracles' procedures, hole by hole, and EC's order of them (the last component first)
       let O₁ := callee.getArg! 5
@@ -471,7 +523,9 @@ elab_rules (kind := equivCallUpto) : tactic
         let m ← mkFreshExprSyntheticOpaqueMVar (← llOf procs₂[i]!) `right_ll
         pure (i, m)
       -- `D_ll`'s statement: `∀ (X₁ <: C₁ {-D}) …, islossless …(EC's order) → islossless D(…)`
-      let llTy ← llStatement D G (comps₁.map (·.1)) ecOrder
+      let accFn? := acc?.map fun (U, u) =>
+        mkAppN (Lean.mkConst u.getPrefix U.getAppFn.constLevels!) U.getAppArgs
+      let llTy ← llStatement D G (comps₁.map (·.1)) ecOrder accFn?
       let llM ← mkFreshExprSyntheticOpaqueMVar llTy `ll
       let declProof (X : Lean.Expr) : TacticM Lean.Expr := do
         let e ← Term.elabTermEnsuringType
@@ -495,6 +549,15 @@ elab_rules (kind := equivCallUpto) : tactic
       let pre ← byTag `pre
       let pre ← match pre with
         | some p => do
+          if acc?.isSome then
+            -- (the postcondition only, and its reads through the call's write-back)
+            let p' ← (do try Judgment.simpArg p 3 [``syncInv, ``badInv, ``globInvF, ``Lens.pair] []
+                         catch _ => pure p : TacticM MVarId)
+            let p' ← (do try Judgment.simpArg p' 3 relSimpDecls [] catch _ => pure p'
+                       : TacticM MVarId)
+            p'.setTag `pre
+            pure (some p')
+          else
           let [p'] ← evalTacticAt (← `(tactic|
               dsimp only [syncInv, badInv, globInvF, Lens.pair])) p | pure (some p)
           p'.setTag `pre
@@ -577,6 +640,11 @@ def equivCallInvAndCore (cond : Term) : TacticM Unit :=
         unless D.isFVar do throwError "equiv_call: the callee{indentExpr D}\nis not declared"
         let O₁ := c₁.getArg! 5
         let O₂ := c₂.getArg! 5
+        -- a declared module with several procedures: the callee is an accessor of `D(O)`
+        let st₁ ← TacticMisc.openStmt (ty.getArg! 1)
+        let last₁ ← if st₁.isAppOfArity ``StmtWithHoles.seq 3 then
+            TacticMisc.openStmt (st₁.getArg! 2) else pure st₁
+        let acc? ← accessorOfCall? last₁ c₁
         let DS ← Term.exprToSyntax D
         let gs := #[← `(FVP.fvP $DS)] ++ globs
         let FS ← gs.pop.foldrM (fun x acc => `($x ⊔ $acc)) gs.back!
@@ -586,17 +654,18 @@ def equivCallInvAndCore (cond : Term) : TacticM Unit :=
         let LS ← Term.exprToSyntax L
         let IS ← Term.exprToSyntax preds[0]!
         -- no other `glob`s: EC's oracle judgments (`={glob D}` framed by their writes), else the
-        -- region kept by them
-        if ec then
+        -- region kept by them (also for an accessor of `D(O)`: the rule at the region `glob D`)
+        if ec && acc?.isNone then
           evalTactic (← `(tactic| refine prhlStmt_seq_call
               (prhlProc_abstract_call_module_ec (L := $LS) _ $extS
                 (Module.Declared.ecModule _ $extS).representable ?hdisj $IS ?hc _ _ ?wk₁ ?wk₂
                 ?oracle) ?pre))
         else
-          evalTactic (← `(tactic| refine prhlStmt_seq_call
-              (prhlProc_abstract_call_moduleF (L := $LS) _ $extS
-                (Module.Declared.ecModule _ $extS).representable $FS (by fp_le) ?hdisj $IS ?hc _ _
-                ?oracle) ?pre))
+          let (wrap, repr, fple) ← accPieces acc? extS
+          let inner ← wrap (← `(prhlProc_abstract_call_moduleF (L := $LS) _ $extS
+                $repr $FS $fple ?hdisj $IS ?hc _ _ ?oracle))
+          evalTactic (← seqCallTactic acc? inner ty)
+        accGoalsBack acc?
         untagGoals
         let splitSup ← `(tactic| repeat' apply sup_le)
         closeTagged `hdisj
@@ -643,6 +712,15 @@ def equivCallInvAndCore (cond : Term) : TacticM Unit :=
         let rest ← (← getGoals).filterM fun g' => return !done.contains g'
         let rest ← rest.mapM fun g' => do
           if (← g'.getTag) == `pre then
+            if acc?.isSome then
+              -- (the postcondition only: a tuple l-value of the code is a `Lens.pair` too)
+              let p ← (do try Judgment.simpArg g' 3 [``globInvF, ``Lens.pair] []
+                          catch _ => pure g' : TacticM MVarId)
+              let p ← (do try Judgment.simpArg p 3 relSimpDecls [] catch _ => pure p
+                        : TacticM MVarId)
+              p.setTag `pre
+              pure p
+            else
             let [p'] ← evalTacticAt (← `(tactic| dsimp only [globInvF, Lens.pair])) g' | pure g'
             p'.setTag `pre
             pure p'

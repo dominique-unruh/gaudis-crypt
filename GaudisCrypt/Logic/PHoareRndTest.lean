@@ -234,6 +234,49 @@ example (m : VariableAssignment) : Pr[ Game2(A).main () @ &m : §res ] = 1 / 2 :
   trace_state
   smt_close [dbool_ll, mu_pred1, dbool1E_mu1, pred1E]
 
+-- EC's `conseq (: _ ==> true) (: _ ==> Q)` on an event reached with probability `1`: the event
+-- as a Hoare judgment, then the statement's losslessness
+/--
+trace: case hoare
+A : Guesser
+inst✝ : Module.Declared A ⊥
+A_ll : A.guess.procedure.IsLossless
+⊢ hoare[ True ==> decide (§b' = §b) = true ∨ ¬decide (§b' = §b) = true ] {
+      var x : Bool, y : Bool, b' : Bool, b : Bool;
+      x <$ dbool;
+      y <- !§x;
+      b' <- call A.guess.procedure ();
+      b <$ dbool;
+}
+
+case lossless
+A : Guesser
+inst✝ : Module.Declared A ⊥
+A_ll : A.guess.procedure.IsLossless
+⊢ phoare[ True ==> 1 ] = 1 {
+      var x : Bool, y : Bool, b' : Bool, b : Bool;
+      x <$ dbool;
+      y <- !§x;
+      b' <- call A.guess.procedure ();
+      b <$ dbool;
+}
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+include A_ll in
+example : phoare[ Game2(A).main : True ==> (§res ∨ ¬ §res) ] = 1 := by
+  phoare_proc
+  phoare_conseq (: _ ==> True) (: _ ==> _)
+  trace_state
+  all_goals sorry
+
 -- (a judgment that is not an event with the bound `1` goes to the rules on expectations: the
 -- `islossless` tests above run `phoare_call` and `phoare_auto` on the expectation `1`)
 

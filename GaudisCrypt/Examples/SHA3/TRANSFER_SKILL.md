@@ -105,6 +105,8 @@ do better, deviate — and **document the deviation in the theorem's docstring**
 | module variable whose type mentions only theory types | `module_var M.x : T` (`Syntax/ModuleVar.lean`) | It takes the theory's instance; `global_var` (in `Language/`, off-limits) does not. |
 | `module type T = { proc f(x : a) : b … }` | `moduletype T { proc f (x : a) -> b; … }` | A module type named like a module: suffix `_T` (E3). |
 | `module type A (F : Oracle) = { proc guess … }` | `abbrev A := Oracle →ₘ procmod (a) → b` | |
+| `module type Adv (O : POracle) = { proc a1 … proc a2 … }` (several procedures, with an oracle) | `moduletype AdvProcs { proc a1 …; proc a2 …; }` + `abbrev Adv := POracle →ₘ AdvProcs` | Calls are `A(O).a1`, `A(O).a2`.  All call rules take them (2026-11-15, `br93.ec`): `equiv_call (_ : ={glob A, x, …})`, `(_ : ={…} ∧ I)`, `(_ : bad, I)`, pHL's `phoare_call`; see section 4. |
+| `local module G1 = M(A) with { var r … proc main [ … ] }` (module update) | the module written out: `module_var G1.r : T`, `module G1 using (A : Adv) { proc main … }` | No module-update syntax.  `A` is a parameter, the lemmas say `G1(A).main`. |
 | `module M (A : T, F : U) : V = { … }` | `module M using (A : T, F : U) : V { … }` | Procedures: `proc f (x : a) : b { var y : c; …; return e };` Reads are `$x`, writes `x <- e`, samplings `x <$ d`, calls `x <- call F.f ($a)`; booleans of props via `decide`; `open Classical in` before the module if needed. |
 | EC's `witness` | `default` | |
 | subtyping `RO <: RF` (passing an `RF` where an `Oracle` is expected) | `module_subtype RF <: Oracle` | Same-field module types: identity coercion. Module-type abbreviations are seen through. |
@@ -195,6 +197,7 @@ the `while` row.
 | `call (_ : ={glob A, x…})` (abstract) | `equiv_call (_ : ={glob A, x, …})` |
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)`; the oracles' goals are EC's `={arg} ∧ I ==> ={res} ∧ I` (`={glob D}` framed by their writes), so EC's intermediate conditions need no `glob D`.  With another `glob X` named (or an oracle the frame cannot open, a view), the oracles keep the region `glob D ⊔ glob X` themselves |
 | `call (_ : bad, I, J)` (up to bad) | `equiv_call (_ : bad, I, J)`; EC's goal order; `D_ll`'s goal: `exact D_ll` (E11: right oracles' `islossless` is one more goal each) |
+| `call (_ : …)` on `A(O).a2`, `A` declared at a type with **several procedures and an oracle** | the same `equiv_call (_ : ={glob A, x, …})` / `(_ : ={…} ∧ I)` / `(_ : bad, I)` (2026-11-15).  Differences from the single-procedure case, both EC's: the code before gets EC's **frame** (a global the postcondition reads and neither `A` nor the oracle writes keeps its value: `∀ r g, … → G.z.get g₁ = §G.z{1} → …`), and up-to-bad's precondition is EC's `bad ∨ (={args, glob A} ∧ I ∧ ¬bad)`.  Every global of the section's modules that must survive the call has to be in `A`'s restriction (`{-LRO, -Log, -Game1, …}`) |
 | `call (: P ==> Q)` (concrete callees, pRHL) | `equiv_call (_ : P ==> Q)`; callee's judgment first, then pre; the frame of unwritten variables is found |
 | `call (_ : ={glob P})` / `call (_: ={x})` (concrete callee) | `equiv_call (_ : ={glob P})` / `equiv_call (_ : ={x})`, with EC's frame (what the callee does not write keeps its value); the callee's judgment (EC's `1: by sim`) is closed by its footprint |
 | `call (_ : true)` on the adversary (a declared module) | `equiv_call (_ : True)` (2026-11-15): `equiv_call (_ : ={glob A})` for the module `A` the two calls are of; with oracles' variables to keep, `equiv_call (_ : ={glob A, x, …})` as before |
@@ -208,6 +211,8 @@ the `while` row.
 | pHL `rnd E` on an **exact** bound (`phoare[ c; x <$ d : P ==> Q ] = r`) | `phoare_rnd E` (`Logic/PHoareRnd.lean`, 2026-11-15): the goal becomes EC's `phoare[ c : P ==> mu d E = r ∧ ∀ v ∈ d, (E v ↔ Q v) ] = 1`; `E` may read variables (`phoare_rnd (pred1 §b')`).  `mu`, `mu_pred1`, `dbool1E_mu1`, `pred1E` for the closer |
 | pHL `call H` (`H : islossless f`), `rnd`, `auto` on `phoare[ c : P ==> Q ] = 1`, `Q` an event | `phoare_call H` / `phoare_rnd` / `phoare_auto` with `Logic/PHoareRnd.lean` imported (2026-11-15): the judgment stays an event, as in EC — a call leaves `∀ result, Q`, a sampling `is_lossless d ∧ ∀ v ∈ d, Q`, `auto` ends with `P → Q'` (`Pedersen.ec`'s `rnd (pred1 b'); call ug_ll; wp; rnd; call uc_ll; auto => />` is the same line; EC's `rewrite dt_ll … dbool1E` after it is `smt_close [dt_ll, mu_pred1, dbool1E_mu1, pred1E]`).  Without the import, and on an expectation that is not an event (`1` after `conseq (: _ ==> true)`), the rules on expectations apply as before |
 | `conseq (: _ ==> Q)` on `phoare[ … ] = 1` | `phoare_conseq (: _ ==> Q)` (same file): goals `post` (over values), then the judgment; `Q = True` gives `phoare[ … ==> 1 ] = 1` |
+| `conseq (: _ ==> true) (: _ ==> Q)` on `phoare[ … : P ==> Q ] = 1` (the event by Hoare logic, then losslessness) | `phoare_conseq (: _ ==> True) (: _ ==> _)` (2026-11-15): goals `hoare` (`hoare[ P ==> Q ]`), then `lossless` (`phoare[ P ==> 1 ] = 1`).  On the statement: after `byphoare`, `phoare_proc` first (EC's `proc` in each branch is then dropped) |
+| pHL `call (_ : true)` on the adversary with `declare axiom A_ll (O <: POracle {-A}) : islossless O.o => islossless A(O).a`: EC's goals `exact A_ll` and the oracle's losslessness | `phoare_call (@A_ll _ ?_ ?_)` (the oracle and its restriction are found from the call; the restriction is closed), then `· islossless` for the oracle (EC's `proc; call (LRO_o_ll _); auto; apply dptxt_ll`), with the samplings' `is_lossless` lemmas tagged `[ec_random]` |
 | `islossless` (the tactic) | `islossless`: on `phoare[ c : P ==> 1 ] = 1` or `islossless M.f`, code without loops; assignments and samplings from `dbool`, the uniform distribution or a distribution with `is_lossless d` in the context are closed, each call leaves `islossless p`, the last call first — EC's `islossless; [apply Ag_ll \| apply Ac_ll]` is `islossless <;> [exact Ag_ll; exact Ac_ll]` |
 | `hint exact random : dhkey_ll.` | `attribute [ec_random] dhkey_ll` (`Logic/ECHints.lean`): the lemmas `is_lossless d` that `islossless` closes a sampling with (EC's hint database `random`); the library's `dbool_ll`, `uniform_ll`, `BitWord.dunifin_ll` are tagged |
 | `rnd f` (pRHL, `f` an involution) | `equiv_rnd f f`: EC's `rnd f` is `rnd f f` (`hashed_elgamal_std.ec`'s `rnd (fun w, w +^ m)`; the xor identities by `Lib/EC/BitWordRing.lean`'s simp lemmas) |
@@ -851,6 +856,26 @@ Document each in the docstring when it applies.
   with `Logic/PHoareRnd.lean` imported `phoare_auto` leaves `is_lossless d` for a sampling (the
   event rules; before, the expectation `d.expected fun _ => 1 = 1`): `phoare_auto; exact
   sample_ll`.
+* **`={glob M}` for a concrete module `M`** in an invariant (`call (: ={glob Log, glob LRO})`):
+  list the variables, and say `glob A`: `equiv_call (_ : ={glob A, Log.qs, LRO.m})`.  The
+  oracle's judgment (EC's `1: by sim`) is `equiv_proc; stmt_inline*; equiv_auto; auto_progress`
+  when `sim` finds no equality set (a cloned theory's oracle).
+* **EC's local modules and the adversary's restriction**: EC keeps a `local module` declared
+  after `declare module A` apart from `A`; here its variables go into the restriction
+  (`declare module A <: Adv {-LRO, -Log, -Game1, -Game2, -OWr}`), else the call rules lose them
+  (symptom: after `equiv_call`, a hypothesis about `Game2.r` is missing).
+* **`swap` of a sampling into a global past a call of the adversary** (`swap{1} 6 -2`):
+  `stmt_swap{1} 6 -2`; the oracle modules the adversary is applied to need their footprint as an
+  `@[fp_bound]` lemma (`theorem fvP_Log : FVP.fvP Log ≤ Log.qs.footprint := by fp_module Log.qs`;
+  symptom: "no restriction hypothesis for FVP.fvP …").
+* **A lemma over `∀ (I <: Inverter {-OWr})` applied to a built module** (`rewrite (OW_OWr &m
+  (I(A)))`): `I(A)` as a term is `Module.app I A`, and its restriction is an instance stated by
+  hand: `haveI : Module.Declared (Module.app I A) OWr.x.footprint := ⟨by fp_finite, by
+  fp_disjoint⟩`, then `rw [OW_OWr m (Module.app I A)]`.
+* **Closing several goals by alternatives**: `all_goals solve | simp_all | grind`, not `first`
+  (`first` takes a `simp_all` that made progress without closing the goal).
+* **`smt_close` with lemmas applied to section hypotheses** (`smt_close [pr_Game0_Game1 A A_ll
+  m, …]`) fails with "unknown free variable" (2026-11-15, open): `have`s and `linarith`.
 * **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
@@ -1086,6 +1111,9 @@ glue around the *old* `eq_f`/`eq_fi`): copy their proof steps, not their declara
 * Two-sided loops, `inline` by name, `equiv_seq`: `Sponge.lean`.
 * Loops, `splitwhile`/`alias`/`conseq` frames, `sim (_ : I)`, `phoare_while`: `ConcreteF.lean`
   (`DoubleBounding`, `Real_GReal'`, `Real_Concrete`).
+* An adversary with several procedures and an oracle, a cloned random oracle, up-to-bad with
+  the oracle's log, pHL on an event, `swap` past the adversary: `Examples/BR93.lean`
+  (`br93.ec`); goals of the call rules in `Logic/ECCallMultiProcTest.lean`.
 * Large invariant proofs with `exists*`, ambient cases, `rcondt`/`rcondf`, `swap` past calls:
   `Handle.lean` (`eq_fi`, `eq_f`, `CF_G1`) — compare with `Handle.eca`: `eq_fi` from line 1349,
   `eq_f` 1488–1813, `CF_G1` 2595.
