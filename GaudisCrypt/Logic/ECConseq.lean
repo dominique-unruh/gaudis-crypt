@@ -134,9 +134,16 @@ open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
 /-- **EC's `conseq (: P ==> Q)`** on an upper bound `phoare[ c : A ==> E ] ≤ r`: goals `pre`,
 `post` (the old event's expectation below `Q`'s indicator: for an event, `E` implies `Q`), then
 the judgment with `P`, `Q`; `_` keeps a condition. -/
-elab "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
+elab (name := phoareConseq) "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic =>
+    withMainContext do
   let ty ← instantiateMVars (← getMainTarget)
   unless ty.isAppOf ``phoareStmt do throwError "phoare_conseq: not a `phoare` judgment"
+  -- an exact bound or a lower bound: the rules added to this tactic in `Logic/PHoareRnd.lean`,
+  -- `Logic/PHoareExactTactics.lean` (`elab_rules (kind := phoareConseq)`: a second tactic of
+  -- the same syntax would not be tried after this one)
+  let ρ := ty.getArg! 3
+  if ρ.isAppOf ``Eq || ρ.isAppOf ``GE.ge || (ρ.find? (·.isConstOf ``GE.ge)).isSome then
+    throwUnsupportedSyntax
   let Pe ← if isHole P then pure (ty.getArg! 0) else elabCond ty 1 P
   let Ps ← Term.exprToSyntax Pe
   let pre ← if isHole P then `(fun _ h => h) else `(?pre)

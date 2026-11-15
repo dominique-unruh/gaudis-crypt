@@ -100,12 +100,17 @@ end PHoareSeq
 
 open Lean Meta Elab Tactic PHoareSeq PHoareWp in
 /-- **EC's `seq n : E p₁ p₂ p₃ p₄ I`** for an upper bound (see the module docstring). -/
-elab "phoare_seq " n:num " : " E:term:max p₁:term:max p₂:term:max p₃:term:max p₄:term:max
-    I:term:max : tactic => do
-  -- an exact bound: the rule of `Logic/PHoareExactTactics.lean`
+elab (name := phoareSeq) "phoare_seq " n:num " : " E:term:max p₁:term:max p₂:term:max
+    p₃:term:max p₄:term:max I?:(ppSpace colGt term:max)? : tactic => do
+  -- an exact bound or a lower bound, and the form without `I`: the rules added to this tactic
+  -- in `Logic/PHoareExactTactics.lean` (`elab_rules (kind := phoareSeq)`).  `I` is on the same
+  -- line or indented further.
   if (← withMainContext do
       let ty ← instantiateMVars (← getMainTarget)
-      return ty.isAppOf ``phoareStmt && (ty.getArg! 3).isAppOf ``Eq) then throwUnsupportedSyntax
+      let ρ := ty.getArg! 3
+      return ty.isAppOf ``phoareStmt && (ρ.isAppOf ``Eq || ρ.isAppOf ``GE.ge ||
+        (ρ.find? (·.isConstOf ``GE.ge)).isSome)) then throwUnsupportedSyntax
+  let some I := I? | throwUnsupportedSyntax
   liftMetaTactic1 fun g => some <$> Judgment.onStmt (splitLeading n.getNat) g
   let Ee ← elabGoalFunction E (mkSort levelZero)
   let Ie ← elabGoalFunction I (mkSort levelZero)

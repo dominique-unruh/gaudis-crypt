@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.ByPr
+import GaudisCrypt.Logic.ByPrEquiv
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Syntax.PrSyntax
 
@@ -135,5 +136,25 @@ error: bypr: expected a procedure judgment `phoare[ p : P ==> E ] ≤ r` (or `=`
 #guard_msgs in
 example : phoare[ FairCoin.flip : True ==> 1 ] = 1 := by
   bypr
+
+-- EC's `bypr (res{1}) (res{2})` on an `equiv` judgment: the results' probabilities, for all
+-- arguments, memories and values (`Logic/ByPrEquiv.lean`)
+/--
+trace: ⊢ ∀ (a₁ : (procsig (Bool) → Bool).ParamType) (σ₁ : VariableAssignment) (a₂ : (procsig (Bool) → Bool).ParamType)
+    (σ₂ : VariableAssignment) (v : Bool),
+    (let params_1 := GaudiExpr[ a₁ ];
+      let b0_1 := GaudiExpr[ Lens.id.get a₁ ];
+      let params_2 := GaudiExpr[ a₂ ];
+      let b0_2 := GaudiExpr[ Lens.id.get a₂ ];
+      True) →
+      ↑(FairCoin.flip.procedure.Pr a₁ σ₁ fun r x ↦ r = v) = ↑(FairCoin.flip.procedure.Pr a₂ σ₂ fun r x ↦ r = v)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ FairCoin.flip ~ FairCoin.flip : True ==> ={res} ] := by
+  bypr (res{1}) (res{2})
+  trace_state
+  sorry
 
 end GaudisCrypt.ByPrTest

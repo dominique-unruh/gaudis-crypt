@@ -557,51 +557,52 @@ goals `pre` (`P₀` implies `P`; closed when trivial), `post` (from `P₀`, `Q` 
 the judgment with `P`, `Q` (`phoareStmt_conseq_ge`).
 
 Upper bounds go to `phoare_conseq` of `Logic/ECConseq.lean`. -/
-elab "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
-  let s ← saveState
-  let g ← getMainGoal
-  let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOf ``phoareStmt && !isHole Q do throwUnsupportedSyntax
-  if (ty.getArg! 3).isAppOf ``Eq then
-    unless isHole P do throwUnsupportedSyntax
-    let Qs ← Term.exprToSyntax (← elabGoalFunction Q (mkSort Level.zero))
-    refineTagged (← `(phoareStmt_conseq_eq_one $Qs ?post ?judgment)) [`post, `judgment]
-    let gs ← (← getGoals).mapM fun g => do
+elab_rules (kind := phoareConseq) : tactic
+  | `(tactic| phoare_conseq (: $P ==> $Q)) => withMainContext do
+    let s ← saveState
+    let g ← getMainGoal
+    let ty ← instantiateMVars (← g.getType)
+    unless ty.isAppOf ``phoareStmt && !isHole Q do throwUnsupportedSyntax
+    if (ty.getArg! 3).isAppOf ``Eq then
+      unless isHole P do throwUnsupportedSyntax
+      let Qs ← Term.exprToSyntax (← elabGoalFunction Q (mkSort Level.zero))
+      refineTagged (← `(phoareStmt_conseq_eq_one $Qs ?post ?judgment)) [`post, `judgment]
+      let gs ← (← getGoals).mapM fun g => do
+        match ← g.getTag with
+        -- the implication, over values (the reads generalized)
+        | `post => cleanSideGoal g
+        -- the judgment, its event `True` the expectation `1`
+        | `judgment => simpPost g
+        | _ => pure g
+      setGoals gs
+      return
+    -- a lower bound: the relation as `≥` is written, or as `byphoare` leaves it
+    let ρ := ty.getArg! 3
+    unless ρ.isAppOf ``GE.ge || (ρ.find? (·.isConstOf ``GE.ge)).isSome do throwUnsupportedSyntax
+    let some g ← PHoareRnd.foldEvent g | throwUnsupportedSyntax
+    replaceMainGoal [g]
+    let ty ← instantiateMVars (← g.getType)
+    let Pe ← if isHole P then pure (ty.getArg! 0) else elabGoalFunction P (mkSort Level.zero)
+    let Qe ← elabGoalFunction Q (mkSort Level.zero)
+    let (Ps, Qs) := (← Term.exprToSyntax Pe, ← Term.exprToSyntax Qe)
+    try
+      refineTagged (← `(phoareStmt_conseq_ge (A' := $Ps) (Q' := $Qs) ?pre ?post ?judgment))
+        [`pre, `post, `judgment]
+    catch _ => s.restore; throwUnsupportedSyntax
+    let gs ← (← getGoals).filterMapM fun g => do
       match ← g.getTag with
-      -- the implication, over values (the reads generalized)
-      | `post => cleanSideGoal g
-      -- the judgment, its event `True` the expectation `1`
-      | `judgment => simpPost g
-      | _ => pure g
+      | `pre =>
+        let g ← cleanSideGoal g
+        -- EC's `conseq` closes a trivial precondition itself
+        let s ← saveState
+        try
+          let rest ← evalTacticAt (← `(tactic| (intros; trivial))) g
+          if rest.isEmpty then return none
+          s.restore; return some g
+        catch _ => s.restore; return some g
+      | `post => return some (← PHoareRnd.cleanTwoStates g)
+      | _ => return some g
     setGoals gs
-    return
-  -- a lower bound: the relation as `≥` is written, or as `byphoare` leaves it
-  let ρ := ty.getArg! 3
-  unless ρ.isAppOf ``GE.ge || (ρ.find? (·.isConstOf ``GE.ge)).isSome do throwUnsupportedSyntax
-  let some g ← PHoareRnd.foldEvent g | throwUnsupportedSyntax
-  replaceMainGoal [g]
-  let ty ← instantiateMVars (← g.getType)
-  let Pe ← if isHole P then pure (ty.getArg! 0) else elabGoalFunction P (mkSort Level.zero)
-  let Qe ← elabGoalFunction Q (mkSort Level.zero)
-  let (Ps, Qs) := (← Term.exprToSyntax Pe, ← Term.exprToSyntax Qe)
-  try
-    refineTagged (← `(phoareStmt_conseq_ge (A' := $Ps) (Q' := $Qs) ?pre ?post ?judgment))
-      [`pre, `post, `judgment]
-  catch _ => s.restore; throwUnsupportedSyntax
-  let gs ← (← getGoals).filterMapM fun g => do
-    match ← g.getTag with
-    | `pre =>
-      let g ← cleanSideGoal g
-      -- EC's `conseq` closes a trivial precondition itself
-      let s ← saveState
-      try
-        let rest ← evalTacticAt (← `(tactic| (intros; trivial))) g
-        if rest.isEmpty then return none
-        s.restore; return some g
-      catch _ => s.restore; return some g
-    | `post => return some (← PHoareRnd.cleanTwoStates g)
-    | _ => return some g
-  setGoals gs
 
 open Lean Meta Elab Tactic PHoareWp in
 /-- **EC's `conseq (: _ ==> true) (: _ ==> Q)`** on `phoare[ c : P ==> Q ] = 1`

@@ -229,8 +229,9 @@ the `while` row.
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, then the code before (EC's: `I` and, over the loop's final states under EC's frame, `I ∧ ¬guard ⇒ post`; old form with an `exit` goal and no frame: `equiv_while_noframe{i}`). EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | pHL `while I V k ε` (the loop alone; probabilistic termination) | `phoare_while I V k ε` (`Logic/PHoareWhileRev.lean`, 2026-11-15): `V` an integer, `k` an integer, `ε` a real.  EC's goals in its order — `pre_inv`, `pre_bound`, `term` (`I → V ≤ k ∧ (V ≤ 0 → ¬guard)`), `body` (`∀ w, phoare[ w : P ==> Q ] = r → phoare[ c; w : P ∧ guard ==> Q ] = r`: EC's abstract statement, `intro w ih`), `inv`, `rate` (`0 < ε`), `variant` (`∀ z, phoare[ c : I ∧ guard ∧ V = z ==> V < z ] ≥ ε`) — those that are not judgments closed when trivial (EC's `=> //`); beyond EC's, `sat` (some state satisfies the postcondition; closed for `true`): our `w` is a quantified statement, and without `sat` the `body` goal could hold vacuously.  EC's `seq 1: true=> //` on the body goal is `phoare_seq_lossless 1 : (True)` with `exact ih` for the second part |
-| pHL `seq n : E p₁ p₂ p₃ p₄ I` on an **exact** bound | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)` with `Logic/PHoareExactTactics.lean` imported (2026-11-15): the bounds are reals, `_` as in EC (a bound left open where the other bound of its branch is `0`; its goal is not asked).  EC's goals in its order: `invariant`, `first_E`, `second_E`, `first_notE`, `second_notE`, `bound` (the reals' equation `r = p₁ p₂ + p₃ p₄`).  It counts the statements of a block (the loop body before `stmt w` in the body goal of `while I V k ε`).  On an upper bound: the rule of `Logic/PHoareSeq.lean`, as before |
+| pHL `seq n : E p₁ p₂ p₃ p₄ I` on an **exact** bound | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)` with `Logic/PHoareExactTactics.lean` imported (2026-11-15): the bounds are reals, `_` as in EC (a bound left open where the other bound of its branch is `0`; its goal is not asked).  EC's goals in its order: `invariant`, `first_E`, `second_E`, `first_notE`, `second_notE`, `bound` (the reals' equation `r = p₁ p₂ + p₃ p₄`).  It counts the statements of a block (the loop body before `stmt w` in the body goal of `while I V k ε`).  `I` may be left out (EC's default `true`).  On a lower bound `≥ r`: the same goals with `≥`, `_` a bound `0` (its goal not asked), `bound` is `r ≤ p₁ p₂ + p₃ p₄`; `nonneg` (`0 ≤ pᵢ`) is left when `positivity` does not find it.  On an upper bound: the rule of `Logic/PHoareSeq.lean`, as before |
 | pHL `case (E)` | `phoare_case (E)`: goals `pos`, `neg` |
+| `bypr (res{1}) (res{2})` on `equiv[ f ~ g : P ==> ={res} ]` | `bypr (res{1}) (res{2})` (`Logic/ByPrEquiv.lean`, 2026-11-15): the goal becomes `∀ a₁ &1 a₂ &2 v, P → Pr[ f (a₁) @ &1 : res = v ] = Pr[ g (a₂) @ &2 : res = v ]` (EC's `=> &1 &2 v` is `intro a1 m1 a2 m2 v _`; then `cases a1; cases a2` for procedures without parameters).  The coupling comes from the wp-lifting (discrete Strassen), not from a hand-built one.  Shown raw (not as `Pr[ ]`) while the arguments are variables |
 | pHL `conseq (_ : _ ==> _ : = e)` (another bound) | `phoare_conseq (: _ ==> _ : = e)`, `e` a real: goals `bound` (the two bounds are equal under the precondition, over the reals), then the judgment; the bounds `0`, `1` are then `0`, `1` (`phoare_hoare` and the event rules apply) |
 | pHL `conseq (: P ==> _)` on an exact bound | `phoare_conseq (: P ==> _)`: `pre`, then the judgment |
 | pHL `conseq (_ : _ ==> Q₁) (_ : _ ==> Q₂)` on an exact bound | `phoare_conseq (: _ ==> Q₁) (: _ ==> Q₂)`: goals `post` (under `Q₂`, `Q₁` iff the event), `hoare` (for `Q₂`), then the judgment for `Q₁` — EC's order |
@@ -938,6 +939,23 @@ Document each in the docstring when it applies.
 * **A `Decidable` instance for a predicate of the theory** (`instance : Decidable (is_restr s
   n)`, needed for `if is_restr x N then …`) lets `auto` decide closed instances of it: goals
   after `auto` may have fewer conjuncts than before the instance was added.
+* **Two tactics of one syntax do not fall back to each other** (infrastructure): a second
+  `elab "t" …` with the syntax of an earlier one is tried alone, and its
+  `throwUnsupportedSyntax` is the error "Unexpected syntax".  One tactic, several rules: the
+  first file names it (`elab (name := phoareConseq) "phoare_conseq" …`), later files add
+  `elab_rules (kind := phoareConseq) : tactic | `(tactic| phoare_conseq (: $P ==> $Q)) => …`;
+  a rule declines with `throwUnsupportedSyntax`, and the rules are tried newest first
+  (`phoare_conseq (: P ==> Q)`: `ECConseq` ≤, `PHoareRnd` `= 1` and `≥`, `PHoareExactTactics`
+  `=`; `phoare_seq`: `PHoareSeq` ≤, `PHoareExactTactics` `=` and `≥`).  Test each rule with
+  the newest file imported (`Logic/PHoareExactTest.lean`, the last three tests).
+* **Distributions of EC's library**: `duniform s` with `duniform1E`, `duniformE`, `undup`,
+  `count` (`Lib/EC/DUniform.lean`); the biased coin `dbiased` of `FixedBiased` with
+  `dbiased1E`, `dbiasedE`, `dbiased_ll` (`Lib/EC/DBoolBiased.lean`, a theory to clone);
+  `ge0_mu`, `le1_mu` (`Logic/PHoareExact.lean`).  A new finite distribution: a `PMF`
+  (`PMF.ofFintype`, `PMF.uniformOfFinset`) through `toSubProbability`; its point masses by
+  `PMF.toMeasure_apply_singleton`, its expectation by `SubProbability.expected_eq_tsum`.
+* **A lemma named like a module** (`equiv SamplePair` next to `module SamplePair`): another
+  name for the lemma (`SamplePair_Fair`).
 * **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
@@ -1178,6 +1196,8 @@ glue around the *old* `eq_f`/`eq_fi`): copy their proof steps, not their declara
   (`br93.ec`); goals of the call rules in `Logic/ECCallMultiProcTest.lean`.  The same file:
   a theory and its instance (`clone` of a theory with clones, a wrapper adversary, the
   theory's theorem applied to it).
+* `bypr` on `equiv`, nested pHL `seq` with all four bounds, `seq` on a lower bound, a cloned
+  distribution theory: `Examples/VonNeumann.lean` (`vonNeumann.eca`).
 * pHL on exact bounds (a probability computed step by step), loops in pRHL with a coupling
   (`rnd (fun b => …)`), finite sets: `Examples/PIR.lean` (`PIR.ec`); goals of the rules in
   `Logic/PHoareExactTest.lean`.

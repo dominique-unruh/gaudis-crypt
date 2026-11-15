@@ -6,8 +6,10 @@ import GaudisCrypt.Logic.PHoareExact
 The rules of `Logic/PHoareExact.lean` as EasyCrypt writes them, on a goal
 `phoare[ c : P ==> Q ] = r`:
 
-* `phoare_seq n : E p₁ p₂ p₃ p₄ I` — EC's `seq n : E p₁ p₂ p₃ p₄ I`.  The bounds are reals;
+* `phoare_seq n : E p₁ p₂ p₃ p₄ I` — EC's `seq n : E p₁ p₂ p₃ p₄ I` (`I` may be left out: EC's
+  default `true`, its goal closed).  The bounds are reals;
   `_` leaves a bound open where the other bound of its branch is `0` (its goal is not asked).
+  On a lower bound `≥ r`: the same goals with `≥`, `_` a bound `0`, and `r ≤ p₁ p₂ + p₃ p₄`.
   Goals in EC's order: `invariant`, `first_E`, `second_E`, `first_notE`, `second_notE`,
   `bound` (the reals' equation when the judgment's bound is `ENNReal.ofReal e`), and `nonneg`
   if `0 ≤ pᵢ` is not found.
@@ -113,12 +115,13 @@ elab "phoare_conseq" " (" ": " "_" " ==> " "_" " : " "= " e:term ")" : tactic =>
 open Lean Meta Elab Tactic PHoareWp ECConseq PHoareExact in
 /-- **EC's `conseq (: P ==> _)`** on an exact bound: the weaker precondition `P`.  Goals `pre`
 (closed when trivial), then the judgment. -/
-elab "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
-  unless (← isExact) && isHole Q && !isHole P do throwUnsupportedSyntax
-  let Ps ← Term.exprToSyntax (← elabGoalFunction P (mkSort Level.zero))
-  refineTagged (← `(phoareStmt_conseq_pre $Ps ?pre ?judgment)) [`pre, `judgment]
-  betaGoals
-  cleanTagged [`pre] [`pre]
+elab_rules (kind := phoareConseq) : tactic
+  | `(tactic| phoare_conseq (: $P ==> $Q)) => withMainContext do
+    unless (← isExact) && isHole Q && !isHole P do throwUnsupportedSyntax
+    let Ps ← Term.exprToSyntax (← elabGoalFunction P (mkSort Level.zero))
+    refineTagged (← `(phoareStmt_conseq_pre $Ps ?pre ?judgment)) [`pre, `judgment]
+    betaGoals
+    cleanTagged [`pre] [`pre]
 
 open Lean Meta Elab Tactic PHoareWp ECConseq PHoareExact in
 /-- **EC's `conseq (: _ ==> Q₁) (: _ ==> Q₂)`** on an exact bound: the judgment for the event
@@ -167,54 +170,92 @@ elab "phoare_conseq " H:ident : tactic => withMainContext do
   cleanTagged [`pre, `bound] [`pre, `bound]
 
 open Lean Meta Elab Tactic PHoareSeq PHoareWp ECConseq PHoareExact in
-/-- **EC's `seq n : E p₁ p₂ p₃ p₄ I`** on an exact bound (see the module docstring). -/
-elab "phoare_seq " n:num " : " E:term:max p₁:term:max p₂:term:max p₃:term:max p₄:term:max
-    I:term:max : tactic => do
-  unless ← isExact do throwUnsupportedSyntax
-  -- EC counts the statements of a block (the body of a loop before the rest, as `while`
-  -- leaves it): the sequence flattened first
-  liftMetaTactic1 fun g => some <$> Judgment.onStmt TacticMisc.flattenSeq g
-  liftMetaTactic1 fun g => some <$> Judgment.onStmt (splitLeading n.getNat) g
-  let Es ← Term.exprToSyntax (← elabGoalFunction E (mkSort Level.zero))
-  let Is ← Term.exprToSyntax (← elabGoalFunction I (mkSort Level.zero))
-  let real (p : Term) : TacticM Term := if isHole p then `((0 : ℝ)) else `(($p : ℝ))
-  -- a branch: both judgments, or one where the other bound is `_` (EC's skipped goal)
-  -- (`f`, `s`: the branch's two goals, named holes of this call — a hole named by a plain
-  -- identifier would be the hole of that name of an earlier `phoare_seq` in the same proof)
-  let branch (first second f s : Term) : TacticM Term := do
-    if isHole first && isHole second then
-      throwError "phoare_seq: both bounds of a branch are `_`"
-    else if isHole first then `(PHoareSeqBranch.second_zero _ $s)
-    else if isHole second then
-      `(PHoareSeqBranch.first_zero _ (fun _ => indicatorE_le_one _) $f)
-    else `(PHoareSeqBranch.both hI $f $s)
-  let bE ← branch p₁ p₂ (← `(?first_E)) (← `(?second_E))
-  let bN ← branch p₃ p₄ (← `(?first_notE)) (← `(?second_notE))
-  let (r₁, r₂, r₃, r₄) := (← real p₁, ← real p₂, ← real p₃, ← real p₄)
-  withMainContext do
-    refineTagged (← `(have hI := ?invariant
-      phoareStmt_seq_eq $Es $Is $r₁ $r₂ $r₃ $r₄ ?nonneg hI $bE $bN ?bound))
-      [`invariant, `first_E, `second_E, `first_notE, `second_notE, `bound, `nonneg]
-  -- `0 ≤ pᵢ`: found, or left
-  let gs ← (← getGoals).filterMapM fun g => do
-    unless (← g.getTag) == `nonneg do return some g
-    let s ← saveState
-    try
-      let rest ← evalTacticAt (← `(tactic| (refine ⟨?_, ?_, ?_, ?_⟩ <;> positivity))) g
-      if rest.isEmpty then return none
-      s.restore; return some g
-    catch _ => s.restore; return some g
-  -- the bound: over the reals when the judgment's is `ENNReal.ofReal _`
-  let gs ← gs.mapM fun g => do
-    unless (← g.getTag) == `bound do return g
-    realBound g
-  -- the invariant's triple, shared by the branches, is not a hypothesis of the goals
-  let gs ← gs.mapM fun g => g.withContext do
-    let some d := (← getLCtx).findDecl? fun d =>
-      if d.userName.eraseMacroScopes == `hI then some d else none | return g
-    try g.clear d.fvarId catch _ => return g
-  setGoals gs
-  betaGoals
-  cleanTagged [`bound] []
+/-- **EC's `seq n : E p₁ p₂ p₃ p₄ I`** on an exact bound or a lower bound (see the module
+docstring); without `I`, EC's default `true`. -/
+elab_rules (kind := phoareSeq) : tactic
+  | `(tactic| phoare_seq $n:num : $E:term $p₁:term $p₂:term $p₃:term $p₄:term $[$I?:term]?) => do
+    let ty ← withMainContext do instantiateMVars (← getMainTarget)
+    unless ty.isAppOf ``phoareStmt do throwUnsupportedSyntax
+    let ρ := ty.getArg! 3
+    let exact := ρ.isAppOf ``Eq
+    let lower := ρ.isAppOf ``GE.ge || (ρ.find? (·.isConstOf ``GE.ge)).isSome
+    unless exact || lower do throwUnsupportedSyntax
+    -- EC counts the statements of a block (the body of a loop before the rest, as `while`
+    -- leaves it): the sequence flattened first
+    liftMetaTactic1 fun g => some <$> Judgment.onStmt TacticMisc.flattenSeq g
+    liftMetaTactic1 fun g => some <$> Judgment.onStmt (splitLeading n.getNat) g
+    let I : Term ← match I? with
+      | some I => pure I
+      | none => `(True)
+    let Es ← Term.exprToSyntax (← elabGoalFunction E (mkSort Level.zero))
+    let Is ← Term.exprToSyntax (← elabGoalFunction I (mkSort Level.zero))
+    let real (p : Term) : TacticM Term := if isHole p then `((0 : ℝ)) else `(($p : ℝ))
+    let (r₁, r₂, r₃, r₄) := (← real p₁, ← real p₂, ← real p₃, ← real p₄)
+    if exact then
+      -- (`f`, `s`: the branch's two goals, named holes of this call — a hole named by a plain
+      -- identifier would be the hole of that name of an earlier `phoare_seq` in the same proof)
+      let branch (first second f s : Term) : TacticM Term := do
+        if isHole first && isHole second then
+          throwError "phoare_seq: both bounds of a branch are `_`"
+        else if isHole first then `(PHoareSeqBranch.second_zero _ $s)
+        else if isHole second then
+          `(PHoareSeqBranch.first_zero _ (fun _ => indicatorE_le_one _) $f)
+        else `(PHoareSeqBranch.both hI $f $s)
+      let bE ← branch p₁ p₂ (← `(?first_E)) (← `(?second_E))
+      let bN ← branch p₃ p₄ (← `(?first_notE)) (← `(?second_notE))
+      withMainContext do
+        refineTagged (← `(have hI := ?invariant
+          phoareStmt_seq_eq $Es $Is $r₁ $r₂ $r₃ $r₄ ?nonneg hI $bE $bN ?bound))
+          [`invariant, `first_E, `second_E, `first_notE, `second_notE, `bound, `nonneg]
+    else
+      -- a lower bound: a bound `_` is `0`, its judgment trivial
+      let sub (p : Term) (g : Term) : TacticM Term :=
+        if isHole p then `(phoareStmt_ge_zero _ _ _) else pure g
+      let (g₁, g₂, g₃, g₄) := (← sub p₁ (← `(?first_E)), ← sub p₂ (← `(?second_E)),
+        ← sub p₃ (← `(?first_notE)), ← sub p₄ (← `(?second_notE)))
+      withMainContext do
+        refineTagged (← `(phoareStmt_seq_ge $Es $Is $r₁ $r₂ $r₃ $r₄ ?nonneg ?invariant
+          $g₁ $g₂ $g₃ $g₄ ?bound))
+          [`invariant, `first_E, `second_E, `first_notE, `second_notE, `bound, `nonneg]
+    -- `0 ≤ pᵢ`: found, or left
+    let gs ← (← getGoals).filterMapM fun g => do
+      unless (← g.getTag) == `nonneg do return some g
+      let s ← saveState
+      try
+        let rest ← evalTacticAt (← `(tactic| (refine ⟨?_, ?_, ?_, ?_⟩ <;>
+          first | positivity | (simp only [EC.mu, EC.mu1]; positivity)))) g
+        if rest.isEmpty then return none
+        s.restore; return some g
+      catch _ => s.restore; return some g
+    -- the invariant `true` (EC's default): closed
+    let gs ← gs.filterMapM fun g => do
+      unless (← g.getTag) == `invariant && I?.isNone do return some g
+      let s ← saveState
+      try
+        let rest ← evalTacticAt
+          (← `(tactic| exact hoare_post (hoareStmt_true _ _) fun _ _ => trivial)) g
+        if rest.isEmpty then return none
+        s.restore; return some g
+      catch _ => s.restore; return some g
+    -- the bound: over the reals when the judgment's is `ENNReal.ofReal _`
+    let gs ← gs.mapM fun g => do
+      unless (← g.getTag) == `bound do return g
+      if exact then realBound g else
+        let s ← saveState
+        try
+          let [g'] ← evalTacticAt
+            (← `(tactic| (intro σ hσ; refine ENNReal.ofReal_le_ofReal ?_; revert σ))) g
+            | throwError "no"
+          g'.setTag `bound
+          return g'
+        catch _ => s.restore; return g
+    -- the invariant's triple, shared by the branches, is not a hypothesis of the goals
+    let gs ← gs.mapM fun g => g.withContext do
+      let some d := (← getLCtx).findDecl? fun d =>
+        if d.userName.eraseMacroScopes == `hI then some d else none | return g
+      try g.clear d.fvarId catch _ => return g
+    setGoals gs
+    betaGoals
+    cleanTagged [`bound] [`bound]
 
 end GaudisCrypt

@@ -11,7 +11,8 @@ The rules EasyCrypt's scripts use on `phoare[ c : P ==> Q ] = r` when `r` is not
 * `seq n : E p₁ p₂ p₃ p₄ I` (`phoareStmt_seq_eq`): `c₁` reaches `E` with probability exactly
   `p₁` and `¬E` with `p₃`; from `E` (and the invariant `I`) `c₂` reaches the postcondition with
   exactly `p₂`, from `¬E` with `p₄`; and `p₁ p₂ + p₃ p₄ = r`.  A bound `_` leaves its goal out:
-  EC allows it where the other bound of the branch is `0`.
+  EC allows it where the other bound of the branch is `0`.  On a lower bound
+  (`phoareStmt_seq_ge`): the same with `≥`, and `r ≤ p₁ p₂ + p₃ p₄`.
 * `case E` (`phoareStmt_case`).
 * `conseq (: _ ==> _ : = e)`: another bound, equal under the precondition
   (`phoareStmt_conseq_bound`).
@@ -32,6 +33,24 @@ theorem Stmt.ewp_congr_of_hoare {s : Stmt} {B : ProgramState → Prop} {σ : Pro
     (hFG : ∀ τ, B τ → F τ = G τ) : s.ewp F σ = s.ewp G σ :=
   le_antisymm (Stmt.ewp_mono_of_hoare h fun τ hτ => (hFG τ hτ).le)
     (Stmt.ewp_mono_of_hoare h fun τ hτ => (hFG τ hτ).ge)
+
+/-- EC's `ge0_mu`. -/
+theorem EC.ge0_mu {α : Type} (d : SubProbability α) (E : α → Prop) : 0 ≤ EC.mu d E :=
+  ENNReal.toReal_nonneg
+
+/-- EC's `le1_mu`. -/
+theorem EC.le1_mu {α : Type} (d : SubProbability α) (E : α → Prop) : EC.mu d E ≤ 1 := by
+  letI : MeasurableSpace α := ⊤
+  have h : d.expected (fun v => indicatorE (E v)) ≤ 1 := by
+    refine le_trans (MeasureTheory.lintegral_mono fun v => indicatorE_le_one (E v)) ?_
+    rw [MeasureTheory.lintegral_one]; exact d.2.1
+  exact ENNReal.toReal_le_of_le_ofReal zero_le_one (by simpa using h)
+
+/-- Every statement satisfies the postcondition `true`. -/
+theorem hoareStmt_true (A : ProgramState → Prop) (s : Stmt) : hoareStmt A s (fun _ => True) := by
+  intro σ _
+  change ((programDenotation s σ).1 {x | ¬ True}).toNNReal = 0
+  simp
 
 /-- The expected value of `0` is `0`. -/
 theorem Stmt.ewp_zero (s : Stmt) (σ : ProgramState) : s.ewp (fun _ => 0) σ = 0 :=
@@ -114,6 +133,44 @@ theorem PHoareSeqBranch.first_zero {A : ProgramState → Prop} {s₁ s₂ : Stmt
     exact (mul_le_of_le_one_left bot_le (indicatorE_le_one _)).trans
       ((Stmt.ewp_mono s₂ hQ τ).trans (Stmt.ewp_const_le s₂ 1 τ))
   · rw [indicatorE_of_not (fun h => hEτ h.1), zero_mul]; exact bot_le
+
+/-- **pHL's `seq` with five bounds**, for a lower bound. -/
+theorem phoareStmt_seq_ge {A : ProgramState → Prop} {s₁ s₂ : Stmt} (E I : ProgramState → Prop)
+    {Q : ProgramState → ENNReal} (p₁ p₂ p₃ p₄ : ℝ) {r : ProgramState → ENNReal}
+    (h0 : 0 ≤ p₁ ∧ 0 ≤ p₂ ∧ 0 ≤ p₃ ∧ 0 ≤ p₄)
+    (hI : hoareStmt A s₁ I)
+    (h₁ : phoareStmt A s₁ (fun τ => indicatorE (E τ)) (@GE.ge ENNReal _)
+      (fun _ => ENNReal.ofReal p₁))
+    (h₂ : phoareStmt (fun τ => E τ ∧ I τ) s₂ Q (@GE.ge ENNReal _) (fun _ => ENNReal.ofReal p₂))
+    (h₃ : phoareStmt A s₁ (fun τ => indicatorE (¬ E τ)) (@GE.ge ENNReal _)
+      (fun _ => ENNReal.ofReal p₃))
+    (h₄ : phoareStmt (fun τ => ¬ E τ ∧ I τ) s₂ Q (@GE.ge ENNReal _)
+      (fun _ => ENNReal.ofReal p₄))
+    (hr : ∀ σ, A σ → r σ ≤ ENNReal.ofReal (p₁ * p₂ + p₃ * p₄)) :
+    phoareStmt A (.seq s₁ s₂) Q (@GE.ge ENNReal _) r := by
+  classical
+  intro σ hA
+  obtain ⟨h1, h2, h3, h4⟩ := h0
+  change r σ ≤ _
+  rw [Stmt.ewp_seq]
+  have hσ : hoareStmt (fun τ => τ = σ) s₁ I := hoare_pre hI fun τ hτ => hτ ▸ hA
+  refine (hr σ hA).trans (le_trans ?_ (Stmt.ewp_mono_of_hoare hσ
+    (F := fun τ => ENNReal.ofReal p₂ * indicatorE (E τ) + ENNReal.ofReal p₄ * indicatorE (¬ E τ))
+    fun τ hIτ => ?_))
+  · rw [Stmt.ewp_add, Stmt.ewp_const_mul, Stmt.ewp_const_mul,
+      ENNReal.ofReal_add (mul_nonneg h1 h2) (mul_nonneg h3 h4), ENNReal.ofReal_mul h1,
+      ENNReal.ofReal_mul h3, mul_comm (ENNReal.ofReal p₁), mul_comm (ENNReal.ofReal p₃)]
+    exact add_le_add (mul_le_mul_right (h₁ σ hA) _) (mul_le_mul_right (h₃ σ hA) _)
+  · by_cases hE : E τ
+    · simpa [hE] using h₂ τ ⟨hE, hIτ⟩
+    · simpa [hE] using h₄ τ ⟨hE, hIτ⟩
+
+/-- Every expectation is at least `0` (a bound `_` of `seq` on a lower bound). -/
+theorem phoareStmt_ge_zero (A : ProgramState → Prop) (s : Stmt) (Q : ProgramState → ENNReal) :
+    phoareStmt A s Q (@GE.ge ENNReal _) (fun _ => ENNReal.ofReal 0) := by
+  intro σ _
+  change ENNReal.ofReal 0 ≤ _
+  rw [ENNReal.ofReal_zero]; exact bot_le
 
 /-- **pHL's `case E`**. -/
 theorem phoareStmt_case {A : ProgramState → Prop} {s : Stmt} {Q : ProgramState → ENNReal}

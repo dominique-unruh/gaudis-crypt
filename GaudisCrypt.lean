@@ -245,6 +245,10 @@ import GaudisCrypt.Lib.EC.FSetOflist
 import GaudisCrypt.Logic.PHoareExact
 import GaudisCrypt.Logic.PHoareExactTactics
 import GaudisCrypt.Logic.PHoareExactTest
+import GaudisCrypt.Logic.ByPrEquiv
+import GaudisCrypt.Lib.EC.DUniform
+import GaudisCrypt.Lib.EC.DBoolBiased
+import GaudisCrypt.Examples.VonNeumann
 import GaudisCrypt.Examples.PIR
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame

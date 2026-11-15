@@ -71,6 +71,77 @@ example : phoare[ Two.run : True ==> §res ] = (ENNReal.ofReal (1 / 4)) := by
   trace_state
   all_goals sorry
 
+-- without the invariant (EC's default `true`: its goal is closed), and with a tactic on the
+-- next line
+/--
+trace: case first_E
+⊢ phoare[ True ==> §a = true ] = (ENNReal.ofReal (1 / 2)) {
+      var a : Bool;
+      a <$ dbool;
+}
+
+case second_E
+⊢ phoare[ §a = true ∧ True ==> (§a && §b) = true ] = (ENNReal.ofReal (1 / 2)) {
+      var a : Bool, b : Bool;
+      b <$ dbool;
+}
+
+case second_notE
+⊢ phoare[ ¬§a = true ∧ True ==> (§a && §b) = true ] = 0 {
+      var a : Bool, b : Bool;
+      b <$ dbool;
+}
+
+case bound
+⊢ 1 / 4 = 1 / 2 * (1 / 2)
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 4 goals and ends with 4 goals, 4 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example : phoare[ Two.run : True ==> §res ] = (ENNReal.ofReal (1 / 4)) := by
+  phoare_proc
+  phoare_seq 1 : (§a) (1 / 2) (1 / 2) _ 0
+  trace_state
+  all_goals sorry
+
+-- on a lower bound: the same goals with `≥`; a bound `_` is `0`, its goal not asked
+/--
+trace: case first_E
+⊢ phoare[ True ==> §a = true ] ≥ (ENNReal.ofReal (1 / 2)) {
+      var a : Bool;
+      a <$ dbool;
+}
+
+case second_E
+⊢ phoare[ §a = true ∧ True ==> (§a && §b) = true ] ≥ (ENNReal.ofReal (1 / 2)) {
+      var a : Bool, b : Bool;
+      b <$ dbool;
+}
+
+case bound
+⊢ 1 / 4 ≤ 1 / 2 * (1 / 2)
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 3 goals and ends with 3 goals, 3 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example : phoare[ Two.run : True ==> §res ] ≥ (ENNReal.ofReal (1 / 4)) := by
+  phoare_proc
+  phoare_seq 1 : (§a) (1 / 2) (1 / 2) _ _
+  trace_state
+  all_goals sorry
+
 -- EC's `case (a)`
 /--
 trace: case pos
@@ -200,6 +271,114 @@ example (w : Stmt)
     (H : phoare[ True ==> §b ] = (ENNReal.ofReal (1 / 2)) { var b : Bool; stmt w; }) :
     phoare[ §b ==> §b ] = (ENNReal.ofReal (2⁻¹)) { var b : Bool; stmt w; } := by
   phoare_conseq H
+  trace_state
+  all_goals sorry
+
+-- `phoare_conseq (: P ==> Q)` and `phoare_seq` are one tactic each, with a rule per kind of
+-- bound: with this file's rules loaded, the older rules still answer on a lower bound
+-- (`Logic/PHoareRnd.lean`) and on an upper bound (`Logic/ECConseq.lean`, `Logic/PHoareSeq.lean`)
+/--
+trace: case post
+⊢ ∀ (b : Bool), b = true → b = true
+
+case judgment
+⊢ phoare[ True ==> §b = true ] ≥ (ENNReal.ofReal (1 / 2)) {
+      var b : Bool;
+      b <$ dbool;
+}
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example : phoare[ True ==> §b ] ≥ (ENNReal.ofReal (1 / 2)) {
+      var b : Bool;
+      b <$ dbool;
+    } := by
+  phoare_conseq (: True ==> §b = true)
+  trace_state
+  all_goals sorry
+
+/--
+trace: case pre
+⊢ ∀ (σ : ProgramState), GaudiExpr[ True ].get σ → GaudiExpr[ True ].get σ
+
+case post
+⊢ ∀ (σ : ProgramState),
+    GaudiExpr[ indicatorE (§(localVarLens "b" Bool) = true) ].get σ ≤
+      indicatorE (GaudiExpr[ §(localVarLens "b" Bool) = true ].get σ)
+
+case judgment
+⊢ phoare[ True ==> §b = true ] ≤ (ENNReal.ofReal (1 / 2)) {
+      var b : Bool;
+      b <$ dbool;
+}
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 3 goals and ends with 3 goals, 3 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example : phoare[ True ==> §b ] ≤ (ENNReal.ofReal (1 / 2)) {
+      var b : Bool;
+      b <$ dbool;
+    } := by
+  phoare_conseq (: True ==> §b = true)
+  trace_state
+  all_goals sorry
+
+/--
+trace: case invariant
+⊢ hoare[ True ==> True ] {
+      var a : Bool;
+      a <$ dbool;
+}
+
+case first_E
+⊢ phoare[ True ==> §a = true ] ≤ (1 / 2) {
+      var a : Bool;
+      a <$ dbool;
+}
+
+case second_E
+⊢ phoare[ §a = true ∧ True ==> (§a && §b) = true ] ≤ (1 / 2) {
+      var a : Bool, b : Bool;
+      b <$ dbool;
+}
+
+case second_notE
+⊢ phoare[ ¬§a = true ∧ True ==> (§a && §b) = true ] ≤ 0 {
+      var a : Bool, b : Bool;
+      b <$ dbool;
+}
+
+case bound
+⊢ ∀ (σ : ProgramState), GaudiExpr[ True ].get σ → 1 / 2 * (1 / 2) + 1 * 0 ≤ GaudiExpr[ 1 / 4 ].get σ
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 5 goals and ends with 5 goals, 5 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example : phoare[ True ==> §a && §b ] ≤ (1 / 4) {
+      var a : Bool, b : Bool;
+      a <$ dbool;
+      b <$ dbool;
+    } := by
+  phoare_seq 1 : (§a) (1 / 2) (1 / 2) 1 0 (True)
   trace_state
   all_goals sorry
 
