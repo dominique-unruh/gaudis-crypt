@@ -210,6 +210,8 @@ import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Lib.EC.Logic
+import GaudisCrypt.Lib.EC.BitWordRing
+import GaudisCrypt.Logic.ECHints
 import GaudisCrypt.Logic.ECRnd
 import GaudisCrypt.Logic.ECRndTest
 import GaudisCrypt.Logic.PHoareRnd
@@ -218,6 +220,7 @@ import GaudisCrypt.Lib.EC.Group
 import GaudisCrypt.Lib.EC.DiffieHellman
 import GaudisCrypt.Lib.EC.PKE.PKE_CPA
 import GaudisCrypt.Examples.ElGamal
+import GaudisCrypt.Examples.HashedElGamal
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.OTP

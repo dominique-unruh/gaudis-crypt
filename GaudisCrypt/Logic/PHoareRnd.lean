@@ -4,6 +4,8 @@ import GaudisCrypt.Logic.ECWhile
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECAuto
+import GaudisCrypt.Logic.ECHints
+import GaudisCrypt.Lib.EC.BitWord
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Lib.EC.Logic
 
@@ -201,6 +203,9 @@ theorem ENNReal.sum_one_div_card_eq_one (α : Type) [Fintype α] [Nonempty α] :
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, one_div]
   exact ENNReal.mul_inv_cancel (by simp [Fintype.card_ne_zero]) (ENNReal.natCast_ne_top _)
 
+-- EC's hints `random` of its libraries: the coin, the uniform distribution, the words
+attribute [ec_random] EC.dbool_ll EC.uniform_ll EC.BitWord.dunifin_ll
+
 namespace PHoareRnd
 
 open Lean Meta Elab Tactic
@@ -245,16 +250,19 @@ partial def islosslessLoop (fuel : Nat) (acc : Array MVarId) : TacticM (Array MV
         throwError "islossless: the call's goal is left{indentExpr ty}"
       return acc.push hp.mvarId!
     | none =>
-      -- an assignment, or a sampling from a lossless distribution (the uniform one: its mass,
-      -- a sum of `1 / card`)
+      -- an assignment, or a sampling from a lossless distribution: the uniform one (its mass,
+      -- a sum of `1 / card`), one with a hint `ec_random` (EC's `random`), or a hypothesis
+      let hints ← (← labelled `ec_random).mapM fun l =>
+        `(Lean.Parser.Tactic.tacticSeq| exact (EC.is_lossless_iff_expected _).mp $(mkIdent l))
       evalTactic (← `(tactic| first
         | (phoare_auto; done)
         | (phoare_auto; intros; exact ENNReal.sum_one_div_card_eq_one _)
         | (phoare_auto; intros
-           exact (EC.is_lossless_iff_expected _).mp
-             (by first | exact EC.dbool_ll | exact EC.uniform_ll | assumption))
-        | fail "islossless: cannot show that a sampling is lossless (a hypothesis \
-            `is_lossless d` in the context is used)"))
+           first
+             | exact (EC.is_lossless_iff_expected _).mp (by assumption)
+             $[| $hints]*)
+        | fail "islossless: cannot show that a sampling is lossless (EC's hint `random`: tag \
+            the lemma `is_lossless d` with `ec_random`)"))
       return acc
   else
     evalTactic (← `(tactic| phoare_seq_lossless $(Syntax.mkNumLit (toString (n - 1))) : (True)))

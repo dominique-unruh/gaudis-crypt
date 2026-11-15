@@ -206,6 +206,8 @@ the `while` row.
 | pHL `rnd E` on an **exact** bound (`phoare[ c; x <$ d : P ==> Q ] = r`) | `phoare_rnd E` (`Logic/PHoareRnd.lean`, 2026-11-15): the goal becomes EC's `phoare[ c : P ==> mu d E = r ∧ ∀ v ∈ d, (E v ↔ Q v) ] = 1`; `E` may read variables (`phoare_rnd (pred1 §b')`).  `mu`, `mu_pred1`, `dbool1E_mu1`, `pred1E` for the closer |
 | `conseq (: _ ==> Q)` on `phoare[ … ] = 1` | `phoare_conseq (: _ ==> Q)` (same file): goals `post` (over values), then the judgment; `Q = True` gives `phoare[ … ==> 1 ] = 1` |
 | `islossless` (the tactic) | `islossless`: on `phoare[ c : P ==> 1 ] = 1` or `islossless M.f`, code without loops; assignments and samplings from `dbool`, the uniform distribution or a distribution with `is_lossless d` in the context are closed, each call leaves `islossless p`, the last call first — EC's `islossless; [apply Ag_ll \| apply Ac_ll]` is `islossless <;> [exact Ag_ll; exact Ac_ll]` |
+| `hint exact random : dhkey_ll.` | `attribute [ec_random] dhkey_ll` (`Logic/ECHints.lean`): the lemmas `is_lossless d` that `islossless` closes a sampling with (EC's hint database `random`); the library's `dbool_ll`, `uniform_ll`, `BitWord.dunifin_ll` are tagged |
+| `rnd f` (pRHL, `f` an involution) | `equiv_rnd f f`: EC's `rnd f` is `rnd f f` (`hashed_elgamal_std.ec`'s `rnd (fun w, w +^ m)`; the xor identities by `Lib/EC/BitWordRing.lean`'s simp lemmas) |
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
 | `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` | `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)` (`Logic/ECConseqHoare.lean`): the right program's own Hoare triple, its conditions written with the tag (`size §bs{2} = §n{2} - 1`); goals `pre`, `post`, `hoare`, `judgment` |
@@ -789,6 +791,17 @@ Document each in the docstring when it applies.
   variable `x` by name when some binder in the judgment is called `x` (`binderClashes` erases
   the macro scopes): the goal then shows `(localVarLens "x" exp) <$ dt`.  To do: ignore
   inaccessible names there.
+
+* **`swap{i} 1 k` on the first statement of an inlined body** (2026-11-15,
+  `hashed_elgamal_std.ec`'s `swap{1} 1 1`): `inline` leaves a `reset_vars` of the callee's
+  locals in front, EC's count attaches it to the statement after it, and it does not commute
+  with the next statement (it resets that statement's variable): `stmt_swap` fails.  Move the
+  statement alone with our position, `stmt_swap_raw{i} 2 k`.  To do: a statement moved down
+  leaves its reset where it is.
+* **`call H; auto` in pHL on a lossless suffix** (EC's `call Ag_ll; auto. by call Ac_ll;
+  auto=> />; rewrite dhkey_ll dt_ll dbits_ll`): `phoare_call H; phoare_auto` computes through
+  the code before the call and leaves an expectation of the earlier call; write `islossless`
+  for the whole lossless part.
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

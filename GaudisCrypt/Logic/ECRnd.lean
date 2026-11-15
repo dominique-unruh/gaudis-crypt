@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Lib.EC.Distr
+import GaudisCrypt.Lib.EC.BitWordRing
 
 /-!
 # EC's `rnd f g`
@@ -127,7 +128,8 @@ elab "equiv_rnd" ppSpace f:term:max ppSpace g:term:max : tactic => withMainConte
     -- the conditions as EC's `rnd` leaves them: for two uniform samplings the masses are equal
     -- and every value is in the support
     let g' ← Judgment.simpArg g'.mvarId! 3 (relSimpDecls ++ [``EC.mu1_uniform_eq,
-      ``EC.mu1_dbool_eq, ``EC.dbool_support, ``SubProbability.uniform_support, ``Set.mem_univ,
+      ``EC.mu1_dbool_eq, ``EC.dbool_support, ``SubProbability.uniform_support,
+      ``EC.BitWord.mu1_dunifin_eq, ``EC.BitWord.dunifin_support, ``Set.mem_univ,
       ``forall_const, ``true_and, ``and_true, ``implies_true]) []
     replaceMainGoal [g']
 
