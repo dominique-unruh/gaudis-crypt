@@ -17,6 +17,7 @@ import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Logic.PHoareRnd
+import GaudisCrypt.Logic.ECRnd
 import GaudisCrypt.Lib.EC.Logic
 
 /-!
@@ -48,8 +49,7 @@ infrastructure batch):
   bound and the tactic `islossless` are `Logic/PHoareRnd.lean`.
 * GAP 4: EC's `module ElGamal : Scheme` has a third procedure, `dec`, which `Scheme` does not
   list.  `module M : T` wants exactly `T`'s procedures: `dec` is left out.
-* GAP 5: EC's `rnd f g` takes the bijection and its inverse; `equiv_rnd f` takes `f` and finds
-  the push-forward of the uniform distribution by itself (`dt` is an abbreviation for that).
+* GAP 5 (closed 2026-11-15): EC's `rnd f g` is `equiv_rnd f g` (`Logic/ECRnd.lean`).
 * GAP 6 (goals as shown): `byequiv` states `§allGlobals{1} = §allGlobals{2}` where EC shows
   `={glob A}`; a clone's game prints as `Module.app CPA (Module.pair ElGamal A)`, not
   `CPA(ElGamal, A).main`.
@@ -146,14 +146,17 @@ theorem ddh1_gb (m : VariableAssignment) :
   -- EC: rnd (fun z, z + loge (if b then m1 else m0){2})
   --         (fun z, z - loge (if b then m1 else m0){2}).
   equiv_rnd (fun z => z + loge (if §b{2} then §m1{2} else §m0{2}))
+    (fun z => z - loge (if §b{2} then §m1{2} else §m0{2}))
   -- EC: auto; call (_:true).
   equiv_auto; equiv_call (_ : ={glob A})
   -- EC: auto; progress.
   --     - by rewrite ZPF.addrAC -ZPF.addrA ZPF.subrr ZPF.addr0.
   --     - by rewrite  -ZPF.addrA ZPF.subrr ZPF.addr0.
   --     - by rewrite expD expgK.
-  --     (the two conditions on the bijection are found by `equiv_rnd`, GAP 5)
-  equiv_auto; smt_close [expD, expgK]
+  --     (`progress` closes the bijection's two equations, in the field `exp`, itself; it splits
+  --     the conditional, so EC's third goal comes once per value of `b`)
+  equiv_auto; auto_progress
+  all_goals rw [expD, expgK]
 
 include Ac_ll Ag_ll in
 /-- EC's `local lemma Gb_half &m: Pr[Gb.main()@ &m : res] = 1%r/2%r`. -/

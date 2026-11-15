@@ -210,6 +210,8 @@ import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Lib.EC.Logic
+import GaudisCrypt.Logic.ECRnd
+import GaudisCrypt.Logic.ECRndTest
 import GaudisCrypt.Logic.PHoareRnd
 import GaudisCrypt.Logic.PHoareRndTest
 import GaudisCrypt.Lib.EC.Group

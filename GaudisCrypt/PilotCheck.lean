@@ -20,6 +20,7 @@ import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PHoareSeqTest
 import GaudisCrypt.Logic.ByPrTest
 import GaudisCrypt.Logic.PHoareRndTest
+import GaudisCrypt.Logic.ECRndTest
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.ReadNormTest
