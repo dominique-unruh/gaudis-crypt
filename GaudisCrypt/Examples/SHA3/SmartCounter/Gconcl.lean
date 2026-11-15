@@ -239,7 +239,7 @@ module G3 (D : DISTINGUISHER) using (RO : F.RO_T) {
     _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) (0, c0);
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
-    b <- call (Module.app (DRestr D) (Module.pair (Module.app G3.M RO) (Module.app G3.S RO))) ();
+    b <- call DRestr(D, G3.M(RO), G3.S(RO)).distinguish ();
     return $b
   };
 }
@@ -310,7 +310,7 @@ module G4 (D : DISTINGUISHER) using (RO : F.RO_T) {
     G1.mi <- (FMap.empty : smap);
     -- the empty path is initially known by the adversary to lead to capacity 0^c
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
-    b <- call (Module.app (DRestr D) (Module.pair (Module.app G4.C RO) (Module.app G4.S RO))) ();
+    b <- call DRestr(D, G4.C(RO), G4.S(RO)).distinguish ();
     return $b
   };
 }

@@ -259,7 +259,8 @@ theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
 
 theorem useful (m mi : FMap state state) (a : state) :
     invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) :=
-  fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
+  fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate
+    Pilot.ConcreteF.Switching.uD_uf_fu m
     ⟨a, h⟩
 
 /-- `clone import Program as Prog with type t <- bool, op d <- dbool`. -/

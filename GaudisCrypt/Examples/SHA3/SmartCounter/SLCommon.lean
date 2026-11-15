@@ -88,6 +88,12 @@ noncomputable abbrev Indif := Indifferentiability.Indif state (List block) block
 noncomputable abbrev RealIndif := Indifferentiability.GReal state (List block) block
 noncomputable abbrev IdealIndif := Indifferentiability.GIdeal state (List block) block
 
+/-- EC's subtyping `PRIMITIVE <: DPRIMITIVE` (its `f`, `fi`). -/
+module_subtype PRIMITIVE <: DPRIMITIVE
+
+/-- EC's subtyping `FUNCTIONALITY <: DFUNCTIONALITY` (its `f`). -/
+module_subtype FUNCTIONALITY <: DFUNCTIONALITY
+
 /-! ## The ideal functionality -/
 
 -- `clone import FullRO as F with type in_t <- block list, type out_t <- block,
@@ -257,27 +263,10 @@ module DRestr (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;
     _ <- call C.init ();
-    b <- call (Module.app D (Module.pair (Module.app DFRestr F) (Module.app DPRestr P))) ();
+    b <- call D(DFRestr(F), DPRestr(P)).distinguish ();
     return $b
   };
 }
-
-/-- `DFRestr` touches `C`'s variables only.  Not an EC lemma: EasyCrypt reads a concrete
-module's globals off its code (for `fp_disjoint`, as `glob DRestr(D)`'s side conditions). -/
-@[fp_bound] theorem fvP_DFRestr : FVP.fvP DFRestr ≤ C.footprint := by
-  fp_module (Lens.pair C.c C.queries)
-
-/-- `DPRestr` touches `C`'s variables only.  Not an EC lemma (as `fvP_DFRestr`). -/
-@[fp_bound] theorem fvP_DPRestr : FVP.fvP DPRestr ≤ C.footprint := by
-  fp_module (Lens.pair C.c C.queries)
-
-/-- `FC` touches `C`'s variables only.  Not an EC lemma (as `fvP_DFRestr`). -/
-@[fp_bound] theorem fvP_FC : FVP.fvP FC ≤ C.footprint := by
-  fp_module (Lens.pair C.c C.queries)
-
-/-- `PC` touches `C`'s variables only.  Not an EC lemma (as `fvP_DFRestr`). -/
-@[fp_bound] theorem fvP_PC : FVP.fvP PC ≤ C.footprint := by
-  fp_module (Lens.pair C.c C.queries)
 
 end GaudisCrypt.SHA3.SLCommon
 
@@ -297,14 +286,10 @@ variable [SLCommon.Params]
 /-- EC's `type state = block * capacity` (`SLCommonCore`'s, named here: a root `state` exists). -/
 abbrev state := GaudisCrypt.SHA3.SLCommon.state
 
-/-! The clone's module types, variables and modules are the first port's
-(section `FirstPort` above): one declaration per EC variable, shared with the pilots of
-`Handle`, `Gcol`, `Gext`, `Gconcl`.  EC's subtyping of its module types, as
-`Indifferentiability.lean` declares it. -/
-
-module_subtype PRIMITIVE <: DPRIMITIVE
-
-module_subtype FUNCTIONALITY <: DFUNCTIONALITY
+/-! The module types, the module variables and the modules `C`, `Redo`,
+`SqueezelessSponge`, `PC`, `DPRestr`, `FC`, `DFRestr`, `DRestr` are declared in the section
+`FirstPort` above: one declaration per EC variable, shared with `Handle`, `Gcol`, `Gext`,
+`Gconcl`. -/
 
 module PRestr using (P : PRIMITIVE) : PRIMITIVE {
   proc init () : Unit {

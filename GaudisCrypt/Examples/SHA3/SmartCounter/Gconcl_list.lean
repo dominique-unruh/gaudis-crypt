@@ -1526,11 +1526,10 @@ omit [BlockSponge.Params] [Params] in
   fp_module
 
 omit [BlockSponge.Params] [Params] in
-/-- `P.f` is lossless (`ConcreteF.Perm_f_ll`: `Perm.m` misses the queried key, so its range misses
-a value).  Not an EC lemma. -/
+/-- `P.f` is lossless (`RP`'s `f_ll`: `dstate` is full). -/
 theorem P_f_ll :
     (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P).procedure.IsLossless :=
-  ConcreteF.Perm_f_ll
+  EC.PRP.RP.f_ll dD_ll (dprod_fu BitWord.dunifin_fu BitWord.dunifin_fu)
 
 omit [BlockSponge.Params] [Params] in
 /-- `Sponge` has no globals.  Not an EC lemma. -/

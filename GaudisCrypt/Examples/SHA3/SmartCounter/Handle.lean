@@ -34,7 +34,6 @@ J)`, `glob D` in conditions, `equiv_conseq H`, `phoare_while I V`, `sp` keeping 
 `Handle`.
 
 Deviations from EC's proof:
-* `unfold CF`: the old port declares `CF` a `def`, not a module alias;
 * the oracles' steps `eq_f`, `eq_fi`, `PFf_Cf` are the old port's (with its footprint hypothesis
   for `D`, discharged by `fp_disjoint`), and so is `INV_CF_G1_init` (EC's 18 `smt` calls);
 * the right oracles' losslessness is one more goal each (exception E11);
@@ -244,7 +243,7 @@ module G1 (D : DISTINGUISHER) {
     FRO.m <- FMap.set (FMap.empty : FMap handle (capacity × flag)) 0 (c0, Known);
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
-    b <- call (Module.app D (Module.pair G1.M G1.S)) ();
+    b <- call D(G1.M, G1.S).distinguish ();
     return $b
   };
 }
@@ -3042,6 +3041,7 @@ namespace GaudisCrypt.SHA3.Pilot.Handle
 open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.FSet GaudisCrypt.EC.PROM GaudisCrypt.SHA3.Common
 open GaudisCrypt.SHA3.SLCommon GaudisCrypt.SHA3.SLCommon.Prefix GaudisCrypt.SHA3.ConcreteF
 open GaudisCrypt.SHA3.Handle
+open GaudisCrypt.SHA3.Pilot.ConcreteF (CF)
 
 variable [SLCommon.Params]
 
@@ -3928,7 +3928,6 @@ include D_ll in
 !(G1.bcol \/ G1.bext){2} => ={res}`, its proof EC's (see the module docstring). -/
 theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
     ={glob D} ==> ¬(§G1.bcol{2} ∨ §G1.bext{2}) → ={res} ] := by
-  unfold CF -- the old port declares `CF` a `def`, not an alias
   equiv_proc; stmt_inline*; stmt_wp
   equiv_call (_ : §G1.bcol ∨ §G1.bext,
     ={glob C} ∧
@@ -4042,9 +4041,6 @@ theorem Real_G1 (m : VariableAssignment) :
   -- EC: apply (@RealOrder.ler_trans _ _ _ (Real_Concrete D _ &m))=>//=.
   --     + exact: D_ll.
   refine le_trans (Pilot.ConcreteF.Real_Concrete D D_ll m) ?_
-  --     (`ConcreteF`'s `CF`, an abbreviation, is the first port's `CF`, a definition)
-  have e : Pr[ (Pilot.ConcreteF.CF (DRestr D)) () @ &m : §res ] =
-      Pr[ CF(DRestr(D)).main () @ &m : §res ] := rfl
   -- EC: have : Pr[CF(DRestr(D)).main() @ &m : res] <=
   --           Pr[G1(DRestr(D)).main() @ &m : res] +
   --           Pr[G1(DRestr(D)).main() @ &m : G1.bcol \/ G1.bext].

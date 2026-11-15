@@ -200,7 +200,7 @@ module G2 (D : DISTINGUISHER) using (HS : HFRO) {
     _ <- call HS.set (0, c0);
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
-    b <- call (Module.app D (Module.pair (Module.app G2.M HS) (Module.app G2.S HS))) ();
+    b <- call D(G2.M(HS), G2.S(HS)).distinguish ();
     return $b
   };
 }
