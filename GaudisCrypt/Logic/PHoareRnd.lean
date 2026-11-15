@@ -120,6 +120,64 @@ theorem phoareStmt_rnd_eq_ofReal {A : ProgramState → Prop} {c : Stmt} {α : Ty
       unfold indicatorE; split_ifs <;> simp))
   rw [← hr, EC.mu, ENNReal.ofReal_toReal hfin]
 
+/-- **EC's pHL `rnd E`** on a lower bound, `phoare[ c; x <$ d : P ==> Q ] ≥ r`: the code before
+the sampling reaches, with probability `1`, a state in which `E` has probability at least `r`
+and, on the distribution's support, implies the postcondition. -/
+theorem phoareStmt_rnd_ge_ofReal {A : ProgramState → Prop} {c : Stmt} {α : Type}
+    {x : Setter α ProgramState} {e : Getter (SubProbability α) ProgramState}
+    (E : ProgramState → α → Prop) {Q : ProgramState → Prop} {r : ℝ}
+    (h : phoareStmt A c (fun τ => indicatorE
+        (r ≤ EC.mu (e.get τ) (E τ) ∧
+          ∀ v ∈ (e.get τ).support, (E τ v → Q (x.set v τ)))) Eq (fun _τ => 1)) :
+    phoareStmt A (.seq c (.sample x e)) (fun τ => indicatorE (Q τ)) GE.ge
+      (fun _τ => ENNReal.ofReal r) := by
+  classical
+  intro σ hA
+  show ENNReal.ofReal r ≤ _
+  rw [Stmt.ewp_seq, Stmt.ewp_sample]
+  have key : ∀ τ, (r ≤ EC.mu (e.get τ) (E τ) ∧
+      ∀ v ∈ (e.get τ).support, (E τ v → Q (x.set v τ))) →
+      ENNReal.ofReal r ≤ (e.get τ).expected fun v => indicatorE (Q (x.set v τ)) := by
+    intro τ ⟨hr, hE⟩
+    have hfin : ((e.get τ).expected fun v => indicatorE (E τ v)) ≠ ⊤ :=
+      ne_top_of_le_ne_top ENNReal.one_ne_top (SubProbability.expected_le_one _ (fun a => by
+        unfold indicatorE; split_ifs <;> simp))
+    calc ENNReal.ofReal r ≤ ENNReal.ofReal (EC.mu (e.get τ) (E τ)) := ENNReal.ofReal_le_ofReal hr
+      _ = (e.get τ).expected fun v => indicatorE (E τ v) := by
+          rw [EC.mu, ENNReal.ofReal_toReal hfin]
+      _ = (e.get τ).expected fun v => indicatorE (E τ v ∧ Q (x.set v τ)) :=
+          SubProbability.expected_congr_satisfies (P := (· ∈ (e.get τ).support))
+            (fun v hv => SubProbability.mem_support_of_ne_zero hv) (fun v hv => by
+              by_cases hEv : E τ v
+              · rw [indicatorE_of hEv, indicatorE_of ⟨hEv, hE v hv hEv⟩]
+              · rw [indicatorE_of_not hEv, indicatorE_of_not (fun h => hEv h.1)])
+      _ ≤ _ := SubProbability.expected_mono_pt _ fun v => by
+          by_cases hq : Q (x.set v τ)
+          · rw [indicatorE_of hq]; exact indicatorE_le_one _
+          · rw [indicatorE_of_not (fun h => hq h.2)]; exact bot_le
+  calc ENNReal.ofReal r
+      = c.ewp (fun τ => ENNReal.ofReal r * indicatorE
+          (r ≤ EC.mu (e.get τ) (E τ) ∧
+            ∀ v ∈ (e.get τ).support, (E τ v → Q (x.set v τ)))) σ := by
+        rw [Stmt.ewp_const_mul, h σ hA, mul_one]
+    _ ≤ _ := Stmt.ewp_mono c (fun τ => by
+        by_cases hΨ : r ≤ EC.mu (e.get τ) (E τ) ∧
+            ∀ v ∈ (e.get τ).support, (E τ v → Q (x.set v τ))
+        · rw [indicatorE_of hΨ, mul_one]; exact key τ hΨ
+        · rw [indicatorE_of_not hΨ, mul_zero]; exact bot_le) σ
+
+/-- `phoareStmt_rnd_ge_ofReal` with the postcondition itself as the event (EC's `rnd` on a
+lower bound). -/
+theorem phoareStmt_rnd_ge_post {A : ProgramState → Prop} {c : Stmt} {α : Type}
+    {x : Setter α ProgramState} {e : Getter (SubProbability α) ProgramState}
+    {Q : ProgramState → Prop} {r : ℝ}
+    (h : phoareStmt A c (fun τ => indicatorE
+        (r ≤ EC.mu (e.get τ) (fun v => Q (x.set v τ)))) Eq (fun _τ => 1)) :
+    phoareStmt A (.seq c (.sample x e)) (fun τ => indicatorE (Q τ)) GE.ge
+      (fun _τ => ENNReal.ofReal r) :=
+  phoareStmt_rnd_ge_ofReal (fun τ v => Q (x.set v τ))
+    (phoareStmt_conseq_eq_one _ (fun _ hr => ⟨hr, fun _ _ hq => hq⟩) h)
+
 /-! ## Events reached with probability `1`
 
 `phoare[ c : P ==> Q ] = 1` with `Q` an event: EC's rules keep it an event (a lossless call
@@ -171,6 +229,12 @@ theorem phoareStmt_skip_event {A Q : ProgramState → Prop} (h : ∀ σ, A σ �
     phoareStmt A .skip (fun τ => indicatorE (Q τ)) Eq (fun _τ => 1) :=
   phoareStmt_skip_iff.mpr fun σ hA => indicatorE_of (h σ hA)
 
+/-- The expectation `1` is the event `True`. -/
+theorem phoareStmt_one_iff_event {A : ProgramState → Prop} {c : Stmt}
+    {ρ : ENNReal → ENNReal → Prop} {r : ProgramState → ENNReal} :
+    phoareStmt A c (fun _τ => 1) ρ r ↔ phoareStmt A c (fun _τ => indicatorE True) ρ r := by
+  simp only [indicatorE_true]
+
 namespace PHoareRnd
 
 open Lean Meta Elab Tactic PHoareSeq PHoareWp
@@ -191,19 +255,16 @@ where
     let g ← try Judgment.simpArg g 2 [``indicatorE_mul_fold, ``indicatorE_ite_fold] []
       catch _ => pure g
     let ty ← instantiateMVars (← g.getType)
-    let .lam n d b bi := ty.getArg! 2 | return none
+    -- (a condition as the notation builds it, `(Getter.mk fun st => …).get`, is that function)
+    let post ← whnfR (ty.getArg! 2)
+    let .lam n d b bi := post | return none
     if b.isAppOfArity ``indicatorE 1 then return some g
     unless one do return none
     -- `1`: the event `True`
     unless b.isAppOfArity ``OfNat.ofNat 3 && b.getArg! 1 == mkRawNatLit 1 do return none
-    let args := ty.getAppArgs
-    let post := Lean.Expr.lam n d (mkApp (mkConst ``indicatorE) (mkConst ``True)) bi
-    let target := mkAppN ty.getAppFn (args.set! 2 post)
-    let pf ← mkFreshExprMVar (← mkEq target ty)
-    let (r, _) ← simpGoal pf.mvarId! (← Simp.mkContext
-      (simpTheorems := #[← ({} : SimpTheorems).addConst ``indicatorE_true]))
-    if r.isSome then return none
-    return some (← g.replaceTargetEq target (← mkEqSymm pf))
+    let gs ← try applyIffMpr ``phoareStmt_one_iff_event g catch _ => return none
+    let [g] := gs | return none
+    return some g
 
 /-- Is the judgment `g` an exact one with the bound `1` (`ENNReal.ofReal 1`, as `byphoare`
 leaves it, is rewritten to `1`)?  `none`, the state restored, if not. -/
@@ -218,7 +279,7 @@ where
     unless ty.isAppOfArity ``phoareStmt 5 && (ty.getArg! 3).isAppOf ``Eq do return none
     let g ← try Judgment.simpArg g 4 [``ENNReal.ofReal_one] [] catch _ => pure g
     let ty ← instantiateMVars (← g.getType)
-    let .lam _ _ b _ := ty.getArg! 4 | return none
+    let .lam _ _ b _ := ← whnfR (ty.getArg! 4) | return none
     unless b.isAppOfArity ``OfNat.ofNat 3 && b.getArg! 1 == mkRawNatLit 1 do return none
     return some g
 
@@ -304,7 +365,7 @@ last call (an assignment or a conditional by `wp`, a sampling by `rnd`), the jud
 throughout; `skip` when the code is used up.  `false` if the goal is not such a judgment. -/
 def eventAuto : TacticM Bool := do
   let some g ← boundOne (← getMainGoal) | return false
-  let some g ← foldEvent g | return false
+  let some g ← foldEvent g (one := true) | return false
   replaceMainGoal [g]
   for _ in [0:1000] do
     let g ← getMainGoal
@@ -331,6 +392,8 @@ def eventAuto : TacticM Bool := do
   let g ← g.withContext do
     g.replaceTargetDefEq (← Core.betaReduce (← instantiateMVars (← g.getType)))
   replaceMainGoal [← TacticMisc.generalizeReadsOr "phoare_auto" g]
+  -- the trivial conjuncts (`∀ v ∈ d, True` of a sampling whose value the event does not read)
+  evalTactic (← `(tactic| try simp only [implies_true, and_true, true_and, forall_const]))
   return true
 
 end PHoareRnd
@@ -348,19 +411,30 @@ open Lean Meta Elab Tactic PHoareSeq PHoareWp in
 elab_rules : tactic
   | `(tactic| phoare_rnd) => do
     let g ← getMainGoal
-    let some g ← PHoareRnd.boundOne g
-      | throwError "phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = 1`{indentExpr (← g.getType)}"
-    let some g ← PHoareRnd.eventRnd g
-      | throwError "phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = 1` with `Q` an event\
-          {indentExpr (← g.getType)}"
-    replaceMainGoal [g]
+    match ← PHoareRnd.boundOne g with
+    | some g =>
+      let some g ← PHoareRnd.eventRnd g
+        | throwError "phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = 1` with `Q` an event\
+            {indentExpr (← g.getType)}"
+      replaceMainGoal [g]
+    | none =>
+      -- a lower bound: the postcondition is the event
+      let g := (← PHoareRnd.foldEvent g).getD g
+      let some r ← PHoareRnd.openEventRule ``phoareStmt_rnd_ge_post g
+        | throwError "phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = 1` or `≥ r` with `Q` an \
+            event{indentExpr (← g.getType)}"
+      let m ← r.close
+      replaceMainGoal [← PHoareRnd.simpEvent m (some (← instantiateMVars (← r.arg `r)))]
   | `(tactic| phoare_rnd $E:term) => do
     let g₀ ← getMainGoal
     let g := (← PHoareRnd.foldEvent g₀).getD g₀
     let some r ← (do
         match ← PHoareRnd.openEventRule ``phoareStmt_rnd_eq_ofReal g with
         | some r => pure (some r)
-        | none => PHoareRnd.openEventRule ``phoareStmt_rnd_eq g)
+        | none =>
+          match ← PHoareRnd.openEventRule ``phoareStmt_rnd_eq g with
+          | some r => pure (some r)
+          | none => PHoareRnd.openEventRule ``phoareStmt_rnd_ge_ofReal g)
       | throwError "phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = r` with `Q` an event and \
           `r` a constant{indentExpr (← g₀.getType)}"
     -- the event is read against the goal with its sampling
@@ -404,22 +478,96 @@ elab_rules : tactic
     -- what EC's `auto` closes by itself
     evalTactic (← `(tactic| try (intros; trivial)))
 
+/-- **EC's `conseq (: P' ==> Q')`** on a lower bound `phoare[ c : P ==> Q ] ≥ r`: a weaker
+precondition and a stronger event; what the precondition says may be used for the events. -/
+theorem phoareStmt_conseq_ge {A A' : ProgramState → Prop} {c : Stmt}
+    {Q Q' : ProgramState → Prop} {r : ProgramState → ENNReal}
+    (hpre : ∀ σ, A σ → A' σ) (hpost : ∀ σ, A σ → ∀ τ, Q' τ → Q τ)
+    (h : phoareStmt A' c (fun τ => indicatorE (Q' τ)) GE.ge r) :
+    phoareStmt A c (fun τ => indicatorE (Q τ)) GE.ge r := by
+  classical
+  intro σ hA
+  refine le_trans (h σ (hpre σ hA)) (Stmt.ewp_mono c (fun τ => ?_) σ)
+  by_cases hτ : Q' τ
+  · rw [indicatorE_of hτ, indicatorE_of (hpost σ hA τ hτ)]
+  · rw [indicatorE_of_not hτ]; exact bot_le
+
+namespace PHoareRnd
+
+open Lean Meta Elab Tactic PHoareWp
+
+/-- A side condition about two states, `∀ σ, A σ → ∀ τ, B τ`: over values, the reads of `σ`
+generalized first, then those of `τ`. -/
+def cleanTwoStates (g : MVarId) : MetaM MVarId := do
+  let g ← cleanSideGoal g
+  -- the binders before the second state
+  let n ← forallTelescope (← instantiateMVars (← g.getType)) fun xs _ => do
+    let mut n := 0
+    for x in xs do
+      if (← whnfR (← inferType x)).isConstOf ``ProgramState then break
+      n := n + 1
+    return if n == xs.size then 0 else n
+  if n == 0 then return g
+  let (xs, g) ← g.introNP n
+  let g ← cleanSideGoal g
+  let (_, g) ← g.revert xs (preserveOrder := true)
+  return g
+
+end PHoareRnd
+
 open Lean Meta Elab Tactic PHoareWp GaudisCrypt.ECConseq in
 /-- **EC's `conseq (: _ ==> Q)`** on `phoare[ c : P ==> Q₀ ] = 1`: goals `post` (`Q` implies
-`Q₀`), then the judgment with `Q` (`phoareStmt_conseq_eq_one`). -/
+`Q₀`), then the judgment with `Q` (`phoareStmt_conseq_eq_one`).
+
+**EC's `conseq (: P ==> Q)`** on a lower bound `phoare[ c : P₀ ==> Q₀ ] ≥ r`, `Q₀` an event:
+goals `pre` (`P₀` implies `P`; closed when trivial), `post` (from `P₀`, `Q` implies `Q₀`), then
+the judgment with `P`, `Q` (`phoareStmt_conseq_ge`).
+
+Upper bounds go to `phoare_conseq` of `Logic/ECConseq.lean`. -/
 elab "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
-  let ty ← instantiateMVars (← getMainTarget)
-  unless ty.isAppOf ``phoareStmt && isHole P && !isHole Q do throwUnsupportedSyntax
-  unless (ty.getArg! 3).isAppOf ``Eq do throwUnsupportedSyntax
-  let Qs ← Term.exprToSyntax (← elabGoalFunction Q (mkSort Level.zero))
-  refineTagged (← `(phoareStmt_conseq_eq_one $Qs ?post ?judgment)) [`post, `judgment]
-  let gs ← (← getGoals).mapM fun g => do
+  let s ← saveState
+  let g ← getMainGoal
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOf ``phoareStmt && !isHole Q do throwUnsupportedSyntax
+  if (ty.getArg! 3).isAppOf ``Eq then
+    unless isHole P do throwUnsupportedSyntax
+    let Qs ← Term.exprToSyntax (← elabGoalFunction Q (mkSort Level.zero))
+    refineTagged (← `(phoareStmt_conseq_eq_one $Qs ?post ?judgment)) [`post, `judgment]
+    let gs ← (← getGoals).mapM fun g => do
+      match ← g.getTag with
+      -- the implication, over values (the reads generalized)
+      | `post => cleanSideGoal g
+      -- the judgment, its event `True` the expectation `1`
+      | `judgment => simpPost g
+      | _ => pure g
+    setGoals gs
+    return
+  -- a lower bound: the relation as `≥` is written, or as `byphoare` leaves it
+  let ρ := ty.getArg! 3
+  unless ρ.isAppOf ``GE.ge || (ρ.find? (·.isConstOf ``GE.ge)).isSome do throwUnsupportedSyntax
+  let some g ← PHoareRnd.foldEvent g | throwUnsupportedSyntax
+  replaceMainGoal [g]
+  let ty ← instantiateMVars (← g.getType)
+  let Pe ← if isHole P then pure (ty.getArg! 0) else elabGoalFunction P (mkSort Level.zero)
+  let Qe ← elabGoalFunction Q (mkSort Level.zero)
+  let (Ps, Qs) := (← Term.exprToSyntax Pe, ← Term.exprToSyntax Qe)
+  try
+    refineTagged (← `(phoareStmt_conseq_ge (A' := $Ps) (Q' := $Qs) ?pre ?post ?judgment))
+      [`pre, `post, `judgment]
+  catch _ => s.restore; throwUnsupportedSyntax
+  let gs ← (← getGoals).filterMapM fun g => do
     match ← g.getTag with
-    -- the implication, over values (the reads generalized)
-    | `post => cleanSideGoal g
-    -- the judgment, its event `True` the expectation `1`
-    | `judgment => simpPost g
-    | _ => pure g
+    | `pre =>
+      let g ← cleanSideGoal g
+      -- EC's `conseq` closes a trivial precondition itself
+      let s ← saveState
+      try
+        let rest ← evalTacticAt (← `(tactic| (intros; trivial))) g
+        if rest.isEmpty then return none
+        s.restore; return some g
+      catch _ => s.restore; return some g
+    | `post => return some (← PHoareRnd.cleanTwoStates g)
+    | _ => return some g
   setGoals gs
 
 /-- The uniform distribution on a finite nonempty type is lossless, as the sum `phoare_auto`
@@ -480,8 +628,15 @@ partial def islosslessLoop (fuel : Nat) (acc : Array MVarId) : TacticM (Array MV
       -- a sum of `1 / card`), one with a hint `ec_random` (EC's `random`), or a hypothesis
       let hints ← (← labelled `ec_random).mapM fun l =>
         `(Lean.Parser.Tactic.tacticSeq| exact (EC.is_lossless_iff_expected _).mp $(mkIdent l))
+      -- (`phoare_auto` on `= 1` leaves `is_lossless d`: `Logic/PHoareRnd.lean`'s event rules)
+      let hints' ← (← labelled `ec_random).mapM fun l =>
+        `(Lean.Parser.Tactic.tacticSeq| exact $(mkIdent l))
       evalTactic (← `(tactic| first
         | (phoare_auto; done)
+        | (phoare_auto; intros
+           first
+             | assumption
+             $[| $hints']*)
         | (phoare_auto; intros; exact ENNReal.sum_one_div_card_eq_one _)
         | (phoare_auto; intros
            first

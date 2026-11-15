@@ -222,6 +222,9 @@ the `while` row.
 | `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's seven).  The exit goal's frames are equations between the two final states' reads (`x τ₂ = x τ₁`, and the invariant's `x τ₁ = x τ₂`): `subst_frames` keeps one of each pair, so `progress`/`smt_close` close frame equalities as EC does.  The older four-goal form without frame is `equiv_while_raw` |
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, then the code before (EC's: `I` and, over the loop's final states under EC's frame, `I ∧ ¬guard ⇒ post`; old form with an `exit` goal and no frame: `equiv_while_noframe{i}`). EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
+| pHL `while I V k ε` (the loop alone; probabilistic termination) | `phoare_while I V k ε` (`Logic/PHoareWhileRev.lean`, 2026-11-15): `V` an integer, `k` an integer, `ε` a real.  EC's goals in its order — `pre_inv`, `pre_bound`, `term` (`I → V ≤ k ∧ (V ≤ 0 → ¬guard)`), `body` (`∀ w, phoare[ w : P ==> Q ] = r → phoare[ c; w : P ∧ guard ==> Q ] = r`: EC's abstract statement, `intro w ih`), `inv`, `rate` (`0 < ε`), `variant` (`∀ z, phoare[ c : I ∧ guard ∧ V = z ==> V < z ] ≥ ε`) — those that are not judgments closed when trivial (EC's `=> //`); beyond EC's, `sat` (some state satisfies the postcondition; closed for `true`): our `w` is a quantified statement, and without `sat` the `body` goal could hold vacuously.  EC's `seq 1: true=> //` on the body goal is `phoare_seq_lossless 1 : (True)` with `exact ih` for the second part |
+| pHL `conseq (: P ==> Q)` on a lower bound `≥ r` | `phoare_conseq (: P ==> Q)` (`Logic/PHoareRnd.lean`): goals `pre` (closed when trivial), `post` (from the old precondition, `Q` implies the old event: EC's goal, over the values before and after), then the judgment |
+| pHL `rnd` / `rnd E` on a lower bound `≥ r` | `phoare_rnd` (the postcondition is the event) / `phoare_rnd E`: the goal becomes `phoare[ c : P ==> r ≤ mu d E ∧ ∀ v ∈ d, (E v → Q v) ] = 1`; then `phoare_auto` |
 | Hoare `while I` | `hoare_while I` |
 | `splitwhile{i} n : e` / `unroll{i} n` | `stmt_splitwhile{i} n : e` / `stmt_unroll{i} n` |
 | `alias{i} n x = e` | `stmt_alias{i} n x = e` |
@@ -844,6 +847,13 @@ Document each in the docstring when it applies.
   for a call's tuple result (`simp only at … ⊢` reduces the projections).  `auto_progress` also
   leaves the cases EC's `/>` closes (a conditional's other branch): close them after.
 * **`pow_bij`** (`g ^ a = g ^ b ↔ a = b`): `congrArg loge h` and `loggK`.
+* **`auto` on a lossless goal** (`phoare[ c : P ==> true ] = 1`, EC's `by auto=> />; exact/sample_ll`):
+  with `Logic/PHoareRnd.lean` imported `phoare_auto` leaves `is_lossless d` for a sampling (the
+  event rules; before, the expectation `d.expected fun _ => 1 = 1`): `phoare_auto; exact
+  sample_ll`.
+* **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
+  `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
+  `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

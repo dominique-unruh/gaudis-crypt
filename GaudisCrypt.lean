@@ -228,6 +228,9 @@ import GaudisCrypt.Examples.SchnorrPK
 import GaudisCrypt.Lib.EC.DLog
 import GaudisCrypt.Lib.EC.Commitment
 import GaudisCrypt.Examples.Pedersen
+import GaudisCrypt.Logic.PHoareWhileRev
+import GaudisCrypt.Logic.PHoareWhileRevTest
+import GaudisCrypt.Examples.WhileSampling
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.OTP

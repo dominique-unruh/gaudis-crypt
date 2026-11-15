@@ -221,7 +221,7 @@ inst✝ : Module.Declared A ⊥
 A_ll : A.guess.procedure.IsLossless
 m : VariableAssignment
 ⊢ ∀ (σ : ProgramState),
-    () = () ∧ CurrentState.state.globals = m →
+    σ.globals = m →
       is_lossless dbool ∧
         ∀ v ∈ dbool.support,
           ∀ (v : Bool), mu dbool (pred1 v) = 1 / 2 ∧ ∀ v_1 ∈ dbool.support, pred1 v v_1 ↔ decide (v = v_1) = true
