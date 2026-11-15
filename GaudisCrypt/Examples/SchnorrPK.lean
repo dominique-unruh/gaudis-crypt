@@ -28,7 +28,6 @@ import GaudisCrypt.Logic.ECRnd
 
 EC's file, declaration by declaration and script line by line: completeness (with its
 losslessness), special soundness and special honest-verifier zero knowledge, all proven.
-(`Examples/EasyCryptBench/Schnorr.lean` is the older version, to be replaced by this file.)
 
 Translation (as `Examples/ElGamal.lean`):
 * `clone Group.CyclicGroup as G … clone GP.FDistr as FD. clone GP.ZModE.ZModpField as ZPF.` is

@@ -27,8 +27,6 @@ import GaudisCrypt.Logic.ECRnd
 (EasyCrypt `examples/hashed_elgamal_std.ec`)
 
 EC's file, declaration by declaration and script line by line; all five lemmas are proven.
-(`Examples/EasyCryptBench/HashedElGamal.lean` is the older version, to be replaced by this
-file.)
 
 Translation (as `Examples/ElGamal.lean`):
 * `op k : { int | 0 < k } as gt0_k` is the class `Params`; `clone import BitWord as Bits with

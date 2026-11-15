@@ -25,8 +25,7 @@ import GaudisCrypt.Lib.EC.Logic
 # ElGamal is IND-CPA under DDH (EasyCrypt `examples/elgamal.ec`)
 
 EC's file, declaration by declaration and script line by line (the pilot of the examples'
-re-port, 2026-11-15; `Examples/EasyCryptBench/ElGamal.lean` is the older version, to be replaced
-by this file once the gaps below are closed).  All four lemmas are proven.
+re-port, 2026-11-15).  All four lemmas are proven.
 
 Translation:
 * `clone DiffieHellman as DH. import DH.DDH DH.G DH.GP DH.FD DH.GP.ZModE.` clones the theory

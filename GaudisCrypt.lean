@@ -259,15 +259,8 @@ import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.OTP
 import GaudisCrypt.Examples.RejectionSampling
-import GaudisCrypt.Examples.EasyCryptBench.Dice4_6
-import GaudisCrypt.Examples.EasyCryptBench.ElGamal
-import GaudisCrypt.Examples.EasyCryptBench.HashedElGamal
 import GaudisCrypt.Examples.EasyCryptBench.Means
-import GaudisCrypt.Examples.EasyCryptBench.PIR
 import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
-import GaudisCrypt.Examples.EasyCryptBench.Schnorr
-import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
-import GaudisCrypt.Examples.EasyCryptBench.WhileSampling
 import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability

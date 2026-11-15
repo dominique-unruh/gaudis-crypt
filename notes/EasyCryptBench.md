@@ -7,6 +7,14 @@ Small, self-contained `phoare` proofs from the EasyCrypt distribution, to replic
 Replications go to `GaudisCrypt/Examples/EasyCryptBench/`, one file per EC source; each file's
 header quotes the EC proof for side-by-side comparison.
 
+**2026-11-15:** the replications of `vonNeumann.eca`, `Dice4_6.ec`, `Dexcepted.ec`'s
+`WhileSampling`, `PIR.ec`, `elgamal.ec`, `hashed_elgamal_std.ec` and `SchnorrPK.ec` in that
+folder are replaced by the ports in EC's own style (`GaudisCrypt/Examples/VonNeumann.lean`,
+`Dice4_6.lean`, `PIR.lean`, `ElGamal.lean`, `HashedElGamal.lean`, `SchnorrPK.lean`, and
+`GaudisCrypt/Lib/EC/WhileSamplingFixedTest.lean`); the old files are in the git history
+(before the commit that removed them).  `Means.lean` and `PlugAndPray.lean` remain.  The table
+and the log below describe the old files.
+
 | # | EC source | Statement | What it exercises | Status |
 |---|---|---|---|---|
 | 1 | `examples/vonNeumann.eca` — `Simulate_is_Fair` | fair coin from a biased coin of unknown bias `p`: `while (b = b') { b <$ dbiased; b' <$ dbiased }; return b` has `Pr[res = x] = 1/2` | loop lower bound + termination; EC needs the variant rule `while true (b2i (b = b')) 1 (2p(1−p))` and nested five-probability `seq`s; here one fixed-point invariant `if b = b' then 1/2 else [b = x]`, `ε = 2p(1−p)` | **done** — `Examples/EasyCryptBench/VonNeumann.lean` |
