@@ -1,5 +1,13 @@
 # Probabilistic Hoare logic (`phoare`): plan
 
+> **Status (2026-11-16).**  A plan and log of finished work.  The example files it names are
+> gone: `Examples/Pedersen/Hiding.lean`, `HidingPHoare.lean` (replaced by
+> `Examples/Pedersen.lean`, 2026-11-15), `Examples/GuessingGame.lean` and
+> `Examples/RejectionSampling.lean` (removed 2026-11-16; rejection sampling is now
+> `Lib/EC/WhileSamplingFixedTest.lean` and `Examples/Dice4_6.lean`).  They are in the git
+> history.  The later rules on exact bounds are `Logic/PHoareRnd.lean`,
+> `Logic/PHoareWhileRev.lean`, `Logic/PHoareExact.lean`.
+
 Branch `phoare` (on top of `hoare-call-rule`).  Goal: EasyCrypt-style
 `phoare[ M : P ==> Q ] = r` / `<= r` / `>= r` with tactics analogous to the `hoare` ones.
 

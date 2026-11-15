@@ -1,5 +1,11 @@
 # Factoring the program-logic tactics: judgment × step
 
+> **Status (2026-11-16).**  A log of finished work.  `QueryCounting.lean`, named below as an
+> adjusted test, was removed 2026-11-16.  The examples named below were redone in the EC style
+> on 2026-11-15 (`Examples/OTP.lean` rewritten; the port of `PIR.ec` is now
+> `Examples/PIR.lean`), so what is said about their scripts is about the earlier versions (in
+> the git history).
+
 Goal (from the 2026-10 discussion): one implementation per *step* (split, inline, wp, skip, …)
 and one *wrapper* per judgment (`hoareStmt`, `phoareStmt`, later the two sides of a relational
 judgment), instead of one implementation per pair; plus tactics that dispatch on the goal.

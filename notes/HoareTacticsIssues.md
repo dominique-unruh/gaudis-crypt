@@ -1,5 +1,10 @@
 # Hoare tactics: issues found on `HidingExperiment` (2026-10-21)
 
+> **Status (2026-11-16).**  A log of finished work.  The files it names as test cases are gone:
+> `Examples/Pedersen/HidingHoare.lean` (replaced by `Examples/Pedersen.lean`, 2026-11-15) and
+> `Examples/QueryCounting.lean` (removed 2026-11-16).  Both are in the git history; the tactics
+> described here are used in the library and the SHA-3 port.
+
 All five are addressed on branch `hoare-call-rule`; each section ends with what was done.
 
 Found while driving `HidingExperiment(Pedersen, U).main` with the new `hoare[…]` tactics

@@ -256,8 +256,6 @@ import GaudisCrypt.Logic.ECTransProcTest
 import GaudisCrypt.Examples.Dice4_6
 import GaudisCrypt.Examples.PIR
 import GaudisCrypt.Examples.OTP
-import GaudisCrypt.Examples.EasyCryptBench.Means
-import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability
