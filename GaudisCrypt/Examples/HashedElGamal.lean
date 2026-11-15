@@ -48,10 +48,11 @@ Gap list (the examples' infrastructure batch; numbers as in `Examples/ElGamal.le
 gap is the same):
 * GAP 1: `inline` writes a call's parameters as one tuple assignment, EC as one per parameter:
   `stmt_split_params` after `stmt_inline*`.
-* GAP 2: `swap{1} 1 1` on the first statement of an inlined body: `inline` leaves a `reset_vars`
-  of the callee's locals before it, which EC's count attaches to that statement, and the reset
-  does not commute with the next statement (it resets its variable).  Written with our
-  position, `stmt_swap_raw{1} 2 1`, which moves the sampling alone.
+* GAP 2: `swap{1} 1 1` moves the first statement of an inlined body later: `inline` leaves a
+  `reset_vars` of the callee's locals before it, which EC's count attaches to that statement,
+  and the reset does not commute with the next statement (it resets its variable).  Written
+  with our position, `stmt_swap_raw{1} 2 1`, which moves the sampling alone.  (Moving earlier
+  past a reset works.)
 * GAP 3: in `Gb_half` EC calls `Ag_ll` and `Ac_ll` by hand (`call Ag_ll; auto. call Ac_ll;
   auto=> />; rewrite dhkey_ll dt_ll dbits_ll`); `phoare_call` followed by `phoare_auto` computes
   through the code before the call and leaves an expectation, so the lossless part is one

@@ -793,16 +793,32 @@ Document each in the docstring when it applies.
   the macro scopes): the goal then shows `(localVarLens "x" exp) <$ dt`.  To do: ignore
   inaccessible names there.
 
-* **`swap{i} 1 k` on the first statement of an inlined body** (2026-11-15,
-  `hashed_elgamal_std.ec`'s `swap{1} 1 1`): `inline` leaves a `reset_vars` of the callee's
-  locals in front, EC's count attaches it to the statement after it, and it does not commute
-  with the next statement (it resets that statement's variable): `stmt_swap` fails.  Move the
-  statement alone with our position, `stmt_swap_raw{i} 2 k`.  To do: a statement moved down
-  leaves its reset where it is.
+* **`swap` across the start of an inlined body** (2026-11-15): `inline` leaves a `reset_vars`
+  of the callee's locals in front of the body, which EC's count attaches to the statement after
+  it.  Moving a statement *earlier* past it works (`stmt_swap n -k`: the resets in the region
+  jumped over go to its front first — `SchnorrPK.ec`'s `swap{1} 15 -7`, `swap 8 -7`).  Moving
+  the body's first statement *later* (`hashed_elgamal_std.ec`'s `swap{1} 1 1`) takes its reset
+  along, which does not commute with the next statement (it resets that statement's variable):
+  `stmt_swap` fails.  Move the statement alone with our position, `stmt_swap_raw{i} 2 k`.  To
+  do: a statement moved later leaves its reset where it is.
 * **`call H; auto` in pHL on a lossless suffix** (EC's `call Ag_ll; auto. by call Ac_ll;
   auto=> />; rewrite dhkey_ll dt_ll dbits_ll`): `phoare_call H; phoare_auto` computes through
   the code before the call and leaves an expectation of the earlier call; write `islossless`
   for the whole lossless part.
+
+* **A path into a module without a module type that has several module parameters**
+  (`SimulateHonestVerifier(S, A, D).gameIdeal`, EC's `theories/crypto/SigmaProtocol.ec`) does not
+  elaborate: the procedure modules are curried and take only the parameters the procedure uses
+  (`Module.app (Module.app SimulateHonestVerifier.gameReal S) D`).  Name the game by an
+  abbreviation and state `Pr[ (gameIdeal D) () @ &m : §res ]`.  Likewise a call of the module's
+  own procedure inside it (`b' <@ gameIdeal()`): written with the procedure module applied.
+* **`byphoare (_: P ==> _)` on a clone's game with parameters** (`Completeness(SchnorrPK).main
+  (h, w')`): the parameters' names are not known; write the judgment,
+  `byphoare (?j : phoare[ Completeness(SchnorrPK).main (x, w) : §x = h ∧ §w = w' ==> §res ] =
+  (ENNReal.ofReal 1))`.
+* **A theory's operator in a development that clones it** (`R` of `SigmaProtocol`): the clone
+  does not alias the class's fields; `open GaudisCrypt.EC.SigmaProtocol (R)` and `R h w` is the
+  clone's (`R_DL h w` by definition).
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

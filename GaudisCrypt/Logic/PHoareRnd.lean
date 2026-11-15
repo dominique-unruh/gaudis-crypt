@@ -276,15 +276,30 @@ end PHoareRnd
 
 open Lean Meta Elab Tactic in
 /-- **EC's `islossless`**: a statement without loops is lossless when its samplings and the
-procedures it calls are.  On `phoare[ c : P ==> true ] = 1` (and on `islossless M.f`): one goal
-`islossless p` per call, the last call first (EC's order). -/
-elab "islossless" : tactic => do
+procedures it calls are.  On `phoare[ c : P ==> true ] = 1` (and on `islossless M.f`): a call of
+a concrete procedure is opened in turn; one goal `islossless p` per call of an abstract one, the
+last call first (EC's order). -/
+syntax (name := islosslessTac) "islossless" : tactic
+
+open Lean Meta Elab Tactic in
+elab_rules : tactic | `(tactic| islossless) => do
   let g ← getMainGoal
   if (← instantiateMVars (← g.getType)).cleanupAnnotations.isAppOf ``Procedure.IsLossless then
     evalTactic (← `(tactic| phoare_proc))
   let rest := (← getGoals).drop 1
   setGoals [← getMainGoal]
   let calls ← PHoareRnd.islosslessLoop 64 #[]
-  setGoals (calls.toList ++ rest)
+  -- a concrete callee is lossless by its own code (EC goes into it); an abstract one stays
+  let mut out : Array MVarId := #[]
+  for c in calls do
+    let s ← saveState
+    try
+      setGoals [c]
+      evalTactic (← `(tactic| islossless))
+      out := out ++ (← getGoals).toArray
+    catch _ =>
+      s.restore
+      out := out.push c
+  setGoals (out.toList ++ rest)
 
 end GaudisCrypt
