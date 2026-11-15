@@ -15,6 +15,14 @@ folder are replaced by the ports in EC's own style (`GaudisCrypt/Examples/VonNeu
 (before the commit that removed them).  `Means.lean` and `PlugAndPray.lean` remain.  The table
 and the log below describe the old files.
 
+**2026-11-16:** our own early examples `Examples/RejectionSampling.lean` (covered by
+`Lib/EC/WhileSamplingFixedTest.lean` and `Examples/Dice4_6.lean`), `Examples/GuessingGame.lean`
+and `Examples/QueryCounting.lean` are removed; nothing imported them, and the tactics they
+used are used elsewhere.  They are in the git history (before the commit that removed them);
+`notes/PHoarePlan.md`, `notes/HoareTacticsIssues.md` and `notes/TacticFactoring.md` still
+refer to them.  `Means.ec` and `PlugAndPray.eca` (library theories) are not re-ported: the old
+`EasyCryptBench/Means.lean`, `PlugAndPray.lean` stay as they are.
+
 | # | EC source | Statement | What it exercises | Status |
 |---|---|---|---|---|
 | 1 | `examples/vonNeumann.eca` — `Simulate_is_Fair` | fair coin from a biased coin of unknown bias `p`: `while (b = b') { b <$ dbiased; b' <$ dbiased }; return b` has `Pr[res = x] = 1/2` | loop lower bound + termination; EC needs the variant rule `while true (b2i (b = b')) 1 (2p(1−p))` and nested five-probability `seq`s; here one fixed-point invariant `if b = b' then 1/2 else [b = x]`, `ε = 2p(1−p)` | **done** — `Examples/EasyCryptBench/VonNeumann.lean` |

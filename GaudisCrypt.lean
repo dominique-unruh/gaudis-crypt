@@ -255,10 +255,7 @@ import GaudisCrypt.Logic.ECTransProc
 import GaudisCrypt.Logic.ECTransProcTest
 import GaudisCrypt.Examples.Dice4_6
 import GaudisCrypt.Examples.PIR
-import GaudisCrypt.Examples.QueryCounting
-import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.OTP
-import GaudisCrypt.Examples.RejectionSampling
 import GaudisCrypt.Examples.EasyCryptBench.Means
 import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.SHA3.BlockSponge
