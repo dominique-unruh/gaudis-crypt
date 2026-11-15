@@ -98,7 +98,7 @@ open Lean Meta Elab Tactic PRHLWp TacticMisc in
 /-- **EC's `rnd f g`**: the last statements of both sides are samplings `x₁ <$ d₁`, `x₂ <$ d₂`,
 coupled along `f` with inverse `g` (`prhlStmt_seq_sample_inv`): the postcondition before them is
 EC's three conditions.  `f`, `g` are relational terms (`§x{1}`, `§x{2}`). -/
-elab "equiv_rnd" ppSpace f:term:max ppSpace g:term:max : tactic => withMainContext do
+elab "equiv_rnd" ppSpace f:term:max ppSpace colGt g:term:max : tactic => withMainContext do
   let gl ← getMainGoal
   let _ ← prhlGoal gl "equiv_rnd"
   let gl ← HoareSplit.hoareSplit 1 gl

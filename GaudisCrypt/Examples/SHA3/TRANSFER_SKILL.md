@@ -906,6 +906,17 @@ Document each in the docstring when it applies.
   oracles outside `glob A`, EC's hypotheses.
 * **`fp_module` as the last tactic before `set_option … in`**: write `(fp_module)` — its
   optional argument otherwise takes the next command as a term.
+* **A tactic with a shorter and a longer form** (`equiv_rnd f` / `equiv_rnd f g`,
+  `phoare_while I V` / `phoare_while I V k ε`): the extra arguments are on the same line or
+  indented further (fixed 2026-11-15 with `colGt`; before, the short form took the next line's
+  tactic as an argument: "Unknown identifier `trace_state`").
+* **`conseq` and `while` in Hoare logic do not carry the precondition's facts about unmodified
+  variables** (EC's `move=> &m ->` in the `post` goal): put the fact in the new postcondition
+  and in the invariant (`PIR_correct`: `sxor2 §PIR.s §PIR.s' §i ∧ §i = i0`).  Open gap.
+* **`big predT F s`** over a clone of EC's `Bigop`: `Lib/EC/Bigop.lean` (`big`, `big_nil`,
+  `big_cons`, `big_consT`, `big_cat`); `predT` is in `Lib/EC/Logic.lean`.  A hypothesis in read
+  form (`h : §PIR.s = s1 ++ s2`) does not rewrite a goal in lens form (`PIR.s.get σ.globals`):
+  `have h' : PIR.s.get σ.globals = _ := h`.
 * **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).

@@ -6,6 +6,14 @@ Only what ported developments use is here.  Names are EasyCrypt's.
 
 namespace GaudisCrypt.EC
 
+/-- `op predT ['a] = fun (x : 'a) => true`: the predicate that always holds. -/
+def predT {α : Type} : α → Prop := fun _ => True
+
+instance {α : Type} : DecidablePred (predT (α := α)) := fun _ => isTrue trivial
+
+/-- `lemma predTE`-like unfolding: `predT x`. -/
+@[simp] theorem predT_apply {α : Type} (x : α) : predT x := trivial
+
 /-- `op pred1 ['a] (c x : 'a) = x = c`: the predicate "equal to `c`". -/
 def pred1 {α : Type} (c : α) : α → Prop := fun x => x = c
 

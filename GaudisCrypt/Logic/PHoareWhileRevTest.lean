@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.PHoareWhileRev
 import GaudisCrypt.Logic.PHoareRnd
+import GaudisCrypt.Logic.ECWhile
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECClose
 import GaudisCrypt.Syntax.Syntax
@@ -123,5 +124,38 @@ example : islossless Flip.run := by
     trace_state
     phoare_auto
     smt_close [mu_pred1, dbool1E_mu1, pred1E]
+
+-- the lossless rule `while I V` (`Logic/ECWhile.lean`) with a tactic on the next line: the
+-- `k` and `ε` of `while I V k ε` are on the same line or indented further
+/--
+trace: case body
+⊢ ∀ (k : ℕ),
+    phoare[ True ∧ decide (§j < 3) = true ∧ 3 - §j = k ==> True ∧ 3 - §j < k ] = 1 {
+        var j : ℕ;
+        j <- §j + 1;
+  }
+
+⊢ phoare[ True ==> True ] = 1 {
+      skip;
+}
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example : phoare[ True ==> 1 ] = 1 {
+      var j : ℕ;
+      while (decide ($j < 3)) {
+        j <- $j + 1;
+      }
+    } := by
+  phoare_while (True) (3 - §j)
+  trace_state
+  all_goals sorry
 
 end GaudisCrypt.PHoareWhileRevTest

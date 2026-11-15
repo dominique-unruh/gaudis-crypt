@@ -106,6 +106,35 @@ example : equiv[ True ==> §b{2} = !§b{1} ] {
   equiv_skip
   auto_progress
 
+-- the one-function form with a tactic on the next line: a second function is on the same line
+-- or indented further (the one-function rule's goal: the push-forward of the left sampling)
+/--
+trace: ⊢ equiv[ True ==>
+      (do
+          let a ← dbool
+          pure !a) =
+        dbool ]
+      {
+      skip;
+} ~
+    {
+      skip;
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ True ==> §b{2} = !§b{1} ] {
+      var b : Bool;
+      b <$ dbool;
+    } ~ {
+      var b : Bool;
+      b <$ dbool;
+    } := by
+  equiv_rnd (fun b => !b)
+  trace_state
+  sorry
+
 -- a name with one type on the left and another on the right (as inlining leaves them): each
 -- side's own variable
 /--

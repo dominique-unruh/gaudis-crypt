@@ -342,7 +342,8 @@ open Lean Elab Tactic PHoareWp in
 /-- **EC's `while I V k ε`** on `phoare[ while b c : P ==> Q ] = r` (the loop alone): the
 invariant `I` and the integer variant `V` written like the judgment's conditions, `k` an
 integer and `ε` a real.  See `phoareStmt_while_rev_eq` for the goals. -/
-elab "phoare_while " I:term:max ppSpace V:term:max ppSpace k:term:max ppSpace ε:term:max :
+elab "phoare_while " I:term:max ppSpace V:term:max ppSpace colGt k:term:max ppSpace colGt
+    ε:term:max :
     tactic => withMainContext do
   let Ie ← elabGoalFunction I (mkSort 0)
   let Ve ← elabGoalFunction V (mkConst ``Int)
