@@ -1,5 +1,5 @@
-import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
-import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
+import GaudisCrypt.Examples.SHA3.SecureRO
+import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Syntax.Clone
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided

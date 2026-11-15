@@ -37,13 +37,16 @@ do better, deviate — and **document the deviation in the theorem's docstring**
    `proof/`, `proof/smart_counter/`) into the session scratchpad — earlier sessions' copies are
    gone.  Note its clones, module variables, `declare module`s, `local` modules, `declare
    axiom`s, and which E-exceptions (`notes/SHA3/Exceptions.md`) it will hit.
-   **Order** (`Refactor.md`, "What retiring the old files waits for"): bottom-up; the two tops
-   `SHA3OSecurity` (7.8k lines) and `SHA3Security` use the old files' lens parameters ~120× each.
-2. **Port bottom-up** along the import graph.  A file is switched *by its fidelity port*: the
-   port lives in `Pilot/` next to the old file; dependents move to it one by one; the old file is
-   retired when its last dependent is ported.  Never mechanically rewire old dependents.
-3. **File setup**: `Pilot/<EcName>.lean`, `namespace GaudisCrypt.SHA3.Pilot.<EcName>`, module
-   docstring with a "Translation" list (see `Pilot/SecureRO.lean`).  **Imports**: every EC tactic
+2. **Port bottom-up** along the import graph.  (History of the SHA-3 files: they were first
+   ported in an older style; the fidelity port of each lived in `Examples/SHA3/Pilot/` next to
+   the old file, and dependents moved to it one by one.  On 2026-11-15 the first port's proofs
+   were removed and the pilots promoted to `Examples/SHA3/`.  What a file still uses of the first
+   port — modules, definitions, plain lemmas — is its section `FirstPort`; "the first port's" /
+   "the old port's" in a comment refers to it.  A new port has no such section.)
+3. **File setup**: `<EcName>.lean` in the development's directory (SHA-3: `Examples/SHA3/`,
+   `SmartCounter/` for `proof/smart_counter/`), `namespace GaudisCrypt.SHA3.Pilot.<EcName>` (the
+   SHA-3 namespaces kept their `Pilot` in the promotion), module
+   docstring with a "Translation" list (see `SecureRO.lean`).  **Imports**: every EC tactic
    lives in its own module and there is no barrel for them — a missing import shows up as a
    *parse error* at the tactic.  Copy the import block of the closest pilot and add as needed:
    `Logic.ECProc` (`*_proc`), `ECSim` (`inline*`, `sim`), `ECAuto` (`*_auto`, `rnd_*`),
@@ -84,8 +87,8 @@ do better, deviate — and **document the deviation in the theorem's docstring**
    `notes/SHA3/Mapping.md`.
 8. **Build/check**: `LEAN_NUM_THREADS=4 nice -n 10 lake build <Module>` (use fewer threads if the
    box is busy — it is shared); never two lake builds at once.  After *any* change to closers or
-   `generalizeReads`, also recheck the pilots outside the barrel (`Pilot/ConcreteF.lean` ~150 s,
-   `Pilot/IRO.lean`; `lake env lean …`) and do a full build — closer changes break old
+   `generalizeReads`, also recheck the pilots outside the barrel (`SmartCounter/ConcreteF.lean` ~150 s,
+   `IRO.lean`; `lake env lean …`) and do a full build — closer changes break old
    hand-written proofs (`rintro` patterns) far away.
 9. Commit locally at milestones (`Co-Authored-By` line); the user pushes.
 
@@ -351,7 +354,7 @@ Mappings for ssreflect idioms:
   `lean_profile_proof` fails on same-file modules — use `set_option profiler true in`.
 * Long proofs: `sorry` the later bullets while working on early ones; files outside the barrel
   are checked with `lake env lean`.  For one bullet of a long proof, work in an uncommitted
-  scratch copy of the file with every other bullet `sorry`'d (`Pilot/GcolScratch.lean`: 7 s per
+  scratch copy of the file with every other bullet `sorry`'d (`GcolScratch.lean`: 7 s per
   check against 2.5 min for `G1_col` whole), then paste the bullet back.
 
 ## 7. Known limitations and standing deviations
@@ -434,12 +437,12 @@ Document each in the docstring when it applies.
 * **Tuple equations from `sp`** (`(bl, nb) = x`, or a chain `(p, n) = x0`, `x0 = (bl, nb)`):
   `auto_close` does not use them (GAP 1 of Gconcl_list): `intro σ₁ σ₂ h; simp_reads_all;
   smt_close []`.  (A rule for them in `subst_reads` was tried on 2026-11-12 and taken out: it
-  broke `smt_close` steps in `Pilot/SHA3Indiff` and shifted `Pilot/Handle`'s `rename_i` names.)
+  broke `smt_close` steps in `SHA3Indiff.lean` and shifted `SmartCounter/Handle.lean`'s `rename_i` names.)
 * **`hoare_auto` after `sp`**: its `skip` simplifies the reads through writes before it
   generalizes the reads (2026-11-12); the goals it leaves have no `True ∧` and no state binder
   when nothing reads the state.
 * **Every pilot file is in the barrel** (`GaudisCrypt.lean`), also unfinished ones: a file outside
-  it is not checked by the full build (`Pilot/SHA3Indiff` broke unnoticed that way).
+  it is not checked by the full build (`SHA3Indiff.lean` broke unnoticed that way).
 
 * **A warning `tac: … (ECReport.fallback)` is a gap, not noise** (2026-11-13): the tactic could
   not do the step as specified and continued another way (`the reads are not generalized`: the
@@ -463,7 +466,7 @@ Document each in the docstring when it applies.
   (`abbrev HybridIROLazy.f := HYBRID_IRO.f HybridIROLazy`), not as the module's own procedure.
   A call of an oracle `HI.f` names it in that form, so EC's `inline HybridIROLazy.f` and
   `conseq L` after an abstract call fit as written; `equiv_proc` opens it.  After `equiv_conseq L`
-  come its two implications when the conditions are not literally `L`'s (`Pilot/Sponge.lean`,
+  come its two implications when the conditions are not literally `L`'s (`Sponge.lean`,
   `conseq_side`).
 * **`phoare … = 1` with code behind a loop** (EC: `…; auto; while (true) (n - i); auto`).
   `phoare_auto` passes the trailing assignments and samplings; a sampling leaves
@@ -474,7 +477,7 @@ Document each in the docstring when it applies.
   `set_option`/comment/docstring header, not after the last blank line before `theorem` — a
   docstring may contain a blank line, and block comments nest, so a block pasted inside one
   disappears without an error.
-* **`transitivity N (P₁ ==> Q₁) (P₂ ==> Q₂)` on procedures** (`Pilot/Sponge.lean`,
+* **`transitivity N (P₁ ==> Q₁) (P₂ ==> Q₂)` on procedures** (`Sponge.lean`,
   `HybridIROEagerTrans_BlockSpongeTrans_next_block`): no tactic yet, the rule is
   `prhlProc_trans_ec` (`Logic/ECTrans.lean`).  State the judgment EC proves in place as its own
   lemma, then `refine prhlProc_trans_ec ?_ ?_ h₁ h₂`.  The two side goals are over the parameter
@@ -495,7 +498,7 @@ Document each in the docstring when it applies.
   `proc`): `equiv_proc` first, then `induction n', ge0_n' using Int.leInduction with | base => …
   | succ n' ge0_n' IH => …`.  `IH` is about the two bodies, so EC's `conseq IH=> //` is
   `equiv_conseq IH` with `ec_close` on its two implications
-  (`Pilot/Sponge.lean`, `HybridIROEagerTrans_BlockSpongeTrans_loop`).
+  (`Sponge.lean`, `HybridIROEagerTrans_BlockSpongeTrans_loop`).
 * **The middle memory of `transitivity{i}`** (EC: `progress; exists M.mp{1} n' xs{2}=> //`):
   when it is one side's memory, `exact ⟨σ₁, …⟩`; when a variable differs,
   `refine ⟨(localVarLens "n" ℤ).set n' σ₁, ?_⟩; simp_reads; exact ⟨…⟩`.
@@ -512,7 +515,7 @@ Document each in the docstring when it applies.
   normal form there.
 * **`wp; rnd; auto; progress` where the strict `auto` fails with "maximum recursion depth"**
   (two-sided loop body whose invariant has quantified conjuncts over a map that the body sets;
-  `Pilot/SHA3Security.lean`, `equiv_ro_iro`): `equiv_rnd; equiv_skip; ec_progress` gives EC's
+  `SHA3Security.lean`, `equiv_ro_iro`): `equiv_rnd; equiv_skip; ec_progress` gives EC's
   bullets (the trivial ones closed).  The one-sided side goal of `rcondt{2} 1; 1:auto; progress`
   there: `intro σ₁; hoare_skip; rintro … ⟨…⟩` and EC's argument by hand.
 * **Bullets after `ec_progress` have anonymous hypotheses**: cite them by statement
@@ -577,9 +580,9 @@ Document each in the docstring when it applies.
   between the caller's variables and the copies (`§xs{1} = §xs0{2} ∧ …`).
 * **Guards after `splitwhile`**: the equality of the two loops' guards that `while` asks is a
   small arithmetic fact about `decide`s; state it once as a private lemma
-  (`splitwhile_guard_left`, `_right`, `_le` in `Pilot/Sponge.lean`) and close the leaf with it.
+  (`splitwhile_guard_left`, `_right`, `_le` in `Sponge.lean`) and close the leaf with it.
 * **An abstract simulator** (`declare module S <: SIMULATOR {…}`, a functor with several
-  procedures; `Pilot/Sponge.lean`, final section).  EC's module type lists each procedure's
+  procedures; `Sponge.lean`, final section).  EC's module type lists each procedure's
   oracles; state them once as a section hypothesis (`variable (S_rep :
   SIMULATOR.Representable … S)`, `include S_rep in` on the lemmas that use it).  Then:
   `call (_ : true)` on `S(F).init` is `equiv_call` of a small lemma from `SIMULATOR.call_init`
@@ -649,7 +652,7 @@ Document each in the docstring when it applies.
   stmt_swap{2} [1..2] 3` for EC's two-sided `swap[1..2] 3`); `stmt_swap k` does not.
 * **EC's `call (RO_LRO_D D _)`** for a clone of `FullRO`: state the clone's `RO_LRO_D` once,
   its side conditions as auto-params (`hD := by ec_module`, `hdisj := by fp_disjoint`), as in
-  `Pilot/SecureRO.lean` and `SHA3OSecurity`'s `Eager.RO_LRO_D`; then
+  `SecureRO.lean` and `SHA3OSecurity`'s `Eager.RO_LRO_D`; then
   `equiv_call (Eager.RO_LRO_D (Dist A))`, with `Dist A` taking `RO_Distinguisher`'s `unit`.
 * **`equiv_call (_ : ={x₁, …})` on a declared adversary with long oracle proofs**: the form
   puts `={glob A}` into the oracles' judgments; after a `wp` or `sim n m` the postcondition
@@ -923,7 +926,7 @@ Document each in the docstring when it applies.
   variable takes the module's name with it: `RO_m`, `RO_m₁` (before: a number, `m1`).  A local
   variable keeps its name (numbered only if that is taken too).
 
-* **Writing a proof on the strict tactics (2026-11-14, `Pilot/Gconcl_list` from
+* **Writing a proof on the strict tactics (2026-11-14, `SmartCounter/Gconcl_list.lean` from
   `Ideal_equiv_valid` on)**:
   - EC's `auto` on a judgment is `ec_auto`; where EC's `auto` closes the goal and `ec_auto` leaves
     an implication, `ec_auto; ec_close`.  While developing write `ec_auto <;> ec_close` and remove
@@ -971,7 +974,7 @@ Document each in the docstring when it applies.
 - [ ] EC's goal selectors renumbered where our goal order differs (`equiv_while`); no
       `stmt_swap_raw` / one-number `stmt_wp k` where EC writes positions (§4).
 - [ ] Budget set per declaration with a reason; `sorry`-free; `lean_verify` shows standard axioms.
-- [ ] `lake build` of the module green; full build + `Pilot/ConcreteF.lean` if infrastructure
+- [ ] `lake build` of the module green; full build + `SmartCounter/ConcreteF.lean` if infrastructure
       changed.
 - [ ] `notes/SHA3/Refactor.md` (and `Mapping.md`) updated; `ec_fidelity.py` run.
 

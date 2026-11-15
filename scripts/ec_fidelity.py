@@ -241,7 +241,7 @@ def main():
             for it in r["items"].get(args.list, []):
                 print(it)
         return
-    # the file, from `Examples/SHA3/` on where it lies there (`Pilot/SecureRO.lean`)
+    # the file, from `Examples/SHA3/` on where it lies there (`SmartCounter/Gcol.lean`)
     def short(f):
         k = f.find("Examples/SHA3/")
         return f[k + len("Examples/SHA3/"):] if k >= 0 else os.path.basename(f)

@@ -2,6 +2,10 @@
 
 Agreed 2026-11-06, after the SHA-3 port was completed (no `sorry`).
 
+Paths in this log are those of the time.  Since the promotion of 2026-11-15 (last section)
+`Pilot/X.lean` is `Examples/SHA3/X.lean` (`SmartCounter/X.lean` for the smart-counter files), and
+the "old file" of the same name is that file's section `FirstPort`.
+
 ## Goal
 
 The project's point is that EasyCrypt formalizations can be transpiled to Gaudí in a very
@@ -766,3 +770,32 @@ The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_
 those by `SHA3OSecurity.lean` (7791 lines) and `SHA3Security.lean` (2603 lines), which use the
 old files' lens parameters (`RO_m`, `Bounder_bounder`, …) about 120 times each.  Retiring the
 three old files is porting those two.
+
+Done 2026-11-15: both are ported (`SHA3Security` 2026-11-14, `SHA3OSecurity` 2026-11-15).
+
+## Promotion (2026-11-15)
+
+With every EC file ported in EC-fidelity form, the first port's proofs were removed and the
+pilots promoted.
+
+1. **Trim** (commit `b1a6959`).  A declaration of a first-port file stays if a pilot reaches it:
+   through its proof terms (the constants a pilot declaration uses, transitively), or by name at
+   elaboration time only — `open … (names)` lists, `smt_close [lemmas]` hints, `{-M}`
+   restrictions, abbreviations unfolded by the elaborator.  The second kind is invisible in the
+   terms, and was found by building.  EC's plain lemmas of the first port that have no twin in a
+   pilot stay too (most in `Handle`).  (These two groups: 85 small declarations put back after
+   the term-level analysis had dropped them.)  Everything else went:
+   the old program-logic proofs, the footprint and losslessness lemmas in the old forms, helper
+   tactics.  `Common`, `BlockSponge`, `SmartCounter/SLCommonCore` are kept whole.  First-port
+   files: 44,749 → 10,755 lines; `SecureRO`, `SecureHash`, `IndifRO_is_secure` deleted in full.
+2. **Merge and move.**  `Pilot/X.lean` is now `Examples/SHA3/X.lean` (`SmartCounter/X.lean`),
+   one file per EC file.  What was left of the first port's `X.lean` is the section `FirstPort`
+   at the top of the same file (the section keeps its `open`s, `variable`s and options from the
+   port's part; `set_option ec.strict true` comes after it).  Namespaces are unchanged:
+   `GaudisCrypt.SHA3.X` for the first port's declarations, `GaudisCrypt.SHA3.Pilot.X` for the
+   port's, so no statement or proof changed.  `Pilot/TRANSFER_SKILL.md` is
+   `Examples/SHA3/TRANSFER_SKILL.md`; the day-to-day check keeps its name
+   (`GaudisCrypt.PilotCheck`).
+
+Open: renaming the namespaces (`Pilot.X` → `X`, the first port's remnants elsewhere), and
+re-proving the remaining first-port declarations a pilot lemma duplicates in EC's form.

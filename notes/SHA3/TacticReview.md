@@ -1,9 +1,11 @@
 # Review of the EC-fidelity tactic layer (2026-11-12)
 
-Scope: `GaudisCrypt/Logic/` as used by the pilots in `GaudisCrypt/Examples/SHA3/Pilot/`
+Scope: `GaudisCrypt/Logic/` as used by the pilots (the EC-fidelity port of SHA-3, then in
+`GaudisCrypt/Examples/SHA3/Pilot/`; promoted to `GaudisCrypt/Examples/SHA3/` on 2026-11-15, and
+the file paths below are the promoted ones)
 (about 28k lines, 96 files, about 100 commits since 1 November).
 
-Method: three independent reviewers read the code, the manual (`Pilot/TRANSFER_SKILL.md`), the
+Method: three independent reviewers read the code, the manual (`Examples/SHA3/TRANSFER_SKILL.md`), the
 pilots and the git history, one area each, without being given any conclusions. Nothing was
 built or run; claims are from reading, with inferences marked in the per-area notes below.
 Section 5 is the first-hand list from the porting sessions, kept separate.
@@ -115,7 +117,7 @@ Decisions this needs:
 - On 2026-11-12 three changes to shared closers each made one new proof pass and broke proofs
   in other pilots (`Gconcl`, `Handle`, `SecureRO`, `SecureORO`, `SHA3Indiff`); one of them (a
   tuple rule in `subst_reads`) was taken out again the same day.
-- Commit `a2601fb` went in with `Pilot/SHA3Indiff.lean` broken: that file is outside the barrel,
+- Commit `a2601fb` went in with `SHA3Indiff.lean` broken: that file is outside the barrel,
   so the full build did not see it.
 - The one change that was a real bug fix (`hoare_auto` generalizing reads before simplifying
   reads through writes) still changed goal shapes in two older pilots, because nothing pins
@@ -145,14 +147,14 @@ Measured on the full build (2841 jobs, green):
 | Fallback | Fires | Where |
 |---|---|---|
 | Reads not generalized (the goal stays about states) | 81 | mostly `hoare_auto`, `phoare_skip`; 14 files |
-| `sim`: no equality set for a call, all globals asked equal | 11 | `Pilot/IndifRO_is_secure` |
-| `equiv_call (_ : ={x})`: frameless rule | 3 | `Pilot/Sponge` (2), `Pilot/ConcreteF` (1) |
+| `sim`: no equality set for a call, all globals asked equal | 11 | `IndifRO_is_secure.lean` |
+| `equiv_call (_ : ={x})`: frameless rule | 3 | `Sponge.lean` (2), `SmartCounter/ConcreteF.lean` (1) |
 | `equiv_call H`, `equiv_call (_ : … ∧ I)`: weaker rule | 0 | |
 
 75 of the 95 are in pilot files.
 
 All 81 un-generalized reads report the same failure (`generalize`: result not type correct).
-Traced on one of them (`Pilot/SecureRO.lean:292`): a `decide (…)` whose `Decidable` instance
+Traced on one of them (`SecureRO.lean:292`): a `decide (…)` whose `Decidable` instance
 spells the read differently from the visible one; `norm_decide` first makes every read generalize
 and the state disappear.  The relational `skip` (`equiv_skip_ec`) normalizes these instances
 before generalizing; the Hoare and pHL paths do not.  The other 80 were not traced.
@@ -187,7 +189,7 @@ steps, all of them, in one order), a checker (`ReadNorm.offenders`) and the stri
 Old tactics (`hoare_auto`, `phoare_auto`, `equiv_auto`, the `*_skip` variants) are unchanged.
 Golden tests: `Logic/ReadNormTest.lean`.
 
-Trial migration, `Pilot/SecureRO.lean`: its 13 sites where `hoare_auto`/`phoare_auto` left the
+Trial migration, `SecureRO.lean`: its 13 sites where `hoare_auto`/`phoare_auto` left the
 goal about a state are now `ec_auto`.  All 13 generalize (no other cause than the `decide`
 instances turned up in this file).  The hand steps after them changed from
 
@@ -199,7 +201,7 @@ to
 
 i.e. they name values, not reads of a state.  The file has no fallback warning left.
 
-Second file, `Pilot/SecureORO.lean` (19 sites): 18 generalize as they are.  The 19th, the
+Second file, `SecureORO.lean` (19 sites): 18 generalize as they are.  The 19th, the
 `skip` after a `phoare_call`, showed a second cause: an `if … then … else` whose instance is not
 synthesized (`instDecidableAnd` over a classical part) and still spells the read through the
 state the call rule built.  `ReadNorm.normInst` now re-makes the instance of every `decide` and
@@ -217,15 +219,15 @@ It means two things:
 * a goal that an old rule or closer leaves about the states (`while`/`if` exits, side goals,
   `hoare_auto`, the `*_skip`s) and whose reads do not generalize gets its instances normalized
   (`TacticMisc.normInst`) and is tried again.  A goal whose reads generalize as they are is not
-  touched (normalizing at every exit timed out in `Pilot/Gconcl`).
+  touched (normalizing at every exit timed out in `SmartCounter/Gconcl.lean`).
 
 Files without the option behave as before.  The option is switched off, in the source, at the
 six places where a rule falls back today (`set_option ec.strict false in …`):
 
 | Where | Fallback |
 |---|---|
-| `Pilot/IndifRO_is_secure` (3 `sim`s, 11 calls) | no equality set for a call, all globals asked equal |
-| `Pilot/Sponge` (2), `Pilot/ConcreteF` (1) | `equiv_call (_ : ={x})` on a concrete callee: frameless rule |
+| `IndifRO_is_secure.lean` (3 `sim`s, 11 calls) | no equality set for a call, all globals asked equal |
+| `Sponge.lean` (2), `SmartCounter/ConcreteF.lean` (1) | `equiv_call (_ : ={x})` on a concrete callee: frameless rule |
 
 Pilot check green.  Un-generalized reads left: none in the pilots; 12 in first-port files the
 pilots import (`SmartCounter/Gconcl_list` 7, `SmartCounter/SLCommon` 2, `SmartCounter/ConcreteF`
@@ -248,7 +250,7 @@ the old tactics and move only when edited.  New proofs use the strict tactics.
 * **Names** (`TacticMisc.readValueNames`): the variable's name; where it is taken (context, or
   another read) a module's variable is named with its module, `RO_m`, `RO_m₁`.  A name no longer
   depends on a number for the usual clash (a memory `m`, two modules' `m`).  Golden tests in
-  `Logic/ReadNormTest.lean` ("The names of the values").  `Pilot/SecureRO` and `Pilot/SecureORO`
+  `Logic/ReadNormTest.lean` ("The names of the values").  `SecureRO.lean` and `SecureORO.lean`
   followed (`m1` → `RO_m`, `m11` → `m1`).
 * **`ec_skip`'s message** names a place under a binder with the binder's variable.
 * **The closer on values** (`Logic/ECProgress.lean`, tests `Logic/ECProgressTest.lean`):
@@ -261,7 +263,7 @@ the old tactics and move only when edited.  New proofs use the strict tactics.
 What stays open in step 3: deleting the old skip variants and `auto_prep` (their users are the
 first-port files and the pilot proofs written before 2026-11-13).
 
-### The port on the strict tactics (2026-11-14): `Pilot/Gconcl_list`, section `Ideal`
+### The port on the strict tactics (2026-11-14): `SmartCounter/Gconcl_list.lean`, section `Ideal`
 
 Six lemmas of `Gconcl_list.ec` (lines 334–964: `Ideal_equiv_valid`, `ideal_equiv2`,
 `Ideal_equiv3`, `equiv_L3_L4`, `equiv_L4_ideal`, `equiv_ideal`), about 440 lines of EC script,
@@ -430,12 +432,12 @@ first needs a full rebuild, so they go together):
 8. `sim` over differently named locals (GAP 16); pair states equal by components (GAP 8).
 9. EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A`, `Neg_A_Pr`, `Neg_A_Pr_minus`): a small library
    file; needs `proc *` and `Pr[mu_not]` (GAP 17).
-10. From `Pilot/Sponge` (its GAP 2–5): EC's path for a callee inside a library procedure;
+10. From `Sponge.lean` (its GAP 2–5): EC's path for a callee inside a library procedure;
    reads through a discarded call result in the strict `auto`; the oracle goals of an abstract
    call in the module's own procedure names, and only for the procedures the module type's
    `{…}` allows; `equiv_conseq H` closing its implications.
 
-11. From `Pilot/Sponge`, the second half of `HybridIRO` (its GAP 6–13): the strict `auto` on a
+11. From `Sponge.lean`, the second half of `HybridIRO` (its GAP 6–13): the strict `auto` on a
    one-sided loop body whose invariant reads the other memory, and on a `skip ~ skip` goal with
    `bs{1} = take n1 bs{2}` next to `={bs}` (both run out of recursion depth); the frame of a
    one-sided loop's exit goal covering what the invariant reads; `transitivity N (…) (…)` on
@@ -468,7 +470,7 @@ footprint should be read off its code also for the first port's lens-parameteris
 The same file gives EC's `call (_ : I)` on a procedure with a rule
 (`equiv_call (_ : ={glob M, …} ∧ I)` on a simulator's `init`, by `SIMULATOR.call_init`).  Two
 more items for the batch, from the last lemmas of `Sponge.ec`: `sim` should take an equality set
-made of a `glob` region and variables (GAP 15 of `Pilot/Sponge.lean`; it needs "equal on a
+made of a `glob` region and variables (GAP 15 of `Sponge.lean`; it needs "equal on a
 region and on a variable outside it" as "equal on their join"), and `swap` past a procedure
 whose oracle list is a hypothesis about its behaviour needs a semantic check, not the footprint
 of its code (GAP 14).
@@ -490,7 +492,7 @@ The three questions below were decided as follows.
 
 ## The final section of `Sponge.ec` (EC l. 1913–2163): what was open
 
-Done in `Pilot/Sponge.lean`: the section's two declarations (`BlockSim … with glob R`, `Dist`
+Done in `Sponge.lean`: the section's two declarations (`BlockSim … with glob R`, `Dist`
 restricted against `R`) and `RealIndif_Sponge_BlockSponge` (EC l. 1953).  The ideal side is the
 first place the pilots meet an **abstract simulator** (`BlockSim <: BlockSponge.SIMULATOR`, a
 declared functor whose result is a record of three procedures), and three things are missing.
@@ -586,9 +588,9 @@ changes (1–3 and 8) were made in one batch, each with a golden test (`Syntax/C
    `ec_auto`, `auto_close`, `auto_progress` — only where the goal is then closed or the step
    undone, since the footprint tactics need them.  (`sim`'s closer is left alone: one of its
    alternatives discharges by `fp_disjoint`.)  Effect on the full build, seconds per file before
-   and after: `Pilot/SHA3Security` 1026 → 74, `Pilot/SHA3_OIndiff` 1473 → 147,
-   `Pilot/SHA3Indiff` 171 → 81, `Pilot/Gconcl_list` 630 → 502, `Pilot/Gconcl` 488 → 398,
-   `Pilot/Gext` 374 → 269, `Pilot/Gcol` 205 → 150.
+   and after: `SHA3Security.lean` 1026 → 74, `SHA3_OIndiff.lean` 1473 → 147,
+   `SHA3Indiff.lean` 171 → 81, `SmartCounter/Gconcl_list.lean` 630 → 502, `SmartCounter/Gconcl.lean` 488 → 398,
+   `SmartCounter/Gext.lean` 374 → 269, `SmartCounter/Gcol.lean` 205 → 150.
 9. **The Hoare `call` had no frame** (the pHL and pRHL ones do).  EC's
    `rcondt{i} n; first by auto; inline*; auto; conseq (: _ ==> true); auto` asks, after a call
    to a procedure with loops, a condition on a counter the procedure does not write; with

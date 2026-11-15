@@ -10,6 +10,17 @@ Status: `—` not started · `def` definition ported · `stated` statement porte
 
 Port status (2026-11-06): all 21 files proven, no `sorry`.
 
+Layout (2026-11-15): one Lean file per EC file.  The EC-fidelity port of a file (namespace
+`GaudisCrypt.SHA3.Pilot.<File>`, formerly `Examples/SHA3/Pilot/<File>.lean`) is the file's main
+content.  Of the first port (namespace `GaudisCrypt.SHA3.<File>`) the file keeps, in its section
+`FirstPort`, what the EC-fidelity port uses (modules, definitions, plain lemmas) and EC's plain
+lemmas that have no twin there; its program-logic proofs and their scaffolding were removed
+(commit `b1a6959`).  `Common`, `BlockSponge` and `SmartCounter/SLCommonCore` are the first
+port's, whole.  The first-port tables below list the first port as it was when completed
+(2026-11-06): a `done` row whose Lean name no longer exists is a removed proof, and its EC lemma
+is in the file's EC-fidelity table.  `SecureRO`, `SecureHash`, `IndifRO_is_secure` have no
+first-port declarations left.
+
 | EC file | lines | lemmas | Lean file |
 |---|---:|---:|---|
 | `proof/Common.ec` | 734 | 64 | `GaudisCrypt/Examples/SHA3/Common.lean` |
@@ -151,7 +162,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Indifferentiability.lean`, namespace `GaudisCry
 | 60 | module | `GReal` |  | `GReal` | def |
 | 61 | module | `GIdeal` |  | `GIdeal` | def |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/Indifferentiability.lean`, namespace `GaudisCrypt.SHA3.Pilot.Indifferentiability`.
+Lean: `GaudisCrypt/Examples/SHA3/Indifferentiability.lean`, namespace `GaudisCrypt.SHA3.Pilot.Indifferentiability`.
 
 The EC-fidelity port.  The types are the `outParam`s of the field-less class `Params` (a clone is
 `clone … Indifferentiability as Indiff0 with type p <- …`); EC's subtyping `PRIMITIVE <:
@@ -191,9 +202,9 @@ Lean: `GaudisCrypt/Examples/SHA3/OptionIndifferentiability.lean`, namespace `Gau
 | 60 | module | `OGReal` |  | `OGReal` | def |
 | 61 | module | `OGIdeal` |  | `OGIdeal` | def |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/OptionIndifferentiability.lean`, namespace `GaudisCrypt.SHA3.Pilot.OptionIndifferentiability`.
+Lean: `GaudisCrypt/Examples/SHA3/OptionIndifferentiability.lean`, namespace `GaudisCrypt.SHA3.Pilot.OptionIndifferentiability`.
 
-The EC-fidelity port, as `Pilot/Indifferentiability.lean`'s.
+The EC-fidelity port, as `Indifferentiability.lean`'s.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
@@ -226,7 +237,7 @@ Lean: `GaudisCrypt/Examples/SHA3/IRO.lean`, namespace `GaudisCrypt.SHA3.IRO`.
 | 37 | module | `IRO` |  | `IRO` | def |
 | 73 | module | `IRO'` |  | `IRO'` | def |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/IRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.IRO`.
+Lean: `GaudisCrypt/Examples/SHA3/IRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.IRO`.
 
 The EC-fidelity port.  The operators are the class `Params` (types `outParam`s); module variables
 `module_var IRO.mp`, `IRO'.mp`, `IRO'.visible`; calls `IRO.fill_in` as in EC.  `f`'s `(x, n)` is
@@ -381,7 +392,7 @@ glob P, C.c, C.queries})` with `sim` per oracle; `Pr_restr` is EC's
 `glob D ⊔ glob P ⊔ glob CO` kept by the oracles), its thirteen goals in EC's order (E11: the
 right oracles' `islossless`).  EC's `={glob A, glob B}` is one region `glob A ⊔ glob B`.
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SLCommon.lean`, namespace `GaudisCrypt.SHA3.Pilot.SLCommon`.
+Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/SLCommon.lean`, namespace `GaudisCrypt.SHA3.Pilot.SLCommon`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
@@ -539,7 +550,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace `GaudisCrypt
 | 220 | local equiv | `G1_col` | section PROOF. | `G1_col` (oracle steps `S_f_col`, `S_fi_col`, `M_f_col`, wrappers `DPRestr_f_col`, `DPRestr_fi_col`, `DFRestr_f_col`; invariant `colInv`) | done |
 | 348 | lemma | `Pr_G1col` | section PROOF. | `Pr_G1col` | done |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Gcol.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.Gcol`, over the old `Handle` declarations):
 
 | EC line | kind | EC name | Lean name | status |
@@ -589,7 +600,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 698 | declare axiom | `D_ll` | section EXT. | `D_ll` (hypothesis) | def |
 | 702 | lemma | `Real_G2` | section EXT. | `Real_G2` (`ReSample.count` chosen fresh; `Eager_1_2` by `Eager.main2_eq_main1`, side conditions from `fvP_G2`) | done |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Gext.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.Gext`, over the old `Handle`/`Gext` declarations):
 
 | EC line | kind | EC name | Lean name | status |
@@ -624,7 +635,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCry
 | 363 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
 | 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` (+ `Gext0Fresh D`; `D_ll` over `G`, E14; `fvP_G3`, `fvP_G4` for `RO_LRO_D`) | exc |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Gconcl.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.Gconcl`, over the old `IF`, `S`, `G3`, `G4`; sorry-free, in the barrel):
 
 | EC line | kind | EC name | Lean name | status |
@@ -768,7 +779,7 @@ EC's judgments in EC's scripts, over the old port's declarations.  Section `Idea
 `ec_close`, `ec_progress`, `ec_prep`).  The local modules `L`, `L2`, `L3`, `L4` are aliases
 (`abbrev`) in the pilot's namespace, so that `proc` opens them.  Gap list in the file's header.
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/Gconcl_list.lean`, namespace
+Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.Gconcl_list`.
 
 | EC line | kind | EC name | context | Lean name | status |
@@ -903,7 +914,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 2138 | lemma | `conclu` | section . | `conclu` | done |
 | 2153 | lemma | `conclusion` |  | `conclusion` | done |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Sponge.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.Sponge`, over the first port's modules; complete, EC's order):
 
 | EC line | kind | EC name | Lean name | status |
@@ -973,7 +984,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 | 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; the `glob Dist` instance of `security_at`: `Dist` lossless over a region `G` (`Dist_lossless_at`, `SecurityRegion`, E14), `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at`; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`) | exc |
 | 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` (+ `Gext0Fresh`, E13; from `security`); `SHA3Indiff_at` over a region (E14), used by `SHA3Security` | exc |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3Indiff.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.SHA3Indiff`, over the old `Simulator`, `Cntr`, `FC`, `PC`, `DRestr`;
 complete):
 
@@ -1012,7 +1023,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean`, namespace `GaudisCrypt.SHA3
 | 196 | local module | `OD` | section . | `OD` (`D` a Lean parameter) | def |
 | 205 | lemma | `SHA3OIndiff` | section . | `SHA3OIndiff` (+ `OGext0Fresh`, E13). The two `have … byequiv` are `real_equiv`, `ideal_equiv`: equal-outside abstract calls over `ocL = (Counter.c, Cntr.c)` with `ocI`. Oracle steps: the counters `opc_f`, `opc_fi`, `ofc_f` (EC's `rcondt{2}` as `equiv_if{2}` + `prhlStmt_false`), and below them `SomeEquiv`: `real_F` (`Sponge_f_equiv`, `poget_psome_f`), `psome_f(i)`, `fsome_f`, `osim_f`, `osim_fi`. Then `security (OD(Dist))`: `fvP_OD`, `Counter_DistRestrictions`; `OD(Dist)` lossless by `h` and `OPC_DPSome_f(i)_ll`, `OFC_DFSome_f_ll` (pHL) | exc |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3_OIndiff.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.SHA3_OIndiff`, over the first port's modules of the file; complete):
 
 | EC line | kind | EC name | Lean name | status |
@@ -1045,7 +1056,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureHash.lean`, namespace `GaudisCrypt.SHA3.S
 | 131 | module type | `AdvCollision` |  | `AdvCollision` | def |
 | 135 | module | `Collision` |  | `Collision` | def |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureHash.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureHash`.
+Lean: `GaudisCrypt/Examples/SHA3/SecureHash.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureHash`.
 
 The EC-fidelity port.  The operators and axioms are the class `Params` (types `outParam`s);
 `clone import OptionIndifferentiability as OIndif with …` is `clone`; `global_var
@@ -1129,7 +1140,7 @@ tactic `fel` (`Logic/FelTactic.lean`), EC's five-bound `seq` is `phoare_seq`
 (`Logic/PHoareSeq.lean`), EC's `call (: P ==> Q)`/`byphoare (: P ==> _)` are
 `Logic/CallSpec.lean`'s; each lemma is one proof, as EC's.
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+Lean: `GaudisCrypt/Examples/SHA3/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
@@ -1142,14 +1153,14 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SH
 | 89 | declare module | `A` | section Preimage. | `declare module A <: AdvPreimage «from» «to» {-RO, -Preimage}` | def |
 | 112 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | done |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+Lean: `GaudisCrypt/Examples/SHA3/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
 | 215 | declare module | `A` | section SecondPreimage. | `declare module A <: AdvSecondPreimage «from» «to» {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}` (the local modules: EC's freshness) | def |
 | 267 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | done |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+Lean: `GaudisCrypt/Examples/SHA3/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
@@ -1198,7 +1209,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Se
 | 387 | op | `collision` | section Collision. | `collision` | def |
 | 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done (exc E8) |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureORO`.
+Lean: `GaudisCrypt/Examples/SHA3/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureORO`.
 
 The EC-fidelity port, as the pilot `SecureRO`: the operators and axioms are the class `Params`;
 `clone import PROM.FullRO as RO` the clone's `RO.m`, `FRO.m`, `RO`, `RO.LRO`, `FRO`, `RO_LRO_D`;
@@ -1267,7 +1278,7 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 | 187 | declare axiom | `D_ll` | section SecondPreimage. | `D_ll` (hypothesis `_D_ll`) | def |
 | 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | done (exc E6, E7, E8) |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/IndifRO_is_secure.lean`, namespace `GaudisCrypt.SHA3.Pilot.IndifRO_is_secure`.
+Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt.SHA3.Pilot.IndifRO_is_secure`.
 
 The EC-fidelity port.  The operators and axioms are the class `Params`;
 EC's two `clone import`s are `clone` (`Syntax/Clone.lean`): `SRO.params`, `Indiff0.params` and
@@ -1364,7 +1375,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 1261 | declare axiom | `A_ll` | section SHA3_Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
 | 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` (+ `AGext0Fresh A`, E13; `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` over `glob A`, E14: `glob AdvCollisionSHA3(A) = glob A` is syntactic in EC) | done (exc E13, E14) |
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3Security.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.SHA3Security`; complete).  The clone `S` is `clone` over the *pilot*
 `IndifRO_is_secure`; the sponge-level modules (`Sponge`, `Perm`, `Simulator`, `FC`, …) are the
 first port's, which fit the clone's module types by definition; the file's own modules are
@@ -1521,7 +1532,7 @@ Status (2026-11-06): complete, no `sorry`.
 | 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh, E6; `Dist_of_CollAdv_ll` by pHL) | exc |
 
 
-**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3OSecurity.lean`, namespace
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace
 `GaudisCrypt.SHA3.Pilot.SHA3OSecurity`; complete, 2026-11-15).  The clones `SORO`, `SH` are `clone` over
 the pilot `SecureORO`, `SecureHash`; the sponge-level module types and modules (`OSimulator`,
 `OFC`, `CSome`, …) are the first port's `SHA3_OIndiff`.

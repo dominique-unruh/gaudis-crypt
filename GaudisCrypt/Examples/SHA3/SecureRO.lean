@@ -19,11 +19,11 @@ import GaudisCrypt.Syntax.ModuleSubtype
 set_option ec.strict true
 
 /-!
-# Random oracles are preimage, second-preimage and collision resistant — the EC-fidelity pilot
+# Random oracles are preimage, second-preimage and collision resistant — EC-fidelity port
 (EasyCrypt `proof/SecureRO.eca`)
 
 The refactor pilot of `notes/SHA3/Refactor.md`: EC's file transcribed one to one, its
-declarations and its proofs EC's (`Examples/SHA3/SecureRO.lean` is the first port).  The facts
+declarations and its proofs EC's (the first port of the file is gone).  The facts
 EC's `smt()` finds on maps and bounds are `Lib/EC/FMap.lean`'s and `Lib/EC/Mu.lean`'s.
 
 Translation:

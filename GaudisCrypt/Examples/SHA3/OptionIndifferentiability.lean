@@ -1,21 +1,27 @@
 import GaudisCrypt.Syntax.Syntax
+import GaudisCrypt.Syntax.ModuleSubtype
 import GaudisCrypt.Logic.Granular
 
 /-!
-# Indifferentiability with failing oracles (EasyCrypt `proof/OptionIndifferentiability.eca`)
+# Indifferentiability with failing oracles (EasyCrypt `proof/OptionIndifferentiability.eca`) —
+EC-fidelity port
 
-`Indifferentiability.eca` with procedures that may fail: the primitive and the functionality return
-`option`s, and every name gets an `O` prefix.  The translation is that of
-`GaudisCrypt/Examples/SHA3/Indifferentiability.lean`.
+`Indifferentiability.eca` with procedures that may fail: the primitive and the functionality
+return `option`s, and every name gets an `O` prefix.  The translation is that of
+`Indifferentiability.lean`: the theory's types are `outParam`s of the (field-less) class
+`Params p f_in f_out`, so a clone is `clone OptionIndifferentiability as OIndif with type p <- …`
+(`Syntax/Clone.lean`); EC's subtyping of module types is `module_subtype`; EC's call
+restrictions (`{ P.f }`) are not part of a module type (exception E2 of the port), they are the
+`ext` of `declare module`'s representability.
+-/
 
-The abstract theory's types `p`, `f_in`, `f_out` are section variables, so a `clone` is an
-application.  The module types translate as follows.
-* EasyCrypt's `module type X (P : T) = { … }` is the functor type `T →ₘ X'`.
-* EasyCrypt's restriction of which oracle procedures a procedure may call (`{ P.f }`) is not part
-  of a Gaudí module type.  It is expressed where it matters, by the `ext` of a
-  `Module.Representable` hypothesis (`Logic/AbstractCall.lean`, exception E2 of the port).
-* `OGReal`/`OGIdeal` are EasyCrypt module aliases (`OIndif(C(P), P)`), so here they are definitions
-  that apply `OIndif`.
+section FirstPort
+
+/-!
+## Declarations of the first port
+
+Definitions and plain lemmas of the first port of this file (2026-10/11) that the proofs below
+use; its program-logic proofs are gone.
 -/
 
 namespace GaudisCrypt.SHA3.OptionIndifferentiability
@@ -100,3 +106,78 @@ noncomputable def OGIdeal (F : OFUNCTIONALITY p f_in f_out) (S : OSIMULATOR p f_
     (Module.pair F (Module.pair (Module.app S (OFUNCTIONALITY.view p f_in f_out F)) D))
 
 end GaudisCrypt.SHA3.OptionIndifferentiability
+
+end FirstPort
+
+namespace GaudisCrypt.SHA3.Pilot.OptionIndifferentiability
+
+open GaudisCrypt
+
+/-- EC's `type p.`, `type f_in, f_out.`: the theory's types (a clone fixes them). -/
+class Params (p f_in f_out : outParam Type) : Prop
+
+variable {p f_in f_out : Type} [Params p f_in f_out]
+
+/-! A primitive: the building block we assume ideal. -/
+
+moduletype OPRIMITIVE {
+  proc init () -> Unit;
+  proc f (x : p) -> (Option p);
+  proc fi (x : p) -> (Option p);
+}
+
+moduletype ODPRIMITIVE {
+  proc f (x : p) -> (Option p);
+  proc fi (x : p) -> (Option p);
+}
+
+/-! A functionality: the target construction. -/
+
+moduletype OFUNCTIONALITY {
+  proc init () -> Unit;
+  proc f (x : f_in) -> (Option f_out);
+}
+
+moduletype ODFUNCTIONALITY {
+  proc f (x : f_in) -> (Option f_out);
+}
+
+/-- An `OPRIMITIVE` is an `ODPRIMITIVE` (its `f`, `fi`). -/
+module_subtype OPRIMITIVE <: ODPRIMITIVE
+
+/-- An `OFUNCTIONALITY` is an `ODFUNCTIONALITY` (its `f`). -/
+module_subtype OFUNCTIONALITY <: ODFUNCTIONALITY
+
+/-- EC's `module type OCONSTRUCTION (P : ODPRIMITIVE) = { proc init() : unit {}
+proc f(x : f_in): f_out option { P.f } }`. -/
+abbrev OCONSTRUCTION := ODPRIMITIVE →ₘ OFUNCTIONALITY
+
+/-- EC's `module type OSIMULATOR (F : ODFUNCTIONALITY) = { proc init() : unit { }
+proc f(x : p) : p option { F.f } proc fi(x : p) : p option { F.f } }`. -/
+abbrev OSIMULATOR := ODFUNCTIONALITY →ₘ OPRIMITIVE
+
+/-- EC's `module type ODISTINGUISHER (F : ODFUNCTIONALITY, P : ODPRIMITIVE) =
+{ proc distinguish(): bool }`. -/
+abbrev ODISTINGUISHER := ODFUNCTIONALITY ×ₘ ODPRIMITIVE →ₘ procmod () → Bool
+
+module OIndif using (F : OFUNCTIONALITY, P : OPRIMITIVE, D : ODISTINGUISHER) {
+  proc main () : Bool {
+    var b : Bool;
+    _ <- call P.init ();
+    _ <- call F.init ();
+    b <- call D(F, P).distinguish ();
+    return $b
+  };
+}
+
+/-- `module OGReal(C : OCONSTRUCTION, P : OPRIMITIVE) = OIndif(C(P), P)`. -/
+noncomputable abbrev OGReal (C : OCONSTRUCTION) (P : OPRIMITIVE) (D : ODISTINGUISHER) :
+    procmod () → Bool :=
+  Module.app OIndif (Module.pair (Module.app C P) (Module.pair P D))
+
+/-- `module OGIdeal(F : OFUNCTIONALITY, S : OSIMULATOR) = OIndif(F, S(F))`. -/
+noncomputable abbrev OGIdeal (F : OFUNCTIONALITY) (S : OSIMULATOR) (D : ODISTINGUISHER) :
+    procmod () → Bool :=
+  Module.app OIndif (Module.pair F (Module.pair (Module.app S F) D))
+
+end GaudisCrypt.SHA3.Pilot.OptionIndifferentiability

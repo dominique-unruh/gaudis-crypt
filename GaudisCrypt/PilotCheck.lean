@@ -23,36 +23,37 @@ import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.ReadNormTest
 import GaudisCrypt.Logic.StmtSwapTest
-import GaudisCrypt.Examples.SHA3.Pilot.ConcreteF
-import GaudisCrypt.Examples.SHA3.Pilot.Gcol
-import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
-import GaudisCrypt.Examples.SHA3.Pilot.Gconcl_list
-import GaudisCrypt.Examples.SHA3.Pilot.Gext
-import GaudisCrypt.Examples.SHA3.Pilot.Handle
-import GaudisCrypt.Examples.SHA3.Pilot.IRO
-import GaudisCrypt.Examples.SHA3.Pilot.IndifRO_is_secure
-import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
-import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
-import GaudisCrypt.Examples.SHA3.Pilot.SHA3Indiff
-import GaudisCrypt.Examples.SHA3.Pilot.SHA3Security
-import GaudisCrypt.Examples.SHA3.Pilot.SHA3OSecurity
-import GaudisCrypt.Examples.SHA3.Pilot.SHA3_OIndiff
-import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
-import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
-import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
-import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
-import GaudisCrypt.Examples.SHA3.Pilot.Sponge
+import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
+import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
+import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl
+import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl_list
+import GaudisCrypt.Examples.SHA3.SmartCounter.Gext
+import GaudisCrypt.Examples.SHA3.SmartCounter.Handle
+import GaudisCrypt.Examples.SHA3.IRO
+import GaudisCrypt.Examples.SHA3.IndifRO_is_secure
+import GaudisCrypt.Examples.SHA3.Indifferentiability
+import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
+import GaudisCrypt.Examples.SHA3.SHA3Indiff
+import GaudisCrypt.Examples.SHA3.SHA3Security
+import GaudisCrypt.Examples.SHA3.SHA3OSecurity
+import GaudisCrypt.Examples.SHA3.SHA3_OIndiff
+import GaudisCrypt.Examples.SHA3.SmartCounter.SLCommon
+import GaudisCrypt.Examples.SHA3.SecureHash
+import GaudisCrypt.Examples.SHA3.SecureORO
+import GaudisCrypt.Examples.SHA3.SecureRO
+import GaudisCrypt.Examples.SHA3.Sponge
 
 /-!
-# The day-to-day check: the tactic tests and the EC-fidelity pilots
+# The day-to-day check: the tactic tests and the SHA-3 port
 
     lake build GaudisCrypt.PilotCheck
 
-builds the tests of the tactic layer (`Logic/*Test.lean`, the golden tests among them) and every
-pilot (`Examples/SHA3/Pilot/`), with what they import, and nothing else: about 70% of the
-project.  Use it after a change of a tactic.  The full `lake build` (every module, the first
-SHA-3 port included) is for before a push; a file outside this check that an intended tactic
-change breaks is taken out of the barrel and retired, not repaired (2026-11-13).
+builds the tests of the tactic layer (`Logic/*Test.lean`, the golden tests among them) and the
+SHA-3 port (`Examples/SHA3/`, the EC-fidelity port: the former `Examples/SHA3/Pilot/`, hence the
+name), with what they import, and nothing else: about 70% of the project.  Use it after a change
+of a tactic.  The full `lake build` (every module) is for before a push; a file outside this check
+that an intended tactic change breaks is taken out of the barrel and retired, not repaired
+(2026-11-13).
 
-A new pilot or tactic test is added here and to `GaudisCrypt.lean`.
+A new tactic test is added here and to `GaudisCrypt.lean`.
 -/

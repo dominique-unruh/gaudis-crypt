@@ -1,4 +1,4 @@
-import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
+import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
 import GaudisCrypt.Syntax.Clone
 import GaudisCrypt.Lib.EC.Distr
 
