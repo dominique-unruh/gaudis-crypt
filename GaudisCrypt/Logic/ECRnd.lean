@@ -95,6 +95,44 @@ theorem prhlStmt_seq_sample_inv {α β : Type} {x₁ : Setter α ProgramState}
 end Sample
 
 open Lean Meta Elab Tactic PRHLWp TacticMisc in
+/-- `PRHLWp.elabRelTerm`, with the names read per side: a variable that has one type on the left
+and another on the right (`x : group` of an inlined `gen`, `x : exp` of the other game) cannot be
+named for the whole judgment, but `§x{1}` and `§x{2}` each mean the variable of that side's
+code.  (To be `elabRelTerm` itself, and the printer's rule: the examples' batch.) -/
+def ECRnd.elabRelTermSided (goalTy : Lean.Expr) (t : Term) (T : Lean.Expr) :
+    TacticM Lean.Expr := do
+  let all ← ProgramSyntax.frameVars goalTy.getAppArgs #[]
+  let vars := all.filter (·.nameable)
+  let clash := (all.filter (!·.nameable)).map (·.name)
+  -- the clashing names, by side: the variable of that side's statement
+  let mut sided : Array (Nat × String × Ident × Lean.Expr) := #[]
+  for k in [1, 2] do
+    for v in ← ProgramSyntax.frameVars #[goalTy.getArg! k] #[] do
+      if v.nameable && clash.contains v.name then
+        if let some slot := v.slots[0]? then
+          let n ← mkFreshUserName (.mkSimple s!"{v.name}_{k}")
+          sided := sided.push (k, v.name, mkIdent n, slot)
+  let param (k : Nat) (n : Name) : Option Term :=
+    (sided.find? fun (k', n', _, _) => k' == k && Name.mkSimple n' == n).map
+      fun (_, _, i, _) => ⟨i.raw⟩
+  let σ₁ ← `(σ₁)
+  let σ₂ ← `(σ₂)
+  let states (k : Nat) : Option Term :=
+    if k == 1 then some σ₁ else if k == 2 then some σ₂ else none
+  let t' : Term := ⟨← liftMacroM (RelSyntax.expand states param t)⟩
+  let Tstx ← Term.exprToSyntax T
+  let mut stx ← `(fun ($σ₁ : ProgramState) ($σ₂ : ProgramState) => ($t' : $Tstx))
+  for v in vars.reverse do
+    let some slot := v.slots[0]? | continue
+    stx ← `(letI $(mkIdent (.mkSimple v.name)) := $(← Term.exprToSyntax slot); $stx)
+  for (_, _, i, slot) in sided do
+    stx ← `(letI $i := $(← Term.exprToSyntax slot); $stx)
+  let ps := mkConst ``ProgramState
+  let e ← elabTermEnsuringType stx (← mkArrow ps (← mkArrow ps T))
+  Term.synthesizeSyntheticMVarsNoPostponing
+  instantiateMVars e
+
+open Lean Meta Elab Tactic PRHLWp TacticMisc in
 /-- **EC's `rnd f g`**: the last statements of both sides are samplings `x₁ <$ d₁`, `x₂ <$ d₂`,
 coupled along `f` with inverse `g` (`prhlStmt_seq_sample_inv`): the postcondition before them is
 EC's three conditions.  `f`, `g` are relational terms (`§x{1}`, `§x{2}`). -/
@@ -118,7 +156,7 @@ elab "equiv_rnd" ppSpace f:term:max ppSpace g:term:max : tactic => withMainConte
       let mTy ← instantiateMVars (← inferType m)
       let .forallE _ _ (.forallE _ _ T _) _ := mTy
         | throwError "equiv_rnd: unexpected coupling type{indentExpr mTy}"
-      let e ← elabRelTerm ty t T
+      let e ← ECRnd.elabRelTermSided ty t T
       unless ← isDefEq m e do
         throwError "equiv_rnd: the function{indentExpr e}\ndoes not have type{indentExpr mTy}"
     let hJ := ms.back!

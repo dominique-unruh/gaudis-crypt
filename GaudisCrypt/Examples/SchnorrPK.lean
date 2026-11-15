@@ -169,8 +169,7 @@ theorem schnorr_proof_of_knowledge_completeness (h : group) (w' : exp) (m : Vari
   have hR : x1 = (g : group) ^ w := sigmarel
   have key : ∀ a b : exp, (g : group) ^ a * x1 ^ b = g ^ (a + b * w) := fun a b => by
     rw [hR, expD, mul_comm b w, expM]
-  simp only [key, decide_true, eq_self, indicatorE_true, ENNReal.sum_one_div_card_eq_one,
-    ENNReal.ofReal_one]
+  simp only [key, decide_true, eq_self, dt_ll, implies_true, and_self]
 
 set_option maxHeartbeats 2000000 in
 -- one declaration: the experiment with its two inlined verifications and nested conditionals

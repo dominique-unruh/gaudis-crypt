@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.ECRnd
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECClose
+import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Syntax.Syntax
 
 /-!
@@ -13,6 +14,24 @@ format; `scripts/update_golden.py` refreshes the expected text).
 namespace GaudisCrypt.ECRndTest
 
 open GaudisCrypt GaudisCrypt.EC
+
+module L {
+  proc f () : (ZMod 7) {
+    var k : Bool, x : ZMod 7;
+    k <- true;
+    x <$ SubProbability.uniform;
+    return $x
+  };
+}
+
+module R {
+  proc f () : (ZMod 7) {
+    var k : ZMod 7, x : ZMod 7;
+    k <- 2;
+    x <$ SubProbability.uniform;
+    return $x
+  };
+}
 
 -- a shift and its inverse, on a uniform sampling
 /--
@@ -86,6 +105,28 @@ example : equiv[ True ==> §b{2} = !§b{1} ] {
   trace_state
   equiv_skip
   auto_progress
+
+-- a name with one type on the left and another on the right (as inlining leaves them): each
+-- side's own variable
+/--
+trace: ⊢ equiv[ True ==>
+      (∀ (b : ZMod 7), b = b - §(localVarLens "k" (ZMod 7)){2} + §(localVarLens "k" (ZMod 7)){2}) ∧
+        ∀ (a : ZMod 7),
+          a = a + §(localVarLens "k" (ZMod 7)){2} - §(localVarLens "k" (ZMod 7)){2} ∧
+            a + §(localVarLens "k" (ZMod 7)){2} = a + 2 ]
+      {
+      (localVarLens "k" Bool) <- true;
+} ~
+    {
+      (localVarLens "k" (ZMod 7)) <- 2;
+}
+-/
+#guard_msgs in
+example : equiv[ L.f ~ R.f : True ==> §res{2} = §res{1} + 2 ] := by
+  equiv_proc
+  equiv_rnd (fun z => z + §k{2}) (fun z => z - §k{2})
+  trace_state
+  equiv_auto
 
 -- not two samplings
 /--

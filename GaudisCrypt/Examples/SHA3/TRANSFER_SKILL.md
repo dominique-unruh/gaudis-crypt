@@ -205,6 +205,7 @@ the `while` row.
 | `rnd f g` | `equiv_rnd f g` (`Logic/ECRnd.lean`, 2026-11-15): EC's three conditions in the postcondition before the samplings (`rR = f (g rR)`, `mu1 d₂ rR = mu1 d₁ (g rR)`, `rL = g (f rL)` with `f rL \in d₂` and the postcondition); `f`, `g` may read both memories (`§k{1}`).  For two samplings from the uniform distribution (or `dbool`) the masses and the supports are discharged, and EC's `auto; progress` after it is `equiv_auto; auto_progress` (it closes ring identities itself).  `equiv_rnd f` (one function) stays for involutions and for the cases with a known push-forward (`SHA3OSecurity` `rw_ideal`: `equiv_rnd (fun l => oget (of_list l))` with `dlist_dout`) |
 | pHL `rnd (pred1 v)` / `rnd` (lossless) | `rnd_pred1 v` / `rnd_bound` (on the expectation `phoare_auto` leaves at a sampling) |
 | pHL `rnd E` on an **exact** bound (`phoare[ c; x <$ d : P ==> Q ] = r`) | `phoare_rnd E` (`Logic/PHoareRnd.lean`, 2026-11-15): the goal becomes EC's `phoare[ c : P ==> mu d E = r ∧ ∀ v ∈ d, (E v ↔ Q v) ] = 1`; `E` may read variables (`phoare_rnd (pred1 §b')`).  `mu`, `mu_pred1`, `dbool1E_mu1`, `pred1E` for the closer |
+| pHL `call H` (`H : islossless f`), `rnd`, `auto` on `phoare[ c : P ==> Q ] = 1`, `Q` an event | `phoare_call H` / `phoare_rnd` / `phoare_auto` with `Logic/PHoareRnd.lean` imported (2026-11-15): the judgment stays an event, as in EC — a call leaves `∀ result, Q`, a sampling `is_lossless d ∧ ∀ v ∈ d, Q`, `auto` ends with `P → Q'` (`Pedersen.ec`'s `rnd (pred1 b'); call ug_ll; wp; rnd; call uc_ll; auto => />` is the same line; EC's `rewrite dt_ll … dbool1E` after it is `smt_close [dt_ll, mu_pred1, dbool1E_mu1, pred1E]`).  Without the import, and on an expectation that is not an event (`1` after `conseq (: _ ==> true)`), the rules on expectations apply as before |
 | `conseq (: _ ==> Q)` on `phoare[ … ] = 1` | `phoare_conseq (: _ ==> Q)` (same file): goals `post` (over values), then the judgment; `Q = True` gives `phoare[ … ==> 1 ] = 1` |
 | `islossless` (the tactic) | `islossless`: on `phoare[ c : P ==> 1 ] = 1` or `islossless M.f`, code without loops; assignments and samplings from `dbool`, the uniform distribution or a distribution with `is_lossless d` in the context are closed, each call leaves `islossless p`, the last call first — EC's `islossless; [apply Ag_ll \| apply Ac_ll]` is `islossless <;> [exact Ag_ll; exact Ac_ll]` |
 | `hint exact random : dhkey_ll.` | `attribute [ec_random] dhkey_ll` (`Logic/ECHints.lean`): the lemmas `is_lossless d` that `islossless` closes a sampling with (EC's hint database `random`); the library's `dbool_ll`, `uniform_ll`, `BitWord.dunifin_ll` are tagged |
@@ -802,9 +803,11 @@ Document each in the docstring when it applies.
   `stmt_swap` fails.  Move the statement alone with our position, `stmt_swap_raw{i} 2 k`.  To
   do: a statement moved later leaves its reset where it is.
 * **`call H; auto` in pHL on a lossless suffix** (EC's `call Ag_ll; auto. by call Ac_ll;
-  auto=> />; rewrite dhkey_ll dt_ll dbits_ll`): `phoare_call H; phoare_auto` computes through
-  the code before the call and leaves an expectation of the earlier call; write `islossless`
-  for the whole lossless part.
+  auto=> />; rewrite dhkey_ll dt_ll dbits_ll`, after `conseq (: _ ==> true)`): the judgment is
+  `phoare[ … ==> 1 ] = 1`, on which `phoare_call H; phoare_auto` computes through the code before
+  the call and leaves an expectation of the earlier call; write `islossless` for the whole
+  lossless part.  (On an *event*, EC's `call H; wp; rnd; call H'; auto` is ours: the table's
+  row on `phoare[ c : P ==> Q ] = 1`.)
 
 * **A path into a module without a module type that has several module parameters**
   (`SimulateHonestVerifier(S, A, D).gameIdeal`, EC's `theories/crypto/SigmaProtocol.ec`) does not
@@ -819,6 +822,28 @@ Document each in the docstring when it applies.
 * **A theory's operator in a development that clones it** (`R` of `SigmaProtocol`): the clone
   does not alias the class's fields; `open GaudisCrypt.EC.SigmaProtocol (R)` and `R h w` is the
   clone's (`R_DL h w` by definition).
+* **A variable with one type on the left and another on the right** (after `inline*`: `x` the
+  key, a group element, of `Correctness`'s inlined `gen`, and `x` the secret exponent of the
+  other game; `Pedersen.ec`): the judgment prints it as `§(localVarLens "x" exp){2}` and a
+  tactic's condition cannot name it (`Unknown identifier x`).  `equiv_rnd f g` reads `§x{i}` as
+  side `i`'s variable (`ECRnd.elabRelTermSided`); the other tactics and the printer do not yet
+  (the examples' batch).  A written `equiv[ … ] { … } ~ { … }` refuses such a pair of
+  declarations: a test of it goes through procedures and `equiv_proc`.
+* **`inline{i} M(A).f` by name where the game calls `f` through its module type** (the
+  experiment's `A.guess` at `A := StdRedAdversary(L)`; the call is `StdAdversary.guess` of the
+  module, the name is the module's own procedure): `stmt_inline{i} (M(A).f)` finds no call.
+  By site: `stmt_inline{i} 0`.
+* **`hoare[ … ]` on a clone's game with parameters**: as for `byphoare`, the parameters are
+  named at the triple, `hoare[ Correctness(Pedersen).main (m) : True ==> §res ]`.
+* **A lemma over a module and a memory** (`(U <: Unhider) &m`): one binder per quantifier,
+  `∀ (U <: Unhider), ∀ m : VariableAssignment, islossless U.choose → …`; `intro U m uc_ll ug_ll`.
+  `islossless` leaves the calls' goals (it closes the samplings by hint): with the hypotheses
+  in the context, `islossless <;> assumption`.
+* **EC's intro pattern after `auto => />`** (`=> /> x _ [c m d m' d'] /= comm comm' m_neq_m'`):
+  `equiv_auto; auto_progress`, then `rename_i` for the hypotheses and `obtain ⟨c, μ, d, μ', d'⟩`
+  for a call's tuple result (`simp only at … ⊢` reduces the projections).  `auto_progress` also
+  leaves the cases EC's `/>` closes (a conditional's other branch): close them after.
+* **`pow_bij`** (`g ^ a = g ^ b ↔ a = b`): `congrArg loge h` and `loggK`.
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

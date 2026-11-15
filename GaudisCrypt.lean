@@ -225,6 +225,9 @@ import GaudisCrypt.Lib.EC.PKE.PKE_CPA
 import GaudisCrypt.Examples.ElGamal
 import GaudisCrypt.Examples.HashedElGamal
 import GaudisCrypt.Examples.SchnorrPK
+import GaudisCrypt.Lib.EC.DLog
+import GaudisCrypt.Lib.EC.Commitment
+import GaudisCrypt.Examples.Pedersen
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.OTP
@@ -261,11 +264,4 @@ import GaudisCrypt.Examples.SHA3.SmartCounter.Gext
 import GaudisCrypt.Examples.SHA3.SmartCounter.Handle
 import GaudisCrypt.Examples.SHA3.SmartCounter.SLCommon
 import GaudisCrypt.Examples.SHA3.Sponge
-import GaudisCrypt.Examples.Pedersen.Binding
-import GaudisCrypt.Examples.Pedersen.Commitment
-import GaudisCrypt.Examples.Pedersen.Hiding
-import GaudisCrypt.Examples.Pedersen.HidingHoare
-import GaudisCrypt.Examples.Pedersen.HidingPHoare
-import GaudisCrypt.Examples.Pedersen.HidingPRHL
-import GaudisCrypt.Examples.Pedersen.Pedersen
 import GaudisCrypt.PilotCheck

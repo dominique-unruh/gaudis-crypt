@@ -6,7 +6,8 @@ import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Syntax.PrSyntax
 
 /-!
-# Golden tests of `phoare_rnd`, `phoare_conseq` on an exact bound, `islossless`
+# Golden tests of `phoare_rnd`, `phoare_conseq` on an exact bound, `islossless`, and of the rules
+for an event reached with probability `1` (`phoare_call H`, `phoare_rnd`, `phoare_auto`)
 
 The goals the three steps leave on `Pr[ Game(A).main () @ &m : res ] = 1 / 2`, EC's
 `byphoare; proc; rnd (pred1 b'); conseq (: _ ==> true); islossless` (see `Logic/ECAutoTest.lean`
@@ -25,6 +26,17 @@ module Game using (A : Guesser) {
   proc main () : Bool {
     var b : Bool, b' : Bool, x : ℕ;
     x <- 0;
+    b' <- call A.guess ();
+    b <$ dbool;
+    return decide ($b' = $b)
+  };
+}
+
+module Game2 using (A : Guesser) {
+  proc main () : Bool {
+    var b : Bool, b' : Bool, x : Bool, y : Bool;
+    x <$ dbool;
+    y <- !$x;
     b' <- call A.guess ();
     b <$ dbool;
     return decide ($b' = $b)
@@ -140,10 +152,8 @@ error: phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = r` with `Q` an event and
   phoareStmt GaudiExpr[ () = () ∧ CurrentState.state.globals = m ].get
     (GaudiProg[
         var x : ℕ, b' : Bool, b : Bool;
-        {
-          x <- 0;
-          b' <- call A.guess.procedure ();
-        }
+        x <- 0;
+        b' <- call A.guess.procedure ();
         b <$ dbool;
   ])
     GaudiExpr[ indicatorE (decide (§(localVarLens "b'" Bool) = §(localVarLens "b" Bool)) = true) ].get
@@ -153,6 +163,79 @@ error: phoare_rnd: not `phoare[ c; x <$ d : P ==> Q ] = r` with `Q` an event and
 example (m : VariableAssignment) : Pr[ Game(A).main () @ &m : §res ] ≤ 1 / 2 := by
   byphoare; phoare_proc
   phoare_rnd (pred1 §b')
+
+/-! ## An event reached with probability `1`: lossless calls, samplings, `auto` -/
+
+-- EC's `call A_ll` on an event: the event for every result
+/--
+trace: case judgment
+A : Guesser
+inst✝ : Module.Declared A ⊥
+A_ll : A.guess.procedure.IsLossless
+m : VariableAssignment
+⊢ phoare[ () = () ∧ CurrentState.state.globals = m ==>
+      ∀ (v : Bool), mu dbool (pred1 v) = 1 / 2 ∧ ∀ v_1 ∈ dbool.support, pred1 v v_1 ↔ decide (v = v_1) = true ] = 1 {
+      var x : Bool, y : Bool;
+      x <$ dbool;
+      y <- !§x;
+}
+-/
+#guard_msgs in
+include A_ll in
+example (m : VariableAssignment) : Pr[ Game2(A).main () @ &m : §res ] = 1 / 2 := by
+  byphoare; phoare_proc
+  phoare_rnd (pred1 §b'); phoare_call A_ll
+  trace_state
+  phoare_auto
+  smt_close [dbool_ll, mu_pred1, dbool1E_mu1, pred1E]
+
+-- EC's `rnd` (no event): the distribution is lossless, the event holds on its support
+/--
+trace: case judgment
+A : Guesser
+inst✝ : Module.Declared A ⊥
+A_ll : A.guess.procedure.IsLossless
+m : VariableAssignment
+⊢ phoare[ () = () ∧ CurrentState.state.globals = m ==>
+      is_lossless dbool ∧
+        ∀ v ∈ dbool.support,
+          ∀ (v : Bool),
+            mu dbool (pred1 v) = 1 / 2 ∧ ∀ v_1 ∈ dbool.support, pred1 v v_1 ↔ decide (v = v_1) = true ] = 1 {
+      skip;
+}
+-/
+#guard_msgs in
+include A_ll in
+example (m : VariableAssignment) : Pr[ Game2(A).main () @ &m : §res ] = 1 / 2 := by
+  byphoare; phoare_proc
+  phoare_rnd (pred1 §b'); phoare_call A_ll; stmt_wp; phoare_rnd
+  trace_state
+  phoare_auto
+  smt_close [dbool_ll, mu_pred1, dbool1E_mu1, pred1E]
+
+-- EC's `auto` on an event: `wp` and `rnd` to the start, then the implication
+/--
+trace: case judgment
+A : Guesser
+inst✝ : Module.Declared A ⊥
+A_ll : A.guess.procedure.IsLossless
+m : VariableAssignment
+⊢ ∀ (σ : ProgramState),
+    () = () ∧ CurrentState.state.globals = m →
+      is_lossless dbool ∧
+        ∀ v ∈ dbool.support,
+          ∀ (v : Bool), mu dbool (pred1 v) = 1 / 2 ∧ ∀ v_1 ∈ dbool.support, pred1 v v_1 ↔ decide (v = v_1) = true
+-/
+#guard_msgs in
+include A_ll in
+example (m : VariableAssignment) : Pr[ Game2(A).main () @ &m : §res ] = 1 / 2 := by
+  byphoare; phoare_proc
+  phoare_rnd (pred1 §b'); phoare_call A_ll; phoare_auto
+  trace_state
+  smt_close [dbool_ll, mu_pred1, dbool1E_mu1, pred1E]
+
+-- (a judgment that is not an event with the bound `1` goes to the rules on expectations: the
+-- `islossless` tests above run `phoare_call` and `phoare_auto` on the expectation `1`)
 
 end
 
