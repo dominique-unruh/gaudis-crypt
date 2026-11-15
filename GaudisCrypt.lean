@@ -249,6 +249,7 @@ import GaudisCrypt.Logic.ByPrEquiv
 import GaudisCrypt.Lib.EC.DUniform
 import GaudisCrypt.Lib.EC.DBoolBiased
 import GaudisCrypt.Examples.VonNeumann
+import GaudisCrypt.Lib.EC.WhileSamplingFixedTest
 import GaudisCrypt.Examples.PIR
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
