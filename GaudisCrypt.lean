@@ -238,6 +238,7 @@ import GaudisCrypt.Lib.EC.IsUniform
 import GaudisCrypt.Lib.EC.ListFind
 import GaudisCrypt.Logic.ECCallFrameRel
 import GaudisCrypt.Logic.ECCallMultiProcTest
+import GaudisCrypt.Syntax.ModuleVarTest
 import GaudisCrypt.Examples.BR93
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame

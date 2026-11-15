@@ -12,6 +12,8 @@ section's instances too.  With the theory's operators in a class whose types are
 `outParam`s (`class Params (from to : outParam Type)`), that instance is what determines the types
 where the variable is used alone (`RO.m`, `§RO.m`), as EC's `RO.m` is used.  (`global_var` takes
 only the section variables its type mentions, so there the types would stay undetermined.)
+The type may depend on the theory's operators (`module_var I.qs : List rand` with
+`rand := BitWord.word l`, `l` an operator; `Syntax/ModuleVarTest.lean`).
 
 The name's key proof is a theorem of its own, `RO.m.key_eq : k = VariableName.encode "N.RO.m"`,
 proven once here.  With the proof `rfl` (as `VariableName.mk` makes it), every use of the
@@ -45,7 +47,11 @@ elab_rules : command
     let k := Syntax.mkNumLit (toString (VariableName.encode full.toString))
     let kx := mkIdentFrom x (x.getId ++ `key_eq)
     elabCommand (← `(variable_name_key_theorem $kx $n))
-    let body ← instTys.foldrM (fun ty acc => `(have _ := (inferInstance : $ty); $acc))
+    -- (the instance is not bound as a local: `T` may depend on an operator of the theory
+    -- (`List rand`, `rand := word l`), and would then be elaborated at the local in the body
+    -- and at the section's instance in the definition's type)
+    let body ← instTys.foldrM
+      (fun ty acc => `(have _ : True := (fun (_ : $ty) => True.intro) inferInstance; $acc))
       (← `(varLens (@VariableName.mk $n $T _ $k $kx)))
     elabCommand (← `($[$doc?]? @[nolint unusedArguments]
       noncomputable def $x : Lens $T VariableAssignment := $body))

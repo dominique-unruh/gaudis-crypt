@@ -876,6 +876,36 @@ Document each in the docstring when it applies.
   (`first` takes a `simp_all` that made progress without closing the goal).
 * **`smt_close` with lemmas applied to section hypotheses** (`smt_close [pr_Game0_Game1 A A_ll
   m, …]`) fails with "unknown free variable" (2026-11-15, open): `have`s and `linarith`.
+* **An abstract theory instantiated in the same file** (`br93.ec`: `abstract theory BR93 … end
+  BR93.`, then `local clone import BR93 as Instance with …` and the theorem for the instance):
+  the theory is a namespace with its class, the instance part a sibling namespace with its own
+  class for the file's remaining operators (`op k`, `op l`, `dkeys`, `f`, …), and
+  `clone import GaudisCrypt.Examples.BR93 as Instance with … proof * by first | …`.  Cloning a
+  theory that itself contains clones works (`Instance.H.Lazy.LRO`, `Instance.OW_rand.OW`).
+  The clone goes before the section (its variables are named in `A`'s restriction).  A
+  declaration of the current namespace shadows the clone's (`I` is the instance's inverter,
+  `Instance.I` the theory's; EC's `Self.I` and `I`).
+* **A second clone of a theory at the same types and operators** (`clone import ROM as H` in
+  the instance, and the one inside `BR93`): one module, one variable; EC's
+  `H.Lazy.LRO.m{1} = LRO.m{2}` is `={LRO.m}` (in an invariant `={glob A, LRO.m}`).
+* **A module variable whose type depends on an operator** (`var qs : rand list`, `rand` the
+  words of length `l`): `module_var I.qs : List rand` (fixed 2026-11-15; before, a type
+  mismatch between the definition's type and its body).  The type abbreviations
+  (`abbrev rand : Type := BitWord.word l`) need no annotations at their uses.
+* **A nested module** (`module QRO = { … }` inside `module I`): a module next to it, named
+  `I.QRO`, with the outer module's parameters it uses (`A(I.QRO(H)).a1`).  **A procedure
+  alias** (`proc a1 = A(H).a1`): a procedure with the one call; one more `inline` where EC's
+  script sees the callee directly.
+* **A wrapper around a declared adversary, passed to a lemma of another section** (`apply
+  (Reduction (A_CPA(A)) _ _ &m)`): `module A_CPA (A : Adv) using (H : POracle) : AdvProcs`
+  (`A` a Lean parameter: `A_CPA A` is EC's `A_CPA(A)`), `theorem fvP_A_CPA : FVP.fvP (A_CPA A)
+  ≤ FVP.fvP A := by (fp_module)`, the instance `Module.ECGlob (A_CPA A) R` from it, and the
+  lemma's section in the form `declare module A … with glob R` (E14).  The application:
+  `refine @Instance.Reduction _ … (A_CPA A) ⟨by fp_finite, by fp_disjoint⟩ _ _
+  (Footprint.Restricted.glob_declared A) ?_ ?_ m`; the losslessness goals are then about
+  oracles outside `glob A`, EC's hypotheses.
+* **`fp_module` as the last tactic before `set_option … in`**: write `(fp_module)` — its
+  optional argument otherwise takes the next command as a term.
 * **A file that is its own theory** (`WhileSampling.ec`: `type t. op sample … axiom …`): a class
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
@@ -1113,7 +1143,9 @@ glue around the *old* `eq_f`/`eq_fi`): copy their proof steps, not their declara
   (`DoubleBounding`, `Real_GReal'`, `Real_Concrete`).
 * An adversary with several procedures and an oracle, a cloned random oracle, up-to-bad with
   the oracle's log, pHL on an event, `swap` past the adversary: `Examples/BR93.lean`
-  (`br93.ec`); goals of the call rules in `Logic/ECCallMultiProcTest.lean`.
+  (`br93.ec`); goals of the call rules in `Logic/ECCallMultiProcTest.lean`.  The same file:
+  a theory and its instance (`clone` of a theory with clones, a wrapper adversary, the
+  theory's theorem applied to it).
 * Large invariant proofs with `exists*`, ambient cases, `rcondt`/`rcondf`, `swap` past calls:
   `Handle.lean` (`eq_fi`, `eq_f`, `CF_G1`) — compare with `Handle.eca`: `eq_fi` from line 1349,
   `eq_f` 1488–1813, `CF_G1` 2595.

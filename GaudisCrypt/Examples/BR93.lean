@@ -3,6 +3,9 @@ import GaudisCrypt.Lib.EC.OW
 import GaudisCrypt.Lib.EC.IsUniform
 import GaudisCrypt.Lib.EC.Logic
 import GaudisCrypt.Lib.EC.ListFind
+import GaudisCrypt.Lib.EC.BitWord
+import GaudisCrypt.Lib.EC.BitWordRing
+import GaudisCrypt.Lib.EC.ListLemmas
 import GaudisCrypt.Syntax.Clone
 import GaudisCrypt.Syntax.PrSyntax
 import GaudisCrypt.Syntax.ModuleVar
@@ -33,14 +36,18 @@ import GaudisCrypt.Logic.ECRnd
 
 Bellare and Rogaway, "Random oracles are practical: a paradigm for designing efficient
 protocols" (1993): `enc pk m = (f pk r, H r +^ m)` for a one-way trapdoor permutation `f` and a
-random oracle `H`.  EC's `abstract theory BR93` (lines 1–422 of `br93.ec`), declaration by
-declaration and script line by line: correctness, and the reduction
-`Pr[BR93_CPA(A).main : res] - 1/2 ≤ Pr[OW(I(A)).main : res]` by three games (the oracle call of
-the challenge replaced by a sampling, up to the adversary querying `r`; the one-time pad
-`h +^ m` replaced by `h`; the inverter).  All of the theory's lemmas are proven.
+random oracle `H`.  EC's file, declaration by declaration and script line by line, in its two
+parts:
 
-The second half of EC's file (lines 425–659, the instance on bitstrings and its `Reduction` in
-the textbook's notation) is not ported: see GAP 9.
+* `abstract theory BR93` (lines 1–422; namespace `GaudisCrypt.Examples.BR93`): correctness, and
+  the reduction `Pr[BR93_CPA(A).main : res] - 1/2 ≤ Pr[OW(I(A)).main : res]` by three games (the
+  oracle call of the challenge replaced by a sampling, up to the adversary querying `r`; the
+  one-time pad `h +^ m` replaced by `h`; the inverter);
+* the instance on bitstrings (lines 425–659; namespace `GaudisCrypt.Examples.BR93Concrete`):
+  plaintexts of length `k`, nonces of length `l`, ciphertexts `r || p`, the textbook's `CPA`,
+  `BR`, `Exp_OW`, and `Reduction` for them from the theory's, cloned as `Instance`.
+
+All of EC's lemmas are proven.
 
 Translation:
 * `abstract theory BR93` with its types and operators is `class Params (ptxt rand pkey skey)`;
@@ -52,6 +59,12 @@ Translation:
   `declare module` and a section `variable` with the same binder.
 * A module's `var x` is `module_var M.x : T` before the module.
 * `x \in LRO.m` is `FMap.dom §LRO.m x`; `witness` is `default`.
+* The instance: `op k`, `op l`, `type pkey, skey`, `op dkeys`, `f`, `fi` and their axioms are
+  `class BR93Concrete.Params (pkey skey)`; the three clones of `BitWord` (`ptxt`, `rand`, `ctxt`)
+  are `BitWord.word k`, `BitWord.word l`, `BitWord.word n`; `r || p` is `r ∥ p`; EC's `Self.I`
+  is `I`, the theory's `Instance.I`.
+* `module A_CPA (A : Adv) (H : POracle)` is `module A_CPA (A : Adv) using (H : POracle)`: `A` a
+  Lean parameter, so that EC's partial application `A_CPA(A)` is the module `A_CPA A`.
 
 Gap list (what keeps the file from reading as EC's):
 * GAP 1: `local module Game1 = BR93_CPA(A) with { … }` and `Game2 = Game1 with { … }` (EC's
@@ -71,12 +84,26 @@ Gap list (what keeps the file from reading as EC's):
 * GAP 7: `rewrite (OW_OWr &m (I(A)))` needs `I(A)`'s restriction `{-OWr}` as an instance,
   stated by hand (`haveI : Module.Declared (Module.app I A) …`); EC checks it itself.
 * GAP 8: `Reduction`'s `smt(…)` is `linarith` on the five lemmas (`smt_close` with lemmas
-  applied to the section's hypotheses fails with an internal error); three lemmas need more
-  than the default heartbeats.
-* GAP 9 (blocked): the instance clones `ROM` a second time at the types of the clone inside
-  `BR93` and relates the two clones' maps (`H.Lazy.LRO.m{1} = LRO.m{2}`): two clones of one
-  theory with distinct module variables — the per-clone variables of
-  `notes/SHA3/TacticReview.md` (last section, limit 4).
+  applied to the section's hypotheses fails with an internal error); three lemmas, and the
+  instance's `Reduction`, need more than the default heartbeats.
+* GAP 9: the section is `declare module A <: Adv {…} with glob R` with `{-R}` for `{-A}` in
+  `A_a1_ll`, `A_a2_ll` (`notes/SHA3/Exceptions.md`, E14), so that the instance can apply
+  `Reduction` to `A_CPA(A)`: `glob A_CPA(A)` is known from above only.
+* GAP 10 (instance): EC clones `ROM` a second time, at the types of the clone inside `BR93`,
+  and the two bridges keep `H.Lazy.LRO.m{1} = LRO.m{2}`.  Two clones of a theory at the same
+  types and operators are one module here and share its variable: the invariant is
+  `={glob A, LRO.m}` (per-clone variables: `notes/SHA3/TacticReview.md`, last section).
+* GAP 11 (instance): `local clone import BR93 as Instance` is made before the section, and the
+  restriction of `A` is `{-LRO, -I, -Log, -Game1, -Game2, -OWr}`: EC's `{-LRO, -I}`, and the
+  clone's variables, fresh for `A` in EC because the clone is made after `A` is declared.  They
+  show in the statement of `Reduction`.
+* GAP 12 (instance): EC's `module QRO` inside `I` is the module `I.QRO` next to it; EC's
+  procedure alias `proc a1 = A(H).a1` in `A_CPA` is a procedure with one call (one more
+  `inline` in the first bridge).
+* GAP 13 (instance): `apply/(Reduction (A_CPA(A)) _ _ &m)` states EC's restriction checks of
+  `A_CPA(A)` by hand (`⟨by fp_finite, by fp_disjoint⟩`, `Footprint.Restricted.glob_declared
+  A`), with the instance `Module.ECGlob (A_CPA A) R` from `fvP_A_CPA`; the last goal of the
+  second bridge (EC's `by auto`) needs the invariant's `Log.qs{1} = I.qs{2}` rewritten.
 * `[Countable rand]` is an assumption EC does not state (the samplings into `rand`).
 -/
 
@@ -351,11 +378,12 @@ module OWr using (I : Inverter) {
 section
 
 -- All lemmas in this section hold for all (valid) CPA adversary A
--- (GAP 3: `Game1`, `Game2`, `OWr` are EC's local modules, declared after `A`)
-declare module A <: Adv {-LRO, -Log, -Game1, -Game2, -OWr}
+-- (GAP 3: `Game1`, `Game2`, `OWr` are EC's local modules, declared after `A`; GAP 9: the
+-- region `R` for `glob A`)
+declare module A <: Adv {-LRO, -Log, -Game1, -Game2, -OWr} with glob R
 
-variable (A_a1_ll : ∀ (O <: POracle {-A}), islossless O.o → islossless A(O).a1)
-  (A_a2_ll : ∀ (O <: POracle {-A}), islossless O.o → islossless A(O).a2)
+variable (A_a1_ll : ∀ (O <: POracle {-R}), islossless O.o → islossless A(O).a1)
+  (A_a2_ll : ∀ (O <: POracle {-R}), islossless O.o → islossless A(O).a2)
 
 set_option maxHeartbeats 4000000 in
 -- (GAP 8: the script needs more than the default heartbeats)
@@ -556,3 +584,317 @@ theorem Reduction (m : VariableAssignment) :
 end
 
 end GaudisCrypt.Examples.BR93
+
+/-!
+## The concrete instance (EC lines 425–659)
+
+We now consider a concrete instance:
+* plaintexts are bitstrings of length `k > 0`,
+* nonces are bitstrings of length `l > 0`,
+* ciphertexts are bitstrings of length `n = k + l`.
+-/
+
+namespace GaudisCrypt.Examples.BR93Concrete
+
+open GaudisCrypt GaudisCrypt.EC
+
+/-- The operators and axioms of the second half of EC's file: the lengths `k`, `l`, a set
+`pkey * skey` of keypairs with a lossless, full, uniform distribution `dkeys`, and a family `f`
+of trapdoor permutations over `rand` with inverse family `fi`. -/
+class Params (pkey skey : outParam Type) where
+  /-- `op k : { int | 0 < k } as gt0_k`: the length of plaintexts. -/
+  k : ℤ
+  gt0_k : 0 < k
+  /-- `op l : { int | 0 < l } as gt0_l`: the length of nonces. -/
+  l : ℤ
+  gt0_l : 0 < l
+  dkeys : SubProbability (pkey × skey)
+  dkeys_llfuni : is_lossless dkeys ∧ is_funiform dkeys
+  f : pkey → BitWord.word l → BitWord.word l
+  fi : skey → BitWord.word l → BitWord.word l
+  fK : ∀ pk sk x, (pk, sk) ∈ dkeys.support → fi sk (f pk x) = x
+
+export Params (k gt0_k l gt0_l dkeys dkeys_llfuni f fi fK)
+
+variable {pkey skey : Type} [Inhabited pkey] [Inhabited skey] [Params pkey skey]
+
+/-- EC's `clone import BitWord as Plaintext with op n <- k … rename "word" as "ptxt"`. -/
+abbrev ptxt : Type := BitWord.word k
+
+/-- EC's `clone import BitWord as Randomness with op n <- l … rename "word" as "rand"`. -/
+abbrev rand : Type := BitWord.word l
+
+/-- EC's `op n = l + k`. -/
+abbrev n : ℤ := l + k
+
+theorem gt0_n : 0 < n := by
+  -- EC: by smt(gt0_k gt0_l).
+  have := gt0_k; have := gt0_l
+  simp only [n]; omega
+
+/-- EC's `clone import BitWord as Ciphertext with op n <- n … rename "word" as "ctxt"`. -/
+abbrev ctxt : Type := BitWord.word n
+
+/-- EC's `Plaintext.DWord.dunifin`, renamed `dptxt`. -/
+noncomputable abbrev dptxt : SubProbability ptxt := BitWord.dunifin
+
+/-- EC's `Randomness.DWord.dunifin`, renamed `drand`. -/
+noncomputable abbrev drand : SubProbability rand := BitWord.dunifin
+
+/-! Parsing and Formatting -/
+
+/-- EC's `op (||) (r:rand) (p:ptxt) : ctxt = mkctxt ((ofrand r) ++ (ofptxt p))`. -/
+def cat (r : rand) (p : ptxt) : ctxt := BitWord.mkword (BitWord.ofword r ++ BitWord.ofword p)
+
+@[inherit_doc] infixl:60 " ∥ " => cat
+
+/-- EC's `op parse (c:ctxt): rand * ptxt`. -/
+def parse (c : ctxt) : rand × ptxt :=
+  (BitWord.mkword (take l (BitWord.ofword c)), BitWord.mkword (drop l (BitWord.ofword c)))
+
+theorem parseK (r : rand) (p : ptxt) : parse (r ∥ p) = (r, p) := by
+  -- EC: rewrite /parse /(||) ofctxtK 1:size_cat 1:size_rand 1:size_ptxt //=.
+  --     by rewrite take_cat drop_cat size_rand take0 drop0 cats0 /= mkrandK mkptxtK.
+  have hr : size (BitWord.ofword r) = l := BitWord.size_word gt0_l.le r
+  have hp : size (BitWord.ofword p) = k := BitWord.size_word gt0_k.le p
+  have hr' : (BitWord.ofword r).length = l.toNat := by simp [BitWord.ofword]
+  rw [parse, cat, BitWord.ofwordK _ (by rw [size_cat, hr, hp]), take, drop,
+    List.take_left' hr', List.drop_left' hr', BitWord.mkwordK, BitWord.mkwordK]
+
+theorem formatI (r : rand) (p : ptxt) (r' : rand) (p' : ptxt) :
+    (r ∥ p) = (r' ∥ p') → (r, p) = (r', p') := by
+  -- EC: by move=> h; rewrite -(@parseK r p) -(@parseK r' p') h.
+  intro h; rw [← parseK r p, ← parseK r' p', h]
+
+/-! Random Oracle -/
+
+clone import GaudisCrypt.EC.ROM as H with
+  type in_t <- rand, type out_t <- ptxt, type d_in_t <- Unit, type d_out_t <- Bool,
+  op dout <- fun _ => dptxt
+
+open H.Lazy
+
+/-! A Definition for OWTP Security -/
+
+moduletype Inverter {
+  proc invert (pk : pkey, x : rand) -> rand;
+}
+
+module Exp_OW using (I : Inverter) {
+  proc main () : Bool {
+    var pk : pkey, sk : skey, x : rand, x' : rand;
+    pk, sk <$ dkeys;
+    x <$ drand;
+    x' <- call I.invert ($pk, f $pk $x);
+    return decide ($x = $x')
+  };
+}
+
+/-! A Definition for CPA Security -/
+
+moduletype SchemeProcs {
+  proc keygen () -> (pkey × skey);
+  proc enc (pk : pkey, m : ptxt) -> ctxt;
+}
+
+/-- EC's `module type Scheme (RO : Oracle) = { proc keygen(): (pkey * skey)
+proc enc(pk:pkey, m:ptxt): ctxt }`. -/
+abbrev Scheme := Oracle →ₘ SchemeProcs
+
+moduletype AdvProcs {
+  proc a1 (p : pkey) -> (ptxt × ptxt);
+  proc a2 (c : ctxt) -> Bool;
+}
+
+/-- EC's `module type Adv (ARO : POracle) = { proc a1(p:pkey): (ptxt * ptxt)
+proc a2(c:ctxt): bool }`. -/
+abbrev Adv := POracle →ₘ AdvProcs
+
+module CPA using (O : Oracle, S : Scheme, A : Adv) {
+  proc main () : Bool {
+    var pk : pkey, sk : skey, m0 : ptxt, m1 : ptxt, c : ctxt, b : Bool, b' : Bool;
+    _ <- call O.init ();
+    pk, sk <- call S(O).keygen ();
+    m0, m1 <- call A(O).a1 ($pk);
+    b <$ dbool;
+    c <- call S(O).enc ($pk, if $b then $m0 else $m1);
+    b' <- call A(O).a2 ($c);
+    return decide ($b' = $b)
+  };
+}
+
+/-! And a definition for the concrete Bellare-Rogaway Scheme -/
+
+module BR using (H : Oracle) : SchemeProcs {
+  proc keygen () : (pkey × skey) {
+    var pk : pkey, sk : skey;
+    pk, sk <$ dkeys;
+    return ($pk, $sk)
+  };
+  proc enc (pk : pkey, m : ptxt) : ctxt {
+    var h : ptxt, r : rand;
+    r <$ drand;
+    h <- call H.o ($r);
+    return (f $pk $r ∥ $m +^ $h)
+  };
+  proc dec (sk : skey, c : ctxt) : ptxt {
+    var r : rand, p : ptxt, h : ptxt;
+    r, p <- parse $c;
+    r <- fi $sk $r;
+    h <- call H.o ($r);
+    return $p +^ $h
+  };
+}
+
+/-! And our inverter -/
+
+module_var I.qs : List rand
+
+-- EC's `module QRO` inside `I` (GAP 12)
+module I.QRO using (H : Oracle) : POracle {
+  proc o (x : rand) : ptxt {
+    var r : ptxt;
+    I.qs <- $x :: $I.qs;
+    r <- call H.o ($x);
+    return $r
+  };
+}
+
+module I using (A : Adv, H : Oracle) {
+  proc invert (pk : pkey, y : rand) : rand {
+    var x : rand, m0 : ptxt, m1 : ptxt, h : ptxt, b : Bool;
+    I.qs <- [];
+    _ <- call H.init ();
+    m0, m1 <- call A(I.QRO(H)).a1 ($pk);
+    h <$ dptxt;
+    b <- call A(I.QRO(H)).a2 ($y ∥ $h);
+    x <- nth default $I.qs (find (fun p => decide (f $pk p = $y)) $I.qs);
+    return $x
+  };
+}
+
+-- EC: local clone import BR93 as Instance with … proof *.
+--     realize addA          by move=> p1 p2 p3; algebra.
+--     realize addC          by move=> p1 p2; algebra.
+--     realize addKp         by move=> p1 p2; algebra.
+--     realize dptxt_llfuuni by smt(@Plaintext.DWord).
+--     realize drand_lluni   by smt(@Randomness.DWord).
+--     realize dkeys_llfuni  by exact/dkeys_llfuni.
+--     realize fK            by exact/fK.
+-- (in EC inside the section, after `declare module A`: GAP 11)
+clone import GaudisCrypt.Examples.BR93 as Instance with
+  type pkey <- pkey, type skey <- skey, op dkeys <- dkeys, op f <- f, op fi <- fi,
+  type ptxt <- ptxt, op add <- BitWord.xorw, op dptxt <- dptxt,
+  type rand <- rand, op drand <- drand
+  proof * by first
+    | exact fun p1 p2 p3 => (BitWord.xorwA p1 p2 p3).symm
+    | exact BitWord.xorwC
+    | exact fun p1 p2 => by rw [BitWord.xorwK, BitWord.xorwC, BitWord.xorw0]
+    | exact ⟨BitWord.dunifin_ll, BitWord.dunifin_fu, funi_uni BitWord.dunifin_funi⟩
+    | exact ⟨BitWord.dunifin_ll, funi_uni BitWord.dunifin_funi⟩
+    | exact dkeys_llfuni
+    | exact fK
+
+/-! We will need to turn a concrete CPA adversary into an abstract one.  We do not need to do
+it for the inverter as the types coincide. -/
+
+-- (`A` a Lean parameter, so that `A_CPA A` is EC's partial application `A_CPA(A)`; EC's
+-- `proc a1 = A(H).a1` is a procedure calling it: GAP 12)
+module A_CPA (A : Adv) using (H : POracle) : Instance.AdvProcs {
+  proc a1 (p : pkey) : (ptxt × ptxt) {
+    var r : ptxt × ptxt;
+    r <- call A(H).a1 ($p);
+    return $r
+  };
+  proc a2 (c : rand × ptxt) : Bool {
+    var b : Bool;
+    b <- call A(H).a2 ($c.1 ∥ $c.2);
+    return $b
+  };
+}
+
+/-- `A_CPA(A)` touches what `A` does.  Not an EC lemma. -/
+theorem fvP_A_CPA (A : Adv (pkey := pkey) (skey := skey)) : FVP.fvP (A_CPA A) ≤ FVP.fvP A := by
+  (fp_module)
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob A_CPA(A)`: `glob A` (`A_CPA` has no variables). -/
+instance instECGlobA_CPA (A : Adv (pkey := pkey) (skey := skey))
+    {R : Footprint VariableAssignment} [h : Module.ECGlob A R] : Module.ECGlob (A_CPA A) R :=
+  ⟨h.finite.mono (fvP_A_CPA A), (fvP_A_CPA A).trans h.le, h.base⟩
+
+section
+
+-- (GAP 11: EC's `{-LRO, -I}`, and the variables of the clone `Instance`, which EC makes after
+-- this declaration)
+declare module A <: Adv {-LRO, -I, -Log, -Game1, -Game2, -OWr}
+
+variable (A_a1_ll : ∀ (O <: POracle {-A}), islossless O.o → islossless A(O).a1)
+  (A_a2_ll : ∀ (O <: POracle {-A}), islossless O.o → islossless A(O).a2)
+
+set_option maxHeartbeats 4000000 in
+-- (the script needs more than the default heartbeats)
+include A_a1_ll A_a2_ll in
+theorem Reduction (m : VariableAssignment) :
+    Pr[ CPA(LRO, BR, A).main () @ &m : §res ] - 1 / 2 ≤
+      Pr[ Exp_OW(I(A, LRO)).main () @ &m : §res ] := by
+  -- EC: have <-:   Pr[BR93_CPA(A_CPA(A)).main() @ &m: res]
+  --              = Pr[CPA(LRO,BR,A).main() @ &m: res].
+  have h1 : Pr[ Instance.BR93_CPA(A_CPA(A)).main () @ &m : §res ] =
+      Pr[ CPA(LRO, BR, A).main () @ &m : §res ] := by
+    -- EC: + byequiv=> //=; proc.
+    byequiv; equiv_proc
+    -- EC: inline A_CPA(A,Log(H.Lazy.LRO)).a2.
+    stmt_inline{1} (A_CPA(A, Log(LRO)).a2)
+    -- EC: wp; call (: H.Lazy.LRO.m{1} = LRO.m{2}).
+    --     + by proc; inline *; auto.
+    --     (the two clones' `LRO.m` are one variable here: GAP 10)
+    stmt_wp; equiv_call (_ : ={glob A, LRO.m})
+    · equiv_proc; stmt_inline*; equiv_auto; auto_progress
+    -- EC: inline BR93(H.Lazy.LRO).enc BR(LRO).enc H.Lazy.LRO.o LRO.o; auto.
+    stmt_inline (BR93(LRO).enc) (BR(LRO).enc) (LRO.o); equiv_auto
+    -- (EC's `proc a1 = A(H).a1` is a call here: GAP 12)
+    stmt_inline{1} (A_CPA(A, Log(LRO)).a1)
+    -- EC: call (: H.Lazy.LRO.m{1} = LRO.m{2}).
+    --     + by proc; inline *; auto.
+    stmt_wp; equiv_call (_ : ={glob A, LRO.m})
+    · equiv_proc; stmt_inline*; equiv_auto; auto_progress
+    -- EC: inline *; auto=> /> [pk sk] _ [m0 m1] c b _ r _ h _ /=.
+    --     by rewrite addC /= addC.
+    stmt_inline*; equiv_auto; auto_progress
+    all_goals exact congrArg _ (BitWord.xorwC _ _)
+  -- EC: have <-:   Pr[OW_rand.OW(I(A_CPA(A))).main() @ &m: res]
+  --              = Pr[Exp_OW(Self.I(A,LRO)).main() @ &m: res].
+  have h2 : Pr[ OW_rand.OW(Instance.I(A_CPA(A))).main () @ &m : §res ] =
+      Pr[ Exp_OW(I(A, LRO)).main () @ &m : §res ] := by
+    -- EC: + byequiv=> //=; proc.
+    byequiv; equiv_proc
+    -- EC: inline *; auto; call (: H.Lazy.LRO.m{1} = LRO.m{2} /\ ={qs}(Log,Self.I)).
+    --     + by sim.
+    stmt_inline*; equiv_auto
+    equiv_call (_ : ={glob A, LRO.m} ∧ §Log.qs{1} = §I.qs{2})
+    · equiv_proc; stmt_inline*; equiv_auto; auto_progress
+    -- EC: auto; call (: H.Lazy.LRO.m{1} = LRO.m{2} /\ ={qs}(Log,Self.I)).
+    --     + by sim.
+    equiv_auto
+    equiv_call (_ : ={glob A, LRO.m} ∧ §Log.qs{1} = §I.qs{2})
+    · equiv_proc; stmt_inline*; equiv_auto; auto_progress
+    -- EC: by auto.
+    equiv_auto; auto_progress
+    rw [show BR93.Log.qs.get _ = I.qs.get _ by assumption]; exact Iff.rfl
+  rw [← h1, ← h2]
+  -- EC: apply/(Reduction (A_CPA(A)) _ _ &m).
+  --     (EC's two restriction checks of `A_CPA(A)`, and `glob A_CPA(A)` written out as
+  --     `glob A`: GAP 13)
+  refine @Instance.Reduction _ _ _ _ _ (A_CPA A) ⟨by fp_finite, by fp_disjoint⟩ _ _
+    (Footprint.Restricted.glob_declared A) ?_ ?_ m
+  -- EC: + by move=> O O_o_ll; exact/(A_a1_ll O O_o_ll).
+  · intro O _ O_o_ll
+    islossless; exact A_a1_ll O O_o_ll
+  -- EC: by move=> O O_o_ll; proc; call (A_a2_ll O O_o_ll).
+  · intro O _ O_o_ll
+    phoare_proc; phoare_call (A_a2_ll O O_o_ll); phoare_auto
+
+end
+
+end GaudisCrypt.Examples.BR93Concrete
