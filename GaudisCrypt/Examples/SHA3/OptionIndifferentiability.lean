@@ -73,19 +73,6 @@ noncomputable def OPRIMITIVE.view (P : OPRIMITIVE p f_in f_out) : ODPRIMITIVE p 
   ODPRIMITIVE.mk p f_in f_out
     { f := OPRIMITIVE.f p f_in f_out P, fi := OPRIMITIVE.fi p f_in f_out P }
 
-/-- The oracle procedures an `ODISTINGUISHER` may call (EasyCrypt's `OI.allowed`): `F.f`, `P.f`,
-`P.fi`.  The holes of its representation (`Module.Representable`, exception E2). -/
-abbrev distHoles : HoleSigs :=
-  .cons (procsig (f_in) -> (Option f_out))
-    (.cons (procsig (p) -> (Option p)) (.cons (procsig (p) -> (Option p)) .empty))
-
-/-- `F.f`, `P.f`, `P.fi` out of the oracles `(F, P)`. -/
-noncomputable def distExt (FP : ODFUNCTIONALITY p f_in f_out ×ₘ ODPRIMITIVE p f_in f_out) :
-    (distHoles p f_in f_out).Instantiation :=
-  ((ODFUNCTIONALITY.f p f_in f_out (Module.fst FP)).procedure,
-   (ODPRIMITIVE.f p f_in f_out (Module.snd FP)).procedure,
-   (ODPRIMITIVE.fi p f_in f_out (Module.snd FP)).procedure)
-
 module OIndif using (F : OFUNCTIONALITY p f_in f_out, P : OPRIMITIVE p f_in f_out,
     D : ODISTINGUISHER p f_in f_out) {
   proc main () : Bool {

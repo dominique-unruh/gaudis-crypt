@@ -31,19 +31,6 @@ theorem SIMULATOR.call_init (S : SIMULATOR p f_in f_out)
     ((le_sup_left.trans (le_sup_left.trans hrep.fvP_le)).trans hSF) hFL I
     (fun n => nomatch n) (fun n => nomatch n) a₁ a₂
 
-/-- A simulator's `init` does not depend on the functionality it is given: equal arguments and
-globals give equal results and globals. -/
-theorem SIMULATOR.init_eq (S : SIMULATOR p f_in f_out)
-    (hS : SIMULATOR.Representable p f_in f_out S) (F₁ F₂ : DFUNCTIONALITY p f_in f_out) :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
-      (PRIMITIVE.init p f_in f_out (Module.app S F₁)).procedure
-      (PRIMITIVE.init p f_in f_out (Module.app S F₂)).procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  obtain ⟨pinit, pf, pfi, hrep⟩ := hS
-  intro a₁ a₂
-  rw [hrep.init F₁ a₁, hrep.init F₂ a₂]
-  exact prhlProc_refl _ a₁ a₂
-
 /-- The abstract call rule for a simulator's `f`, whose oracle is the functionality's `f`. -/
 theorem SIMULATOR.call_f (S : SIMULATOR p f_in f_out)
     (hS : SIMULATOR.Representable p f_in f_out S)
