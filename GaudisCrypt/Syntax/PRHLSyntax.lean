@@ -1,5 +1,7 @@
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Syntax.HoareSyntax
+import GaudisCrypt.FV
+import GaudisCrypt.Logic.ECGlobVars
 
 /-!
 # Concrete syntax for relational judgments (pRHL)
@@ -265,6 +267,58 @@ def unexpandRelRead : Unexpander
         #[Syntax.atom .none "§", x, Syntax.atom .none "{", i, Syntax.atom .none "}"]
   | _ => throw ()
 
+/-- The getter of the globals of the module `A` — `glob A`.  Only the printer builds it. -/
+noncomputable def relGlob {M : Type 1} [IsModule M] (A : M) :=
+  (FVP.fvP A).touched_getter
+
+@[app_unexpander relGlob]
+def unexpandRelGlob : Unexpander
+  | `($_ $A) => return Syntax.node .none `GaudisCrypt.ecGlob #[Syntax.atom .none "glob ", A]
+  | _ => throw ()
+
+/-- `(FVP.fvP A).touched_getter` ↦ `relGlob A` (it prints as `glob A`) — where that is what
+`glob A` stands for: not for a concrete module with variables of its own, whose `glob` is those
+(`Logic/ECGlob.lean`). -/
+private def markGlob (x : Lean.Expr) : MetaM Lean.Expr := do
+  unless x.isAppOfArity ``Footprint.touched_getter 2 && x.appArg!.isAppOfArity ``FVP.fvP 3 do
+    return x
+  let A := x.appArg!.appArg!
+  if let some c := A.getAppFn.constName? then
+    unless (ECGlob.moduleVars (← getEnv) c).isEmpty do return x
+  try
+    let g ← mkAppOptM ``relGlob #[none, none, some A]
+    if ← isDefEq g x then return g else return x
+  catch _ => return x
+
+/-- `={x}` for `§x{1} = §x{2}`, and `={x, y}` for the conjunction of `={x}` and `={y}`: what
+the parser reads `={x, y}` as (the equations, joined to the right).  Two `glob`s are not put in
+one `={…}`: `={glob A, glob B}` is read as one equation, on the two regions joined.  On the
+syntax of a printed condition, before it is parenthesized. -/
+partial def sugarRelEqs : Syntax → Syntax
+  | .node i k args =>
+    let args := args.map sugarRelEqs
+    let s := Syntax.node i k args
+    let read? (t : Syntax) : Option (Syntax × Nat) :=
+      if t.getKind == ``relEval then t[3].isNatLit?.map (t[1], ·) else none
+    let eqs? (t : Syntax) : Option (Array Syntax) :=
+      if t.getKind == ``relEqs then some t[1].getSepArgs else none
+    let mkEqs (xs : Array Syntax) : Syntax :=
+      Syntax.node .none ``relEqs #[Syntax.atom .none "={",
+        Syntax.node .none nullKind (Syntax.mkSep xs (Syntax.atom .none ",")).getArgs,
+        Syntax.atom .none "}"]
+    if k == ``«term_=_» && args.size == 3 then
+      match read? args[0]!, read? args[2]! with
+      | some (x, 1), some (y, 2) => if x.structEq y then mkEqs #[x] else s
+      | _, _ => s
+    else if k == ``«term_∧_» && args.size == 3 then
+      match eqs? args[0]!, eqs? args[2]! with
+      | some xs, some ys =>
+        if ((xs ++ ys).filter (·.getKind == `GaudisCrypt.ecGlob)).size ≤ 1 then mkEqs (xs ++ ys)
+        else s
+      | _, _ => s
+    else s
+  | s => s
+
 /-- `s.globals`, as a projection function or a primitive projection, ↦ `s`. -/
 private def globalsOf? (e : Lean.Expr) : Option Lean.Expr :=
   if e.isAppOfArity ``ProgramState.globals 1 then some e.appArg!
@@ -276,7 +330,8 @@ private def globalsOf? (e : Lean.Expr) : Option Lean.Expr :=
 `x.get σ`, `g.get σ.globals` for a global `g`, and `σ.globals` itself (`§allGlobals`). -/
 def markReads (σ : Lean.Expr) (i : Nat) (e : Lean.Expr) : MetaM Lean.Expr := do
   let mk (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
-    try some <$> mkAppOptM ``relRead #[none, none, none, some σ, some (mkNatLit i), some x]
+    try some <$> mkAppOptM ``relRead #[none, none, none, some σ, some (mkNatLit i),
+      some (← markGlob x)]
     catch _ => pure none
   Meta.transform e
     (pre := fun e => do
@@ -284,6 +339,12 @@ def markReads (σ : Lean.Expr) (i : Nat) (e : Lean.Expr) : MetaM Lean.Expr := do
         let cs := e.getArg! 3
         if cs.isAppOfArity ``CurrentState.mk 1 && cs.appArg! == σ then
           if let some r ← mk (e.getArg! 4) then return .done r
+        return .continue
+      -- a region's getter read at the globals: `F.touched_getter.get σ.globals` (EC's `glob A`)
+      if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isAppOf ``Footprint.touched_getter &&
+          globalsOf? (e.getArg! 3) == some σ then
+        if let some r ← mk (e.getArg! 2) then
+          if ← isDefEq r e then return .done r
         return .continue
       let some (l, s) := ProgramSyntax.lensGet? e | return .continue
       unless s == σ || globalsOf? s == some σ do return .continue
@@ -344,7 +405,7 @@ private partial def statesEscape (e : Lean.Expr) (d : Nat := 0) : Bool :=
 def delabRelCond : DelabM Term := do
   let .lam _ _ (.lam _ _ b _) _ := ← getExpr | failure
   guard !(statesEscape b)
-  withBindingBody `σ₁ <| withBindingBody `σ₂ delab
+  return ⟨sugarRelEqs (← withBindingBody `σ₁ <| withBindingBody `σ₂ delab)⟩
 
 /-- Print a relational judgment as `equiv[ P ==> Q ] { … } ~ { … }`. -/
 @[delab app.GaudisCrypt.prhlStmt]
@@ -447,10 +508,17 @@ private def delabProcRelCond (e : Lean.Expr) : DelabM (Array (Name × Nat) × Te
   let .lam n₁ t₁ (.lam n₂ t₂ (.lam n₃ t₃ (.lam n₄ t₄ body _) _) _) _ := e | failure
   let some (lets, inner) := peelSidedLets body #[] | failure
   guard !(lets.any fun (_, _, ty) => ty.hasLooseBVars)
-  -- one type per name
+  -- one type per name (but `params`, each side's tuple of parameters: its type differs when
+  -- the two procedures do not take the same parameters; then it must not be read by name)
   for (n, _, ty) in lets do
     for (n', _, ty') in lets do
-      if n == n' then guard (← isDefEq ty ty')
+      if n == n' && n != `params then guard (← isDefEq ty ty')
+  for k in [0:lets.size] do
+    let (n, _, ty) := lets[k]!
+    if n == `params then
+      for (n', _, ty') in lets do
+        if n' == `params && !(← isDefEq ty ty') then
+          guard !(inner.hasLooseBVar (lets.size - 1 - k))
   withLocalDecl n₁ .default t₁ fun a₁ => withLocalDecl n₂ .default t₂ fun g₁ =>
   withLocalDecl n₃ .default t₃ fun a₂ => withLocalDecl n₄ .default t₄ fun g₂ =>
   withPrintVars (lets.toList.map fun (n, _, ty) => (n, ty)) #[] fun pvs => do
@@ -458,7 +526,7 @@ private def delabProcRelCond (e : Lean.Expr) : DelabM (Array (Name × Nat) × Te
     let b := inner.instantiateRev (#[a₁, g₁, a₂, g₂] ++ letVals)
     let b ← markPackedReads g₁ g₂ b
     guard !(fvarsEscape #[a₁, g₁, a₂, g₂] b)
-    return (lets.map fun (n, k, _) => (n, k), ← withExpr b delab)
+    return (lets.map fun (n, k, _) => (n, k), ⟨sugarRelEqs (← withExpr b delab)⟩)
 
 /-- Print a procedure judgment as `equiv[ M₁ (x) ~ M₂ (y) : P ==> Q ]`. -/
 @[delab app.GaudisCrypt.prhlProc]

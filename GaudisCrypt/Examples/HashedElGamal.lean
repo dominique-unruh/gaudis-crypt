@@ -293,8 +293,7 @@ theorem conclusion (m : VariableAssignment) :
   -- EC: rewrite (cpa_ddh0 &m) (ddh1_es1 &m) (es0_Gb &m) (Gb_half &m).
   rw [cpa_ddh0 A m, ddh1_es1 A m, es0_Gb A m, Gb_half A Ac_ll Ag_ll m]
   -- EC: smt(StdOrder.RealOrder.ler_dist_add).
-  rw [abs_sub_comm (1 / 2 : ℝ)]
-  exact abs_sub_le _ _ _
+  smt_close [abs_sub_le]
 
 end Security
 

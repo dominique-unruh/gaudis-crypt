@@ -35,10 +35,10 @@ module B {
 -- judgments through the middle procedure
 /--
 trace: case h₁
-⊢ equiv[ A.f ~ A.f : True ==> §res{1} = §res{2} ]
+⊢ equiv[ A.f ~ A.f : True ==> ={res} ]
 
 case h₂
-⊢ equiv[ A.f ~ A.f : True ==> §res{1} = §res{2} ]
+⊢ equiv[ A.f ~ A.f : True ==> ={res} ]
 ---
 warning: declaration uses `sorry`
 ---
@@ -74,28 +74,10 @@ trace: case hP
           §x_1 = true
 
 case h₁
-⊢ prhlProc
-    (fun args₁ σ₁ args₂ σ₂ ↦
-      let params_1 := GaudiExpr[ args₁ ];
-      let params_2 := GaudiExpr[ args₂ ];
-      let x_2 := GaudiExpr[ Lens.id.get args₂ ];
-      §x_2 = true)
-    A.f.procedure B.f.procedure fun r₁ σ₁ r₂ σ₂ ↦
-    let res_1 := GaudiExpr[ r₁ ];
-    let res_2 := GaudiExpr[ r₂ ];
-    §res_1 = §res_2
+⊢ equiv[ A.f ~ B.f (x) : §x{2} = true ==> ={res} ]
 
 case h₂
-⊢ prhlProc
-    (fun args₁ σ₁ args₂ σ₂ ↦
-      let params_1 := GaudiExpr[ args₁ ];
-      let x_1 := GaudiExpr[ Lens.id.get args₁ ];
-      let params_2 := GaudiExpr[ args₂ ];
-      §x_1 = true)
-    B.f.procedure A.f.procedure fun r₁ σ₁ r₂ σ₂ ↦
-    let res_1 := GaudiExpr[ r₁ ];
-    let res_2 := GaudiExpr[ r₂ ];
-    §res_1 = §res_2
+⊢ equiv[ B.f (x) ~ A.f : §x{1} = true ==> ={res} ]
 ---
 warning: declaration uses `sorry`
 ---

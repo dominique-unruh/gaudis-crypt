@@ -57,7 +57,7 @@ trace: case judgment
 A : Guesser
 inst✝ : Module.Declared A ⊥
 m : VariableAssignment
-⊢ equiv[ §allGlobals{1} = §allGlobals{2} ==> §b{1} = true → §b{2} = true ] {
+⊢ equiv[ ={allGlobals} ==> §b{1} = true → §b{2} = true ] {
       var k : ℕ, b : Bool;
       k <- 1;
       b <- call A.guess.procedure (§k);
@@ -71,8 +71,8 @@ trace: case judgment
 A : Guesser
 inst✝ : Module.Declared A ⊥
 m : VariableAssignment
-⊢ equiv[ §allGlobals{1} = §allGlobals{2} ==>
-      (§k{1} = §k{2} ∧ (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2}) ∧
+⊢ equiv[ ={allGlobals} ==>
+      ={k, glob A} ∧
         ∀ (r₁ : Bool) (g₁ : VariableAssignment) (r₂ : Bool) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ → r₁ = true → r₂ = true ]
       {
@@ -98,7 +98,7 @@ trace: case judgment
 A : Guesser
 inst✝ : Module.Declared A ⊥
 m : VariableAssignment
-⊢ equiv[ §allGlobals{1} = §allGlobals{2} ==> §b{1} = true ↔ §b{2} = true ] {
+⊢ equiv[ ={allGlobals} ==> §b{1} = true ↔ §b{2} = true ] {
       var k : ℕ, b : Bool;
       k <- 1;
       b <- call Twice(A).guess.procedure (§k);

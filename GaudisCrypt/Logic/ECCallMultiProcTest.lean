@@ -93,12 +93,8 @@ case pre
 A : Adv
 inst✝ : Module.Declared A (O.v.footprint ⊔ G.z.footprint ⊔ G.w.footprint)
 A_a2_ll : ∀ (X : POr) [Module.Declared X (FVP.fvP A).glob], X.o.procedure.IsLossless → A(X).a2.procedure.IsLossless
-⊢ equiv[
-      (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-        §O.v{1} = §O.v{2} ∧ §G.z{1} = §G.z{2} ==>
-      (§x{1} + §G.z{1} = §x{2} + §G.z{2} ∧
-          (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-            §O.v{1} = §O.v{2}) ∧
+⊢ equiv[ ={glob A, O.v, G.z} ==>
+      (§x{1} + §G.z{1} = §x{2} + §G.z{2} ∧ ={glob A, O.v}) ∧
         ∀ (r₁ : Bool) (g₁ : VariableAssignment) (r₂ : Bool) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ O.v.get g₁ = O.v.get g₂ →
             G.z.get g₁ = §G.z{1} → G.z.get g₂ = §G.z{2} → r₁ = r₂ ∧ G.z.get g₁ = G.z.get g₂ ]
@@ -182,13 +178,8 @@ case pre
 A : Adv
 inst✝ : Module.Declared A (O.v.footprint ⊔ G.z.footprint ⊔ G.w.footprint)
 A_a2_ll : ∀ (X : POr) [Module.Declared X (FVP.fvP A).glob], X.o.procedure.IsLossless → A(X).a2.procedure.IsLossless
-⊢ equiv[
-      (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-        §O.v{1} = §O.v{2} ∧ §G.z{1} = §G.z{2} ==>
-      (5 < §O.v{2} ∨
-          §x{1} + §G.z{1} = §x{2} + §G.z{2} ∧
-            (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-              §O.v{1} = §O.v{2} ∧ ¬5 < §O.v{2}) ∧
+⊢ equiv[ ={glob A, O.v, G.z} ==>
+      (5 < §O.v{2} ∨ §x{1} + §G.z{1} = §x{2} + §G.z{2} ∧ ={glob A} ∧ ={O.v} ∧ ¬5 < §O.v{2}) ∧
         ∀ (r₁ : Bool) (g₁ : VariableAssignment) (r₂ : Bool) (g₂ : VariableAssignment),
           5 < O.v.get g₂ ∨
               r₁ = r₂ ∧
@@ -236,10 +227,7 @@ example : equiv[ G(A).main ~ G(A).main : ={glob A, O.v, G.z} ==>
 trace: A : Adv
 inst✝ : Module.Declared A (O.v.footprint ⊔ G.z.footprint ⊔ G.w.footprint)
 A_a2_ll : ∀ (X : POr) [Module.Declared X (FVP.fvP A).glob], X.o.procedure.IsLossless → A(X).a2.procedure.IsLossless
-⊢ equiv[
-      (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-        §O.v{1} = §O.v{2} ∧ §G.z{1} = §G.z{2} ==>
-      §b{1} = §b{2} ∧ §G.z{1} = §G.z{2} ] {
+⊢ equiv[ ={glob A, O.v, G.z} ==> ={b, G.z} ] {
       var x : ℕ, b : Bool;
       G.z <$ do
       let i ← SubProbability.uniform
@@ -312,6 +300,30 @@ example : phoare[ G(A).main : True ==> §res ∨ ¬ §res ] = 1 := by
   phoare_call (@A_a2_ll _ ?_ ?_)
   trace_state
   all_goals sorry
+
+-- as shown: `={glob A}` for the equation on `A`'s globals; two `glob`s stay two equations
+-- (`={glob A, glob A}` would be read as one, on the regions joined)
+/--
+trace: A : Adv
+inst✝ : Module.Declared A (O.v.footprint ⊔ G.z.footprint ⊔ G.w.footprint)
+A_a2_ll : ∀ (X : POr) [Module.Declared X (FVP.fvP A).glob], X.o.procedure.IsLossless → A(X).a2.procedure.IsLossless
+⊢ equiv[ ={glob A, O.v} ∧ ={glob A} ==> ={glob A, O.v} ] {
+      skip;
+} ~
+    {
+      skip;
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ (={glob A} ∧ ={O.v}) ∧ ={glob A} ==> ={glob A, O.v} ] {
+      skip;
+    } ~ {
+      skip;
+    } := by
+  trace_state
+  sorry
 
 end
 

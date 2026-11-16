@@ -118,17 +118,31 @@ end GaudisCrypt.ECConseq
 
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
 /-- **EC's `conseq (: P ==> Q)`** on a Hoare triple: goals `pre` (the precondition implies `P`),
-`post` (`Q` implies the postcondition), then the triple with `P`, `Q`; `_` keeps a condition. -/
+`post`, then the triple with `P`, `Q`; `_` keeps a condition.  `post` is EC's
+`P => (frame) => Q' => Q`: the variables the conditions read that the code does not modify keep
+their values from the start (`hoareStmt_conseq_frame`, as `equiv_conseq`), so the precondition's
+facts about them are there (EC's `conseq (_: _ ==> Q') => //; move=> &m -> …`). -/
 elab "hoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
   let ty ← instantiateMVars (← getMainTarget)
   unless ty.isAppOf ``hoareStmt do throwError "hoare_conseq: not a Hoare triple"
   let Pe ← if isHole P then pure (ty.getArg! 0) else elabCond ty 1 P
-  let Qe ← if isHole Q then pure (ty.getArg! 2) else elabCond ty 1 Q
-  let (Ps, Qs) := (← Term.exprToSyntax Pe, ← Term.exprToSyntax Qe)
+  let Ps ← Term.exprToSyntax Pe
   let pre ← if isHole P then `(fun _ h => h) else `(?pre)
-  let post ← if isHole Q then `(fun _ h => h) else `(?post)
-  refineTagged (← `(hoare_post (B' := $Qs) (hoare_pre (A' := $Ps) ?judgment $pre) $post))
-    [`pre, `post, `judgment]
+  if isHole Q then
+    refineTagged (← `(hoare_pre (A' := $Ps) ?judgment $pre)) [`pre, `judgment]
+    return
+  let Qe ← elabCond ty 1 Q
+  let Qs ← Term.exprToSyntax Qe
+  -- EC's frame: what the code does not modify keeps its value from the precondition
+  -- (`Logic/ECConseqFrame.lean`)
+  let #[A, c, B] := ty.getAppArgs | unreachable!
+  let (ls, gls) ← ECSim.varsOf #[A, B, Qe]
+  let xs := ls ++ (← gls.mapM fun x => mkAppM ``Lens.intoGlobal #[x])
+  let rs ← ECConseqFrame.regionsOf #[A, B, Qe]
+  let (F, hF) ← ECConseqFrame.frameOf c xs rs
+  let (Fs, hFs) := (← Term.exprToSyntax F, ← Term.exprToSyntax hF)
+  refineTagged (← `(hoareStmt_conseq_frame (A' := $Ps) (B' := $Qs) $Fs $hFs ?judgment $pre
+      ?post)) [`pre, `post, `judgment]
 
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
 /-- **EC's `conseq (: P ==> Q)`** on an upper bound `phoare[ c : A ==> E ] ≤ r`: goals `pre`,

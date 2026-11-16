@@ -359,10 +359,14 @@ elab "ec_instances" " [" ls:ident,* "]" : tactic => withMainContext do
   let mut sources := #[← instantiateMVars (← g.getType)]
   for d in ← getLCtx do
     unless d.isImplementationDetail do sources := sources.push (← instantiateMVars d.type)
+  let lctx ← getLCtx
   let termsRef ← IO.mkRef (#[] : Array Lean.Expr)
   for src in sources do
     Meta.forEachExpr src fun e => do
-      if e.isApp && !e.hasLooseBVars then termsRef.modify (·.push e)
+      -- (`Meta.forEachExpr` opens binders: a term with a variable of a binder is not a term of
+      -- the goal, and an instance at it would mention an unknown variable)
+      if e.isApp && !e.hasLooseBVars && !e.hasAnyFVar (fun f => !lctx.contains f) then
+        termsRef.modify (·.push e)
   let terms ← termsRef.get
   let mut hyps : Array Hypothesis := #[]
   for l in ls.getElems do
@@ -373,27 +377,250 @@ elab "ec_instances" " [" ls:ident,* "]" : tactic => withMainContext do
   let (_, g') ← g.assertHypotheses hyps
   replaceMainGoal [g']
 
-/-- **EC's `smt(l₁, …)`**: `auto_close`'s preprocessing, the reads of the states as variables
-(`generalize_reads_all`), their equations substituted, then `grind` with the lemmas `lᵢ`; if that
-fails, once more with the lemmas' instances at the goal's terms as hypotheses (`ec_instances`:
-EC's provers instantiate them there, `grind`'s E-matching may not, through definitions). -/
-syntax "smt_close" (" [" Lean.Parser.Tactic.grindParam,* "]")? : tactic
+namespace ECClose
+
+/-- The instances of the lemma `lemName` at the terms `targets`: an application in its
+conclusion with the head of a target term and one of the lemma's arguments matched against
+it; then the instance arguments synthesized and the hypotheses (arguments that are proofs)
+found among the local hypotheses.  Kept when that fixes every argument. -/
+def instancesAt (lemName : Name) (targets : Array Lean.Expr) : MetaM (Array Lean.Expr) := do
+  let lctx ← getLCtx
+  -- the heads of the lemma's patterns, once: a target with another head is not looked at
+  let heads ← withNewMCtxDepth do
+    let lem ← mkConstWithFreshMVarLevels lemName
+    let (ms, bis, concl) ← forallMetaTelescopeReducing (← inferType lem)
+    let mut vars : Array Lean.Expr := #[]
+    for (m, bi) in ms.zip bis do
+      if bi.isExplicit && !(← isProp (← inferType m)) then vars := vars.push m
+    let ref ← IO.mkRef (#[] : Array Name)
+    unless vars.isEmpty do
+      Meta.forEachExpr concl fun e => do
+        if e.isApp && vars.all (fun m => (e.find? (· == m)).isSome) then
+          if let some c := e.getAppFn.constName? then ref.modify (·.push c)
+    ref.get
+  if heads.isEmpty then return #[]
+  let mut out : Array Lean.Expr := #[]
+  let mut seen : Array Lean.Expr := #[]
+  for t in targets do
+    let some c := t.getAppFn.constName? | continue
+    unless heads.contains c do continue
+    if seen.contains t then continue
+    seen := seen.push t
+    let r? ← withNewMCtxDepth do
+      let lem ← mkConstWithFreshMVarLevels lemName
+      let (ms, bis, concl) ← forallMetaTelescopeReducing (← inferType lem)
+      if ms.isEmpty then return none
+      -- the arguments a pattern must mention: the explicit ones that are not proofs (the
+      -- implicit ones come with the instances, the proofs from the context)
+      let mut vars : Array Lean.Expr := #[]
+      for (m, bi) in ms.zip bis do
+        if bi.isExplicit && !(← isProp (← inferType m)) then vars := vars.push m
+      if vars.isEmpty then return none
+      let subs ← IO.mkRef (#[] : Array Lean.Expr)
+      Meta.forEachExpr concl fun e => do
+        if e.isApp && !e.hasAnyFVar (fun f => !lctx.contains f) &&
+            vars.all (fun m => (e.find? (· == m)).isSome) then
+          subs.modify (·.push e)
+      for p in ← subs.get do
+        let sameHead := match p.getAppFn.constName?, t.getAppFn.constName? with
+          | some a, some b => a == b
+          | _, _ => p.getAppFn == t.getAppFn
+        unless sameHead do continue
+        let s ← saveState
+        if ← withReducible (isDefEq p t) then
+          let mut ok := true
+          -- the instance arguments
+          for (m, bi) in ms.zip bis do
+            if bi.isInstImplicit && !(← m.mvarId!.isAssigned) then
+              try
+                let inst ← synthInstance (← instantiateMVars (← inferType m))
+                unless ← isDefEq m inst do ok := false
+              catch _ => ok := false
+          -- the hypotheses: among the local ones
+          for m in ms do
+            if !ok then break
+            if ← m.mvarId!.isAssigned then continue
+            let mty ← instantiateMVars (← inferType m)
+            unless ← isProp mty do continue
+            let mut found := false
+            for d in lctx do
+              if d.isImplementationDetail then continue
+              if ← isDefEq mty d.type then
+                if ← isDefEq m d.toExpr then found := true; break
+            unless found do ok := false
+          if ok then
+            let pf ← instantiateMVars (mkAppN lem ms)
+            unless pf.hasMVar do return some pf
+        s.restore
+      return none
+    if let some pf := r? then
+      let pty ← inferType pf
+      unless ← out.anyM (fun q => return (← inferType q) == pty) do out := out.push pf
+  return out
+
+/-- The application subterms of `src` that are terms of the local context (no variable of a
+binder: `Meta.forEachExpr` opens them). -/
+def termsOf (src : Lean.Expr) : MetaM (Array Lean.Expr) := do
+  let lctx ← getLCtx
+  let ref ← IO.mkRef (#[] : Array Lean.Expr)
+  Meta.forEachExpr src fun e => do
+    if e.isApp && !e.hasLooseBVars && !e.hasAnyFVar (fun f => !lctx.contains f) then
+      ref.modify (·.push e)
+  ref.get
+
+end ECClose
+
+open ECClose
+
+/-- `ec_instances_chain [l₁, …]`: as `ec_instances`, over three rounds (the instances' own terms
+are terms to instantiate at: a chain of lemmas), with the lemmas' hypotheses found among the
+local ones. -/
+elab "ec_instances_chain" " [" ls:ident,* "]" : tactic => do
+  let names ← ls.getElems.mapM fun l => realizeGlobalConstNoOverloadWithInfo l
+  let mut total := 0
+  for _ in [0:3] do
+    let added ← withMainContext do
+      let g ← getMainGoal
+      let mut terms ← termsOf (← instantiateMVars (← g.getType))
+      let mut have_ : Array Lean.Expr := #[]
+      for d in ← getLCtx do
+        unless d.isImplementationDetail do
+          let ty ← instantiateMVars d.type
+          have_ := have_.push ty
+          terms := terms ++ (← termsOf ty)
+      let mut hyps : Array Hypothesis := #[]
+      for l in names do
+        for pf in ← instancesAt l terms do
+          if total + hyps.size ≥ 64 then break
+          let pty ← inferType pf
+          if have_.contains pty then continue
+          if ← hyps.anyM (fun h => return h.type == pty) then continue
+          hyps := hyps.push { userName := `h_inst, type := pty, value := pf }
+      if hyps.isEmpty then return 0
+      let (_, g') ← g.assertHypotheses hyps
+      replaceMainGoal [g']
+      return hyps.size
+    if added == 0 then break
+    total := total + added
+
+/-- The predicates of the file being checked that the goal or its hypotheses mention:
+definitions with values in `Prop` (EC's `pred`, whose body its provers see). -/
+def localPreds : TacticM (Array Name) := withMainContext do
+  let env ← getEnv
+  let mut srcs := #[← instantiateMVars (← getMainTarget)]
+  for d in ← getLCtx do
+    unless d.isImplementationDetail do srcs := srcs.push (← instantiateMVars d.type)
+  let mut out : Array Name := #[]
+  for src in srcs do
+    for c in src.getUsedConstants do
+      if out.contains c then continue
+      unless (env.getModuleIdxFor? c).isNone do continue
+      let some (.defnInfo info) := env.find? c | continue
+      if c.isInternalDetail || (← isInstance c) then continue
+      let isPred ← forallTelescope info.type fun _ b => return b.isProp
+      if isPred then out := out.push c
+  return out
+
+/-- The term of a parameter that is a fact: a lemma `l` with no modifier whose term is not a
+name. -/
+def ECClose.factTerm? (p : Syntax) : Option Syntax :=
+  let q := if p.isOfKind ``Lean.Parser.Tactic.grindParam then p[0] else p
+  if q.isOfKind ``Lean.Parser.Tactic.grindLemma && !q.getArgs.back!.isIdent then
+    some q.getArgs.back! else none
+
+/-- The facts among `smt_close`'s parameters (terms that are not a name: a lemma applied to
+its arguments) and the others (lemma names, with modifiers). -/
+def ECClose.splitParams (ps : Array Syntax) : Array Syntax × Array Syntax :=
+  ps.partition fun p => (ECClose.factTerm? p).isSome
 
 /-- The lemma names among `smt_close`'s parameters (plain identifiers). -/
 def ECClose.paramIdents (ps : Array Syntax) : Array Ident :=
   ps.filterMap fun p => (p.find? (·.isIdent)).map (⟨·⟩)
 
+/-- Whether a parameter of `smt_close` is the name of a closed lemma: a constant with no
+argument but instances (`dbool_ll : is_lossless dbool`, an axiom of a theory such as
+`gt0_n : 0 < n`).  There is nothing to instantiate in it: it is a fact (and `grind` does not
+take it as a lemma when its instance is built from the context: "unknown free variable"). -/
+def ECClose.isClosedLemma (p : Syntax) : MetaM Bool := do
+  let q := if p.isOfKind ``Lean.Parser.Tactic.grindParam then p[0] else p
+  -- (a `grindLemma` is an optional modifier and a term)
+  unless q.isOfKind ``Lean.Parser.Tactic.grindLemma && q.getArgs.size == 2 && q[0].isNone &&
+      q[1].isIdent do
+    return false
+  let [c] ← (resolveGlobalConst q[1] <|> pure []) | return false
+  let some info := (← getEnv).find? c | return false
+  forallTelescope info.type fun xs b => do
+    unless ← isProp b do return false
+    xs.allM fun x => return (← x.fvarId!.getBinderInfo).isInstImplicit
+
+/-- The parameters of `smt_close` that `grind` is given: the lemma names that are not closed
+lemmas (`ECClose.isClosedLemma`), with their modifiers. -/
+def ECClose.grindParams (ps : Array Syntax) : MetaM (Array Syntax) := do
+  (ECClose.splitParams ps).2.filterM fun p => return !(← ECClose.isClosedLemma p)
+
+/-- The preparation of `smt_close`: its facts as hypotheses, before the preprocessing (which
+puts them in the form of the goal). -/
+syntax "smt_facts" (" [" Lean.Parser.Tactic.grindParam,* "]")? : tactic
+
+elab_rules : tactic
+  | `(tactic| smt_facts [$ls,*]) => do
+    for p in ls.getElems do
+      if let some t := ECClose.factTerm? p.raw then
+        evalTactic (← `(tactic| have := $(⟨t⟩)))
+      else if ← ECClose.isClosedLemma p.raw then
+        let q := if p.raw.isOfKind ``Lean.Parser.Tactic.grindParam then p.raw[0] else p.raw
+        evalTactic (← `(tactic| have := $(⟨q[1]⟩)))
+
+/-- The closing step of `smt_close` on one goal: see `smt_close`. -/
+syntax "smt_grind" (" [" Lean.Parser.Tactic.grindParam,* "]")? : tactic
+
+elab_rules : tactic
+  | `(tactic| smt_grind [$ls,*]) => do
+    let lemmas : Array (TSyntax ``Lean.Parser.Tactic.grindParam) :=
+      (← ECClose.grindParams (ls.getElems.map (·.raw))).map (⟨·⟩)
+    let ids : Array Ident := ECClose.paramIdents (lemmas.map (·.raw))
+    let preds ← localPreds
+    let extra : Array (TSyntax ``Lean.Parser.Tactic.grindParam) ←
+      preds.mapM fun c => `(Lean.Parser.Tactic.grindParam| $(mkIdent c):ident)
+    let all := lemmas ++ extra
+    -- (the first two alternatives are the closer as it was: a goal they close is closed as
+    -- before)
+    evalTactic (← `(tactic| first
+      | grind [GaudisCrypt.EC.oget_some, $lemmas,*]
+      | (ec_instances [$ids,*]; grind [GaudisCrypt.EC.oget_some, $lemmas,*])
+      | grind [GaudisCrypt.EC.oget_some, $all,*]
+      | linarith
+      | (ec_instances_chain [$ids,*]; (try simp_reads_all); first
+          | linarith
+          | grind [GaudisCrypt.EC.oget_some, $all,*])))
+
+/-- **EC's `smt(l₁, …)`**: `auto_close`'s preprocessing, the reads of the states as variables
+(`generalize_reads_all`), their equations substituted, then `grind` with the lemmas `lᵢ`; if that
+fails, once more with the lemmas' instances at the goal's terms as hypotheses (`ec_instances`:
+EC's provers instantiate them there, `grind`'s E-matching may not, through definitions).
+
+Then, what EC's provers also do:
+* the predicates of the file being checked that the goal mentions are unfolded (EC's `pred`:
+  its body is known to the provers; a predicate of the library is named, `smt_close [P]`);
+* linear arithmetic over an ordered field (`linarith`: `grind` does not do it over the reals);
+* the lemmas are instantiated in a chain (`ec_instances_chain`: at the terms of the instances
+  too, their hypotheses taken from the context), for EC's `smt(l₁ l₂ l₃)` on a chain of
+  (in)equalities between probabilities.
+
+A parameter that is not a name — a lemma applied to its arguments, `smt_close [l A m]` — is a
+fact: it becomes a hypothesis first.  So does the name of a lemma with no argument but
+instances (`smt_close [dbool_ll, gt0_n]`). -/
+syntax "smt_close" (" [" Lean.Parser.Tactic.grindParam,* "]")? : tactic
+
 macro_rules
   | `(tactic| smt_close) => `(tactic| smt_close [])
   | `(tactic| smt_close [$ls,*]) => do
-    let ids := ECClose.paramIdents (ls.getElems.map (·.raw))
     `(tactic| focus (
+      smt_facts [$ls,*]
       auto_prep
       all_goals try generalize_reads_all
       all_goals try subst_named
       all_goals try subst_vars
-      all_goals first
-        | grind [GaudisCrypt.EC.oget_some, $ls,*]
-        | (ec_instances [$ids,*]; grind [GaudisCrypt.EC.oget_some, $ls,*])))
+      all_goals smt_grind [$ls,*]))
 
 end GaudisCrypt

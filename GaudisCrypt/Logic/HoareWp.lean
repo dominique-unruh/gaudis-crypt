@@ -8,7 +8,7 @@ import GaudisCrypt.Logic.JudgmentWp
 `hoare_wp k`: the last `k` statements by wp — the judgment-generic `Judgment.wpStep`
 (`Logic/JudgmentWp.lean`) with the Hoare rules this file registers (`hoare_seq_det`,
 `hoare_seq_sample`), the postcondition simplified by `simpReadsDecls` after each step.  Plus
-`hoare_call`, `hoare_while` and `hoare_skip`, which are Hoare-specific.
+`hoare_call`, `hoare_while_raw` and `hoare_skip`, which are Hoare-specific.
 -/
 
 namespace GaudisCrypt
@@ -196,7 +196,7 @@ elab "hoare_call" h?:(ppSpace colGt term:max)? : tactic => Elab.Tactic.withMainC
   Elab.Tactic.liftMetaTactic fun g => hoareCallStep h g
 
 /-- A loop step, on a goal `hoareStmt A {x₁; …; xₙ₋₁; while c body} B` and an invariant `I`:
-`hoare_while` closes the loop, leaving three goals, in order: the body preserves `I` (from
+`hoare_while_raw` closes the loop, leaving three goals, in order: the body preserves `I` (from
 `I ∧ c`), `I` with a failed test implies `B` (reads generalized, `generalizeReads`), and the
 triple about `x₁; …; xₙ₋₁` with postcondition `I`. -/
 def hoareWhileStep (I : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
@@ -217,13 +217,16 @@ def hoareWhileStep (I : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
   return [gBody, gExit, gp]
 
 open Lean Elab Tactic in
-/-- `hoare_while I`: `hoareWhileStep` on the main goal, with the invariant `I` written like a
+/-- `hoare_while_raw I`: `hoareWhileStep` on the main goal, with the invariant `I` written like a
 condition of a `hoare[ ]` triple — `§x` reads the program variable `x` of the goal's program, or a
-global.  Goals: `body`, `exit`, then the code before the loop with postcondition `I`. -/
-elab "hoare_while " I:term : tactic => withMainContext do
+global.  Goals: `body`, `exit`, then the code before the loop with postcondition `I`.
+
+EC's `while I` — two goals, the exit under the loop's frame in the second — is `hoare_while`
+(`Logic/ECWhileHoare.lean`). -/
+elab "hoare_while_raw " I:term : tactic => withMainContext do
   let ty ← instantiateMVars (← getMainTarget)
   unless ty.isAppOfArity ``hoareStmt 3 do
-    throwError "hoare_while: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
+    throwError "hoare_while_raw: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
   -- the program variables of the goal, each bound to its slot, as a `hoare[ ]` triple binds them
   let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! 1, ty.getArg! 2] #[]).filter
     (·.nameable)

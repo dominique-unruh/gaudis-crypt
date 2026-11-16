@@ -46,9 +46,9 @@ Gap list (what keeps the file from reading as EC's):
   (`D4_Sample`) and `D4_6.SampleWi.sample` (`D4_6.sampleE_sampleWi`, then `D6_Sample`
   reversed).  The argument `((), 5 :@ r)` and the side condition `dinter_ll` of EC's second
   rewrite are the `hP` goal of the second step.
-* GAP 3: `rnd f finv; auto=> />` is `equiv_rnd f finv; equiv_skip` and the three conditions by
-  hand (`equiv_auto` loops on `b = f (finv b)`); the goals after `auto` of `D6_Sample` by hand
-  (EC: `rewrite supp_dinter /#`).
+* GAP 3: `rnd f finv; auto=> />` is `equiv_rnd f finv; equiv_skip` (`equiv_auto` loops on
+  `b = f (finv b)`); EC's `rewrite supp_dinter /#` on the conditions (and `apply: dinter_uni`)
+  are `smt_close [supp_dinter]`, `smt_close [supp_dinter, dinter1E]`.
 * GAP 4: `byphoare (: True ==> _)` for `byphoare=> //`; `rnd` on an exact bound is
   `phoare_rnd (pred1 k)`.
 -/
@@ -121,15 +121,10 @@ theorem D6_Sample : equiv[ D6.sample ~ D4_6.SampleWi.sample : §r{2} = 5 ==> ={r
   equiv_while (={r})
   · -- EC: + by rnd; auto=> /> &2 _ + r; rewrite supp_dinter /#.
     equiv_rnd; equiv_auto
-    rintro _ _ _ -
-    refine ⟨rfl, fun a ha => ?_⟩
-    have := (supp_dinter 1 6 a).mp ha
-    change decide (5 ≤ a) = decide (¬ (1 ≤ a ∧ a ≤ 4))
-    exact decide_eq_decide.mpr (by omega)
+    smt_close [supp_dinter]
   -- EC: by auto.
   equiv_auto
-  rintro r₂ i₂ rfl
-  exact ⟨⟨rfl, rfl⟩, fun _ _ h _ _ => h⟩
+  smt_close
 
 theorem D4_D6 (f finv : ℤ → ℤ) :
     (∀ i, 1 ≤ i ∧ i ≤ 4 ↔ 1 ≤ f i ∧ f i ≤ 4) →
@@ -147,17 +142,7 @@ theorem D4_D6 (f finv : ℤ → ℤ) :
     --       + rewrite supp_dinter=> - /= r_bounds.
     --         by apply: dinter_uni; rewrite supp_dinter /#.
     --       by rewrite !supp_dinter /#.
-    intro _
-    have hs : ∀ b, b ∈ (dinter 1 4).support → 1 ≤ b ∧ b ≤ 4 := fun b hb =>
-      (supp_dinter 1 4 b).mp hb
-    refine ⟨fun b hb => ((Hbij b (hs b hb)).1).symm, fun b hb => ?_, fun a ha => ?_⟩
-    · have hb' := hs b hb
-      have hf : 1 ≤ finv b ∧ finv b ≤ 4 :=
-        (Hbound (finv b)).mpr (by rw [(Hbij b hb').1]; exact hb')
-      rw [dinter1E, dinter1E, if_pos hb', if_pos hf]
-    · have ha' := hs a ha
-      exact ⟨(supp_dinter 1 4 _).mpr ((Hbound a).mp ha'), (Hbij a ha').2.symm,
-        (Hbij a ha').2.symm⟩
+    smt_close [supp_dinter, dinter1E]
   -- EC: proc *.
   --     rewrite equiv[{1} 1 D4_Sample].
   --     rewrite equiv[{1} 1 D4_6.sampleE_sampleWi ((), 5 :@ r)].

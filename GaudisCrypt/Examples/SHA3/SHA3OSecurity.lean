@@ -1031,7 +1031,7 @@ theorem eq_extend :
     · intro σ₁
       stmt_wp
       --     (GAP 1: `k`, which the loop does not write, is kept by the invariant)
-      hoare_while (§k ≤ size_out)
+      hoare_while_raw (§k ≤ size_out)
       · hoare_auto
       · intros; simp_all
       · hoare_auto
@@ -1386,7 +1386,7 @@ theorem eq_eager_ideal2 :
     stmt_rcondf{2} 2
     · intro σ₁
       --     (GAP 1: `n`, which the loop does not write, is kept by the invariant)
-      hoare_while (§i ≤ §n ∧ size_out < §n)
+      hoare_while_raw (§i ≤ §n ∧ size_out < §n)
       · hoare_auto
       · ec_progress
       · hoare_auto; ec_progress

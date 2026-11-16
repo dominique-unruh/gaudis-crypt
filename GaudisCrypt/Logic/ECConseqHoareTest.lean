@@ -78,7 +78,7 @@ case hoare
 }
 
 case judgment
-⊢ equiv[ §x{1} = §x{2} ==> §x{1} = §x{2} ] {
+⊢ equiv[ ={x} ==> ={x} ] {
       var x : ℕ;
       x <- §x + 1;
 } ~ {

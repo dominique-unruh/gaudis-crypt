@@ -105,8 +105,8 @@ example (A : Orc) [Module.Declared A pCount.footprint] (p : Prop) (hp : p) : p :
 -- EC's `call Inc_Inc2` where the calls name the oracles behind a record (a game that passes its
 -- oracle on as `Orc.mk { get := … }`): `H` is taken to the callees as the calls spell them
 /--
-trace: ⊢ equiv[ §x{1} = §x{2} ∧ §pCount{2} = 2 * §pCount{1} ==>
-      (§x{1} = §x{2} ∧ §pCount{2} = 2 * §pCount{1}) ∧
+trace: ⊢ equiv[ ={x} ∧ §pCount{2} = 2 * §pCount{1} ==>
+      (={x} ∧ §pCount{2} = 2 * §pCount{1}) ∧
         ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ pCount.get g₂ = 2 * pCount.get g₁ → r₁ = r₂ ∧ pCount.get g₂ = 2 * pCount.get g₁ ]
       {

@@ -217,7 +217,7 @@ the `while` row.
 | `hint exact random : dhkey_ll.` | `attribute [ec_random] dhkey_ll` (`Logic/ECHints.lean`): the lemmas `is_lossless d` that `islossless` closes a sampling with (EC's hint database `random`); the library's `dbool_ll`, `uniform_ll`, `BitWord.dunifin_ll` are tagged |
 | `rnd f` (pRHL, `f` an involution) | `equiv_rnd f f`: EC's `rnd f` is `rnd f f` (`hashed_elgamal_std.ec`'s `rnd (fun w, w +^ m)`; the xor identities by `Lib/EC/BitWordRing.lean`'s simp lemmas) |
 | `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
-| `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
+| `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept: the `post` goal is `P σ → (frame) → Q' τ → Q τ`, for `equiv_conseq` and (since 2026-11-16) `hoare_conseq` — EC's `conseq (_: _ ==> Q') => //; move=> &m -> …` needs no copy of the precondition's facts in `Q'` |
 | `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)` | `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)` (`Logic/ECConseqHoare.lean`): the right program's own Hoare triple, its conditions written with the tag (`size §bs{2} = §n{2} - 1`); goals `pre`, `post`, `hoare`, `judgment` |
 | `conseq H` | `equiv_conseq H` (pRHL only); on procedures, when `post` needs the precondition (EC keeps it): `equiv_conseq_pre H` (`Logic/ECConseqHoare.lean`); when the goal keeps variables or a `glob` that `H` does not mention (EC's frame), or the goal names the procedures through module views: `equiv_conseq_frame H` (`Logic/ECProcInv.lean`), which also closes the implications that are trivial (`by conseq H`) |
 | `exists* e₁{1}, e₂{2}; elim* => a b` | `equiv_exists* §e₁{1}, §e₂{2}` then `intro a b` (also on procedure judgments, `§x{2}` the parameter); `stmt_exists* e` |
@@ -239,7 +239,7 @@ the `while` row.
 | `hoare` on `phoare[ … ] = 0` | `phoare_hoare` |
 | pHL `conseq (: P ==> Q)` on a lower bound `≥ r` | `phoare_conseq (: P ==> Q)` (`Logic/PHoareRnd.lean`): goals `pre` (closed when trivial), `post` (from the old precondition, `Q` implies the old event: EC's goal, over the values before and after), then the judgment |
 | pHL `rnd` / `rnd E` on a lower bound `≥ r` | `phoare_rnd` (the postcondition is the event) / `phoare_rnd E`: the goal becomes `phoare[ c : P ==> r ≤ mu d E ∧ ∀ v ∈ d, (E v → Q v) ] = 1`; then `phoare_auto` |
-| Hoare `while I` | `hoare_while I` |
+| Hoare `while I` | `hoare_while (I)` (`Logic/ECWhileHoare.lean`, 2026-11-16): EC's two goals, `body` (`I ∧ b ==> I`) and `hpre` (the code before establishes `I ∧ ∀ τ, (frame: what the loop keeps) → I τ → ¬b τ → Q τ`), so what the precondition says of variables the loop does not modify is there on exit and stays out of `I`.  `while I; auto; smt(…)` is `hoare_while (I) <;> hoare_auto <;> smt_close […]`.  The older form — three goals `body`, `exit`, the code before with postcondition `I`, no frame — is `hoare_while_raw I` (the first SHA-3 port's proofs use it) |
 | `splitwhile{i} n : e` / `unroll{i} n` | `stmt_splitwhile{i} n : e` / `stmt_unroll{i} n` |
 | `alias{i} n x = e` | `stmt_alias{i} n x = e` |
 | `transitivity{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` | `equiv_trans{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` |
@@ -278,6 +278,22 @@ Closers are the bulk of the remaining manual work.  Order of attack:
    (`prefix_inv`, `all_prefixes`) as hints.  When `grind` fails, `smt_close` retries once with
    the hint lemmas' instances at the goal's terms as hypotheses (`ec_instances`: `size_ge0` at
    `size p`), so EC's `smt(List.size_ge0 …)` needs no `exact size_ge0 _` first.
+   Since 2026-11-16 the closer also does what EC's provers do in these cases (so EC's line
+   transcribes; the two steps above come first, a goal they closed is closed as before):
+   * a **predicate of the file being checked** (`def P … : Prop`, EC's `pred`) is unfolded
+     without being named (`sxor2`, `is_restr`); a predicate of a library still has to be named;
+   * **linear arithmetic over the reals** (`linarith`; `grind` does not do it);
+   * **a chain of lemmas** (`smt(pr_Game0_Game1 pr_Game1_Game2 … pr_Game2_OW)`): the lemmas
+     are instantiated at the terms of the goal and of the instances, their hypotheses and
+     instances taken from the context (`A_a1_ll`, `A_a2_ll` of the section);
+   * **a hint that is a fact**: a lemma applied to its arguments (`smt_close [l A m]`), or the
+     name of a lemma with no argument but instances (`dbool_ll`, `dbiased_ll`, a theory's axiom
+     `in01_p`, `N_pos`), becomes a hypothesis.  (`grind [l]` on such a name fails with "unknown
+     free variable" when its instance comes from a clone.)
+   EC's `rewrite l; smt(…)` before a closer: put `l` in the hints (`rewrite oflist_cons;
+   smt (is_restrS is_restr_addS)` is `smt_close [oflist_cons, is_restrS, is_restr_addS]`).
+   A pHL bound that is `0` needs `ENNReal.ofReal_zero` as a hint.  A hint list with a name that
+   does not exist fails like any other failure: check the names first.
 3. **By hand**, with **EC's lemmas** (`lemma1'`, `huniq_hinvK_h`, `m_p_of_INV` …):
    `auto_prep` then `rw`/`simp`/`refine lemma … ?_ ?_`.  For a lemma over plain values:
    `generalize_reads_all; subst_vars; apply lemma <;> assumption`.  A conditional postcondition
@@ -342,7 +358,8 @@ Mappings for ssreflect idioms:
 * `rewrite domE Pmi_xaxc` → `simp [FMap.domE, Pmi_xaxc]`; `smt(domE)` → `smt_close [FMap.domE]`.
 * `smt (@Block.DBlock …)` for losslessness → the `@[simp]` facts `bdistr_expected_one` etc.
   (state them once per file/library, `is_lossless_iff_expected`).
-* EC's `smt()` on real arithmetic → `linarith`/`positivity`; bounds: `Lib/EC/StdBigop.lean`
+* EC's `smt()` on real arithmetic → `smt_close` (linear, since 2026-11-16), else
+  `linarith`/`positivity`; bounds: `Lib/EC/StdBigop.lean`
   (`sum_Ico_const`, `sum_Ico_toNat`, `ofReal_intCast_mul_mu1`).
 * `sp` gives EC's read form `P ∧ x = e`, and past the resets inlining leaves it keeps `P` and
   forgets the reset (EC has no such statement).  Over `x <- e` with `e` reading `x` it gives EC's
@@ -452,7 +469,7 @@ Document each in the docstring when it applies.
   unrolled first — `rcondt` leaves the body before the loop (EC's later positions count the body's
   statements), `rcondf` removes the loop.  `splitwhile` then `rcondt` on the second loop and
   `rcondf` on the spliced `if`, then on the loop again, is EC's usual last-round peel.
-* **`hoare_while I` needs the loop last**: EC's `while` side goals after `rcondt` on a loop end
+* **`hoare_while I` (and `hoare_while_raw I`) needs the loop last**: EC's `while` side goals after `rcondt` on a loop end
   with the spliced round's head (`i <- i + 1; …`): `stmt_wp` first (deviation).
 * **`call (: ={glob IF, glob S, glob A} ∧ …)` with concrete modules**: `equiv_call` reads each
   `glob M` of a module of procedures as its written variables (`Logic/GlobWrites.lean`), exactly
@@ -843,6 +860,17 @@ Document each in the docstring when it applies.
   other game; `Pedersen.ec`): two variables of one name.  `§x{i}` is side `i`'s, in every
   tactic's condition (`PRHLWp.elabRelTerm`), in a written `equiv[ … ] { var x : group; … } ~
   { var x : exp; … }` and in the goals as shown (`ProgramSyntax.frameVarsSided`).
+* **Relational goals as shown (2026-11-16)**: `§x{1} = §x{2}` prints as `={x}`, a conjunction
+  of them as `={x, y}` (what the parser reads it as: the printed goal can be pasted back);
+  the whole global state is `={allGlobals}` (what `byequiv` states where EC shows `={glob A}`);
+  `(FVP.fvP A).touched_getter` read on a side is `glob A`.  A judgment about two procedures
+  that do not take the same parameters prints as `equiv[ M.f (x) ~ N.g (y, z) : … ]` also when
+  a condition reads a parameter.  Still raw: the goal between `byequiv` and `proc` (a
+  `prhlProc` with conditions on the tuples), `bypr`'s goal; under the `∀ τ` of a `while`'s
+  second goal the reads of the exit state print as `§x`, like those of the current state.
+* **`(a, b) <- (e₁, e₂)` under `sp`** leaves `(§a, §b) = (e₁, e₂)`: the closers take it apart
+  (`Prod.mk.injEq`), so EC's tuple assignment is written as it is (PIR's
+  `(s, s') <- ([], [])`).
 * **`inline{i} M(A).f` by name where the game calls `f` through its module type** (the
   experiment's `A.guess` at `A := StdRedAdversary(L)`): `stmt_inline{i} (M(A).f)` finds the
   call (the callees are compared as the module steps evaluate them).
@@ -884,7 +912,9 @@ Document each in the docstring when it applies.
 * **Closing several goals by alternatives**: `all_goals solve | simp_all | grind`, not `first`
   (`first` takes a `simp_all` that made progress without closing the goal).
 * **`smt_close` with lemmas applied to section hypotheses** (`smt_close [pr_Game0_Game1 A A_ll
-  m, …]`) fails with "unknown free variable" (2026-11-15, open): `have`s and `linarith`.
+  m, …]`) failed with "unknown free variable" (2026-11-15); closed 2026-11-16: EC's line as it
+  is, `smt_close [pr_Game0_Game1, pr_Game1_Game2, pr_bad_Game1_Game2, pr_Game2, pr_Game2_OW]`
+  (the facts form works too).
 * **An abstract theory instantiated in the same file** (`br93.ec`: `abstract theory BR93 … end
   BR93.`, then `local clone import BR93 as Instance with …` and the theorem for the instance):
   the theory is a namespace with its class, the instance part a sibling namespace with its own

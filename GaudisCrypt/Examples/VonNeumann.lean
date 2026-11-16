@@ -47,9 +47,11 @@ Gap list (what keeps the file from reading as EC's):
   postcondition is the event's); `conseq (: _: = e)` is `phoare_conseq (: _ ==> _ : = e)`.
 * GAP 4: `vn_fst` (`mu dvn (pred1 x ∘ Prod.fst) = 1/2`) is stated once; EC rewrites `vnE` and
   counts at its two uses.
-* GAP 5: after `rnd E; auto` the goals `mu d E = … ∧ ∀ v ∈ d, …` are closed by hand with
-  `mu_pred1`, `dbiased1E` (EC: `rewrite dbiased`, `rewrite dbiasedE`, `/#`); the bounds'
-  equation of `Simulate_is_Fair` by `dbiased1E` and `ring` (EC: `smt`).
+* GAP 5: after `rnd E; auto` the goals `mu d E = … ∧ ∀ v ∈ d, …` are
+  `smt_close [mu_pred1, pred1E]`, with `dbiased1E` where EC has `rewrite dbiasedE`; three of
+  them (`rnd (pred1 (!x)); auto=> /#`, a case analysis on booleans) and the conditions of
+  three `conseq ih=> /#` are by hand, as is the bounds' equation of `Simulate_is_Fair`
+  (`dbiased1E` and `ring`; EC: `smt`).
 * GAP 6: the rule for `while I V k ε` has two goals more than EC's (`bound_le_one`, `sat`), and
   `rate` (`0 < 2 p (1 - p)`), which EC's `=> />` leaves in a conjunction; `seq 1: b p (1%r - p)
   (1%r - p) p` leaves `0 ≤ pᵢ` (`nonneg`) when `positivity` does not find it.
@@ -189,7 +191,7 @@ theorem Simulate_is_Fair (x : Bool) (m : VariableAssignment) :
     rw [if_neg (of_decide_eq_false h)]
     by_cases hb : b = x <;> simp [hb, indicatorE]
   · -- EC: + by move=> /#.
-    intro b b'; by_cases h : b = b' <;> simp [h]
+    smt_close
   · -- EC: + move=> ih.
     intro w ih
     -- EC: seq 1: (b = x) (mu1 dbiased x)
@@ -200,7 +202,7 @@ theorem Simulate_is_Fair (x : Bool) (m : VariableAssignment) :
       (mu1 dbiased (!x)) (mu1 dbiased (!x) * mu dvn (pred1 x ∘ Prod.fst))
     · -- EC: + by rnd (pred1 x); auto=> />; rewrite dbiased.
       phoare_rnd (pred1 x); phoare_auto
-      exact fun _ _ _ => ⟨mu_pred1 _ _, fun _ _ => Iff.rfl⟩
+      smt_close [mu_pred1, pred1E]
     · -- EC: + seq 1: (b' = !x) (mu1 dbiased (!x)) 1%r (mu1 dbiased x)
       --         (mu dvn (pred1 x \o fst)) (b = x)=> //.
       phoare_seq 1 : (§b' = !x) (mu1 dbiased (!x)) 1 (mu1 dbiased x)
@@ -209,10 +211,10 @@ theorem Simulate_is_Fair (x : Bool) (m : VariableAssignment) :
         hoare_auto
       · -- EC: + by rnd (pred1 (!x)); auto.
         phoare_rnd (pred1 (!x)); phoare_auto
-        exact fun _ _ => ⟨mu_pred1 _ _, fun _ _ => Iff.rfl⟩
+        smt_close [mu_pred1, pred1E]
       · -- EC: + by conseq ih=> />; rewrite -negbDR.
         phoare_conseq ih
-        rintro b' b ⟨rfl, rfl⟩; cases b <;> simp
+        smt_close
       · -- EC: + by rnd (pred1 x); auto=> /#.
         phoare_rnd (pred1 x); phoare_auto
         exact fun _ _ => ⟨mu_pred1 _ _, fun v _ => by cases v <;> cases x <;> simp [pred1]⟩
@@ -246,36 +248,31 @@ theorem Simulate_is_Fair (x : Bool) (m : VariableAssignment) :
     cases x <;> simp <;> ring
   · -- EC: + by auto=> />; rewrite dbiased_ll.
     phoare_auto
-    exact fun _ _ _ => ⟨dbiased_ll, fun _ _ => dbiased_ll⟩
+    smt_close [dbiased_ll]
   · have := in01_p (self := ‹_›)
     exact mul_pos (mul_pos two_pos this.1) (by linarith)
   · -- EC: split => //= [|z]; first by smt w=(in01_p).
     --     conseq (_: true ==> b <> b'); first by move=> /#.
     intro z
     phoare_conseq (: True ==> §b ≠ §b')
-    · rintro b b' ⟨h, rfl⟩ b1 b1' hne
-      rw [if_pos (of_decide_eq_true h), if_neg hne]; norm_num
+    · smt_close
     -- EC: seq 1: b p (1%r - p) (1%r - p) p=> //.
     phoare_seq 1 : (§b) p (1 - p) (1 - p) p
     · -- EC: + by rnd; skip=> />; rewrite dbiasedE.
       phoare_rnd (pred1 true); phoare_auto
-      exact ⟨by rw [mu_pred1, dbiased1E]; simp, fun v _ h => h⟩
+      smt_close [mu_pred1, dbiased1E, pred1E]
     · -- EC: + by rnd; skip=> />; rewrite dbiasedE.
       phoare_rnd (pred1 false); phoare_auto
-      rintro b rfl
-      exact ⟨by rw [mu_pred1, dbiased1E]; simp, fun v _ h => by rw [pred1E] at h; simp [h]⟩
+      smt_close [mu_pred1, dbiased1E, pred1E]
     · -- EC: + by rnd; skip=> />; rewrite dbiasedE.
       phoare_rnd (pred1 false); phoare_auto
-      exact ⟨by rw [mu_pred1, dbiased1E]; simp, fun v _ h => by rw [pred1E] at h; simp [h]⟩
+      smt_close [mu_pred1, dbiased1E, pred1E]
     · -- EC: + by rnd; skip=> /> &hr _; rewrite dbiasedE.
       phoare_rnd (pred1 true); phoare_auto
-      intro b hb
-      exact ⟨by rw [mu_pred1, dbiased1E]; simp, fun v _ h => by
-        rw [pred1E] at h; cases b <;> simp_all⟩
+      smt_close [mu_pred1, dbiased1E, pred1E]
     · -- EC: smt(in01_p).
-      exact le_of_eq (by ring)
-    · have := in01_p (self := ‹_›)
-      exact ⟨this.1.le, by linarith, by linarith, this.1.le⟩
+      smt_close [in01_p]
+    · smt_close [in01_p]
   · intro b b'
     rw [ENNReal.ofReal_le_one]
     split_ifs

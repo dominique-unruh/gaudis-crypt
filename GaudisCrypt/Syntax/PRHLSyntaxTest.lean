@@ -34,7 +34,7 @@ example : Prop := equiv[ ={x} ==> §x{1} + 1 = §x{2} ] {
 /-! Printing: sided reads print as `§x{1}`/`§x{2}`, each side with its own `var`s. -/
 
 /--
-info: equiv[ §g{1} = §g{2} ==> §g{1} = §g{2} ] {
+info: equiv[ ={g} ==> ={g} ] {
     var x : ℕ;
     x <- §g + 1;
     g <- §x;
@@ -82,11 +82,15 @@ module M : T {
 }
 
 -- the procedure form prints with the parameter names, read on each side
-/-- info: equiv[ M.f (n) ~ M.f (n) : §n{1} = §n{2} ==> §res{1} = §res{2} ∧ §g{1} = §g{2} ] -/
+/--
+info: equiv[ M.f (n) ~ M.f (n) : ={n} ==> ={res, g} ]
+-/
 #guard_msgs in
 #roundtrip equiv[ M.f ~ M.f : ={n} ==> ={res, g} ]
 
-/-- info: equiv[ M.f (n) ~ M.f (n) : §n{1} = §n{2} + 1 ∧ §g{1} = 0 ==> §res{1} = §res{2} ] -/
+/--
+info: equiv[ M.f (n) ~ M.f (n) : §n{1} = §n{2} + 1 ∧ §g{1} = 0 ==> ={res} ]
+-/
 #guard_msgs in
 #roundtrip equiv[ M.f ~ M.f : §n{1} = §n{2} + 1 ∧ §g{1} = 0 ==> §res{1} = §res{2} ]
 
@@ -128,6 +132,39 @@ info: equiv[ §x{1} = true ∧ §x{2} = 2 ==> §y{1} = §x{1} ∧ §y{2} = §x{2
     } ~ {
       var x : Nat, y : Nat;
       y <- $x + 1;
+    }
+
+module M2 {
+  proc h (a : ℕ, b : ℕ) : ℕ {
+    return $a + $b
+  };
+}
+
+-- two procedures that do not take the same parameters, the conditions reading them
+/--
+info: equiv[ M.f (n) ~ M2.h (a, b) : §b{2} = 5 ∧ §n{1} = §a{2} ==> ={res} ]
+-/
+#guard_msgs in
+#roundtrip equiv[ M.f ~ M2.h : §b{2} = 5 ∧ §n{1} = §a{2} ==> ={res} ]
+
+-- `={x, y}` is printed for the equations it stands for (joined to the right); `={allGlobals}`
+-- is the whole global state
+/--
+info: equiv[ ={allGlobals} ∧ §x{1} = §y{2} ∧ ={x, y} ==> (={x} ∧ §y{1} ≤ §y{2}) ∧ ={y, g} ] {
+    var x : ℕ, y : ℕ;
+    y <- §x;
+} ~ {
+    var x : ℕ, y : ℕ;
+    y <- §x;
+}
+-/
+#guard_msgs in
+#roundtrip equiv[ ={allGlobals} ∧ §x{1} = §y{2} ∧ ={x, y} ==> (={x} ∧ §y{1} ≤ §y{2}) ∧ ={y, g} ] {
+      var x : ℕ, y : ℕ;
+      y <- $x;
+    } ~ {
+      var x : ℕ, y : ℕ;
+      y <- $x;
     }
 
 end GaudisCrypt.PRHLSyntaxTest

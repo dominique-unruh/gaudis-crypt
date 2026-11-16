@@ -231,7 +231,7 @@ theorem schnorr_proof_of_knowledge_shvzk : ∀ (D <: SigmaTraceDistinguisher),
     -- EC: by seq 2 2 : (#pre  /\ ={w0}); auto => />; progress; algebra.
     --     (GAP 6: `#pre` written out; EC's `algebra`: the simulated transcript is the real one
     --     and verifies, by `expM`, `expD`)
-    equiv_seq 2 2 : (§allGlobals{1} = §allGlobals{2} ∧ ={w0})
+    equiv_seq 2 2 : (={allGlobals, w0})
     · equiv_auto
     equiv_auto; auto_progress
     · congr 1

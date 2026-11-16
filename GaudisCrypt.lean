@@ -153,6 +153,7 @@ import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallUpto
+import GaudisCrypt.Logic.ECGlobVars
 import GaudisCrypt.Logic.ECGlob
 import GaudisCrypt.Logic.ECWhile
 import GaudisCrypt.Logic.ECWhileRel
@@ -166,6 +167,8 @@ import GaudisCrypt.Logic.ECIf
 import GaudisCrypt.Logic.ECIfTest
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.ECConseqTest
+import GaudisCrypt.Logic.ECWhileHoare
+import GaudisCrypt.Logic.ECWhileHoareTest
 import GaudisCrypt.Logic.ECCallFrame
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECGoals

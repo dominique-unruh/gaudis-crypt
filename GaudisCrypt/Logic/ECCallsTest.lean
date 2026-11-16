@@ -78,7 +78,7 @@ theorem Inc_Inc2 : equiv[ Inc.get ~ Inc2.get : ={arg, cCount} ==> ={res, cCount}
 -- `proc` on concrete procedures: the bodies, the parameters as variables
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==> R §r{1} §r{2} ] {
+⊢ equiv[ ={x, cCount} ==> R §r{1} §r{2} ] {
       var x : ℤ, r : ℤ;
       r <- call Inc.get.procedure (§x);
       r <- call Inc.get.procedure (§r);
@@ -100,7 +100,7 @@ example (R : ℤ → ℤ → Prop) :
 -- `inline*`: the callees' code, their locals named per side
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==> R §r{1} §r{2} ] {
+⊢ equiv[ ={x, cCount} ==> R §r{1} §r{2} ] {
       var x : ℤ, x0 : ℤ, r : ℤ, x1 : ℤ;
       reset_vars {"x0"} ∪ stringsStartingWith "@@." \ {"@@.x"};
       x0 <- §x;
@@ -139,12 +139,11 @@ example (R : ℤ → ℤ → Prop) :
 /--
 trace: case callee
 R : ℤ → ℤ → Prop
-⊢ equiv[ Inc.get (x) ~ Inc2.get (x) : §params{1} = §params{2} ∧ §cCount{1} = §cCount{2} ==>
-      §res{1} = §res{2} ∧ §cCount{1} = §cCount{2} ]
+⊢ equiv[ Inc.get (x) ~ Inc2.get (x) : ={params, cCount} ==> ={res, cCount} ]
 
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==>
-      (§r{1} = §r{2} ∧ §cCount{1} = §cCount{2}) ∧
+⊢ equiv[ ={x, cCount} ==>
+      ={r, cCount} ∧
         ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂ → R r₁ r₂ ]
       {
@@ -174,8 +173,8 @@ example (R : ℤ → ℤ → Prop) :
 -- `call H`, `H` a judgment about the callees
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==>
-      (§r{1} = §r{2} ∧ §cCount{1} = §cCount{2}) ∧
+⊢ equiv[ ={x, cCount} ==>
+      ={r, cCount} ∧
         ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂ → R r₁ r₂ ]
       {
@@ -250,9 +249,8 @@ example (R : ℤ → ℤ → Prop) :
 -- the same with the callee's footprint known
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==>
-      (§r{1} = §r{2} ∧
-          cCount.footprint.touched_getter.get §allGlobals{1} = cCount.footprint.touched_getter.get §allGlobals{2}) ∧
+⊢ equiv[ ={x, cCount} ==>
+      ={r, cCount.footprint.touched_getter} ∧
         ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ cCount.footprint.touched_getter.get g₁ = cCount.footprint.touched_getter.get g₂ → R r₁ r₂ ]
       {
@@ -277,10 +275,7 @@ example (R : ℤ → ℤ → Prop) :
 /--
 trace: case hpre
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==>
-      §(localVarLens "r" ℤ){1} = §(localVarLens "r" ℤ){2} ∧
-        §allGlobals{1} = §allGlobals{2} ∧ ∀ (r : ℤ) (g : VariableAssignment), R r r ]
-      {
+⊢ equiv[ ={x, cCount} ==> ={localVarLens "r" ℤ} ∧ ={allGlobals} ∧ ∀ (r : ℤ) (g : VariableAssignment), R r r ] {
       var x : ℤ;
       (localVarLens "r" ℤ) <- call Inc.get.procedure (§x);
 } ~ {
@@ -320,9 +315,7 @@ case pre
 A : ADV
 inst✝ : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
 R : ℤ → ℤ → Prop
-⊢ equiv[
-      (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-        §cCount{1} = §cCount{2} ==>
+⊢ equiv[ ={glob A, cCount} ==>
       globInvF cCount (FVP.fvP A) Eq §allGlobals{1} §allGlobals{2} ∧
         ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
           r₁ = r₂ ∧ globInvF cCount (FVP.fvP A) Eq g₁ g₂ → R r₁ r₂ ]
@@ -482,10 +475,7 @@ example : equiv[ Game(Inc, A).main ~ Game(Inc, A).main : ={glob A, cCount} ==> =
 /--
 trace: A : ADV
 inst✝ : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
-⊢ equiv[
-      (FVP.fvP A).touched_getter.get §allGlobals{1} = (FVP.fvP A).touched_getter.get §allGlobals{2} ∧
-        §cCount{1} = §cCount{2} ==>
-      §r{1} = §r{2} ] {
+⊢ equiv[ ={glob A, cCount} ==> ={r} ] {
       var r : ℤ;
       cFlag <- true;
       r <- call (Module.app A Inc).procedure ();

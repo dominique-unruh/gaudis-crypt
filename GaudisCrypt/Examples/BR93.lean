@@ -83,9 +83,7 @@ Gap list (what keeps the file from reading as EC's):
   intro pattern (`rename_i`, `rintro`), and EC's `smt(@FMap)` is `smt_close [FMap.mem_set]`.
 * GAP 7: `rewrite (OW_OWr &m (I(A)))` needs `I(A)`'s restriction `{-OWr}` as an instance,
   stated by hand (`haveI : Module.Declared (Module.app I A) …`); EC checks it itself.
-* GAP 8: `Reduction`'s `smt(…)` is `linarith` on the five lemmas (`smt_close` with lemmas
-  applied to the section's hypotheses fails with an internal error); three lemmas, and the
-  instance's `Reduction`, need more than the default heartbeats.
+* GAP 8: three lemmas, and the instance's `Reduction`, need more than the default heartbeats.
 * GAP 9: the section is `declare module A <: Adv {…} with glob R` with `{-R}` for `{-A}` in
   `A_a1_ll`, `A_a2_ll` (`notes/SHA3/Exceptions.md`, E14), so that the instance can apply
   `Reduction` to `A_CPA(A)`: `glob A_CPA(A)` is known from above only.
@@ -573,13 +571,7 @@ include A_a1_ll A_a2_ll in
 theorem Reduction (m : VariableAssignment) :
     Pr[ BR93_CPA(A).main () @ &m : §res ] - 1 / 2 ≤ Pr[ OW(I(A)).main () @ &m : §res ] := by
   -- EC: smt(pr_Game0_Game1 pr_Game1_Game2 pr_bad_Game1_Game2 pr_Game2 pr_Game2_OW).
-  -- GAP 8: `smt_close [pr_Game0_Game1 A A_a1_ll A_a2_ll m, …]` fails (unknown free variable)
-  have h0 := pr_Game0_Game1 A A_a1_ll A_a2_ll m
-  have h1 := pr_Game1_Game2 A m
-  have h2 := pr_bad_Game1_Game2 A m
-  have h3 := pr_Game2 A A_a1_ll A_a2_ll m
-  have h4 := pr_Game2_OW A m
-  linarith
+  smt_close [pr_Game0_Game1, pr_Game1_Game2, pr_bad_Game1_Game2, pr_Game2, pr_Game2_OW]
 
 end
 

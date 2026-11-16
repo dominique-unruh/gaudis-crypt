@@ -121,7 +121,7 @@ example (P Q : ℤ → ℤ → Prop) : hoare[ P (§z).1 (§z).2 ==> Q §x §y ] 
 -- `wp` over the trailing deterministic code
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ==> R §x{1} (§x{2} + 1) ] {
+⊢ equiv[ ={x} ==> R §x{1} (§x{2} + 1) ] {
       var x : ℤ, b : Bool;
       b <$ SubProbability.uniform;
 } ~ {
@@ -148,7 +148,7 @@ example (R : ℤ → ℤ → Prop) : equiv[ ={x} ==> R §y{1} §y{2} ] {
 -- EC's `wp n m`: the first `n` and `m` statements stay
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ==> R (§x{1} + 1) (§x{2} + 1) ] {
+⊢ equiv[ ={x} ==> R (§x{1} + 1) (§x{2} + 1) ] {
       var x : ℤ;
       x <- §x + 1;
 } ~
@@ -236,7 +236,7 @@ R : ℤ → ℤ → Prop
 
 case then
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ decide (§x{1} < 3) = true ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ∧ decide (§x{1} < 3) = true ==> R §y{1} §y{2} ] {
       var x : ℤ, y : ℤ;
       y <- 1;
       y <- §y + 1;
@@ -247,7 +247,7 @@ R : ℤ → ℤ → Prop
 
 case else
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ decide (§x{1} < 3) = false ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ∧ decide (§x{1} < 3) = false ==> R §y{1} §y{2} ] {
       var x : ℤ, y : ℤ;
       y <- 2;
       y <- §y + 1;
@@ -281,7 +281,7 @@ example (R : ℤ → ℤ → Prop) : equiv[ ={x} ==> R §y{1} §y{2} ] {
 /--
 trace: case then
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ decide (§x{1} < 3) = true ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ∧ decide (§x{1} < 3) = true ==> R §y{1} §y{2} ] {
       var y : ℤ;
       y <- 1;
 } ~ {
@@ -291,7 +291,7 @@ R : ℤ → ℤ → Prop
 
 case else
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ decide (§x{1} < 3) = false ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ∧ decide (§x{1} < 3) = false ==> R §y{1} §y{2} ] {
       skip;
 } ~ {
       var x : ℤ, y : ℤ;
@@ -364,7 +364,7 @@ R : ℤ → ℤ → Prop
 
 case h
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ==> R §y{1} §y{2} ] {
       var x : ℤ, y : ℤ;
       x <- 0;
       y <- 1;
@@ -406,7 +406,7 @@ R : ℤ → ℤ → Prop
 
 case h
 R : ℤ → ℤ → Prop
-⊢ equiv[ §n{1} = §n{2} ==> R §i{1} §n{2} ] {
+⊢ equiv[ ={n} ==> R §i{1} §n{2} ] {
       var n : ℤ, i : ℤ;
       i <- 0;
       i <- §i + 1;
@@ -451,7 +451,7 @@ R : ℤ → ℤ → Prop
 
 case h
 R : ℤ → ℤ → Prop
-⊢ equiv[ §n{1} = §n{2} ==> R §i{1} §n{2} ] {
+⊢ equiv[ ={n} ==> R §i{1} §n{2} ] {
       var n : ℤ, i : ℤ;
       i <- §n;
 } ~
@@ -519,7 +519,7 @@ example (P Q : ℤ → Prop) : hoare[ P §x ==> Q §y ] {
 /--
 trace: case hp
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ 0 < §x{1} ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ∧ 0 < §x{1} ==> R §y{1} §y{2} ] {
       var x : ℤ, y : ℤ;
       y <- §x;
 } ~ {
@@ -529,7 +529,7 @@ R : ℤ → ℤ → Prop
 
 case hn
 R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ ¬0 < §x{1} ==> R §y{1} §y{2} ] {
+⊢ equiv[ ={x} ∧ ¬0 < §x{1} ==> R §y{1} §y{2} ] {
       var x : ℤ, y : ℤ;
       y <- §x;
 } ~ {
@@ -563,7 +563,7 @@ example (R : ℤ → ℤ → Prop) : equiv[ ={x} ==> R §y{1} §y{2} ] {
 /--
 trace: case h₁
 R S : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ==> S §x{1} §x{2} ] {
+⊢ equiv[ ={x} ==> S §x{1} §x{2} ] {
       var x : ℤ;
       x <- §x + 1;
 } ~
@@ -621,7 +621,7 @@ R S T : ℤ → ℤ → Prop
 
 case judgment
 R S T : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ==> S §y{1} §y{2} ] {
+⊢ equiv[ ={x} ==> S §y{1} §y{2} ] {
       var x : ℤ, y : ℤ;
       y <- §x;
 } ~ {
@@ -696,7 +696,11 @@ P P' Q Q' : ℤ → Prop
 
 case post
 P P' Q Q' : ℤ → Prop
-⊢ ∀ (σ : ProgramState), GaudiExpr[ Q' §(localVarLens "y" ℤ) ].get σ → GaudiExpr[ Q §(localVarLens "y" ℤ) ].get σ
+⊢ ∀ (σ : ProgramState),
+    GaudiExpr[ P §(localVarLens "x" ℤ) ].get σ →
+      ∀ (τ : ProgramState),
+        (localVarLens "x" ℤ).get τ = (localVarLens "x" ℤ).get σ ∧ True →
+          GaudiExpr[ Q' §(localVarLens "y" ℤ) ].get τ → GaudiExpr[ Q §(localVarLens "y" ℤ) ].get τ
 
 case judgment
 P P' Q Q' : ℤ → Prop
@@ -818,7 +822,7 @@ R : ℤ → ℤ → Prop
 
 case hpre
 R : ℤ → ℤ → Prop
-⊢ equiv[ §n{1} = §n{2} ==>
+⊢ equiv[ ={n} ==>
       (§i{1} ≤ §n{1} ∨ §n{1} < 0) ∧
         ∀ (τ : ProgramState),
           n.get τ = §n{1} ∧ True → §i ≤ §n ∨ §n < 0 → GaudiExpr[ decide (§i < §n) ].get τ = false → R §i §n{2} ]
@@ -885,14 +889,14 @@ example (P Q : ℤ → Prop) : hoare[ P §n ==> Q §i ] {
       i <- 0;
       while (decide ($i < $n)) { i <- $i + 1; }
     } := by
-  hoare_while (§i ≤ §n ∨ §n < 0)
+  hoare_while_raw (§i ≤ §n ∨ §n < 0)
   trace_state
   all_goals sorry
 
 -- `splitwhile{1} n : e`
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §n{1} = §n{2} ==> R §i{1} §n{2} ] {
+⊢ equiv[ ={n} ==> R §i{1} §n{2} ] {
       var n : ℤ, i : ℤ;
       i <- 0;
       while (decide (§i < §n) && decide (§i + 1 < §n)) {
@@ -924,7 +928,7 @@ example (R : ℤ → ℤ → Prop) : equiv[ ={n} ==> R §i{1} §n{2} ] {
 -- `unroll{1} n`
 /--
 trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §n{1} = §n{2} ==> R §i{1} §n{2} ] {
+⊢ equiv[ ={n} ==> R §i{1} §n{2} ] {
       var n : ℤ, i : ℤ;
       i <- 0;
       if (decide (§i < §n)) {

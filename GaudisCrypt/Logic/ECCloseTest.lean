@@ -275,6 +275,66 @@ error: Unknown constant `hf`
 example (f : ℤ → ℤ) (hf : ∀ n, 0 ≤ f n) : ∀ a b : ℤ, a = f b → 0 ≤ a := by
   smt_close [hf]
 
+/-- A predicate of this file (EC's `pred`). -/
+def both (a b : ℤ) : Prop := 0 ≤ a ∧ 0 ≤ b
+
+-- the predicates of the file being checked are unfolded (EC's provers know a `pred`'s body)
+#guard_msgs in
+example : ∀ a b : ℤ, both a b → 0 ≤ a + b := by
+  smt_close
+
+/-- Functions the closer does not see through (the probabilities of a sequence of games). -/
+noncomputable def P0 (_ : ℕ) : ℝ := 1 / 2
+
+@[inherit_doc P0] noncomputable def P1 (_ : ℕ) : ℝ := 1 / 2
+
+@[inherit_doc P0] def Bad1 (_ : ℕ) : ℝ := 0
+
+@[inherit_doc P0] noncomputable def P2 (_ : ℕ) : ℝ := 1 / 2
+
+@[inherit_doc P0] def Bad2 (_ : ℕ) : ℝ := 0
+
+@[inherit_doc P0] def OW (_ : ℕ) : ℝ := 0
+
+theorem pr_0_1 (n : ℕ) (_h : 0 < n) : P0 n ≤ P1 n + Bad1 n := by unfold P0 P1 Bad1; norm_num
+
+theorem pr_1_2 (n : ℕ) : P1 n = P2 n := rfl
+
+theorem pr_bad_1_2 (n : ℕ) : Bad1 n = Bad2 n := rfl
+
+theorem pr_2 (n : ℕ) (_h : 0 < n) : P2 n = 1 / 2 := rfl
+
+theorem pr_2_OW (n : ℕ) : Bad2 n ≤ OW n := le_refl _
+
+-- EC's `smt(l₁ … l₅)` on a chain of (in)equalities between probabilities (`br93.ec`'s
+-- `Reduction`): the lemmas instantiated at the terms of the goal and of the instances, their
+-- hypotheses taken from the context, then linear arithmetic over the reals
+#guard_msgs in
+example (n : ℕ) (hn : 0 < n) : P0 n - 1 / 2 ≤ OW n := by
+  smt_close [pr_0_1, pr_1_2, pr_bad_1_2, pr_2, pr_2_OW]
+
+-- the same with facts: a parameter that is a lemma applied to its arguments is a hypothesis
+#guard_msgs in
+example (n : ℕ) (hn : 0 < n) : P0 n - 1 / 2 ≤ OW n := by
+  smt_close [pr_0_1 n hn, pr_1_2 n, pr_bad_1_2 n, pr_2 n hn, pr_2_OW n]
+
+/-- A theory's operator with its axiom (EC's `op p : { real | 0%r < p < 1%r } as in01_p`). -/
+class Coin where
+  p : ℝ
+  in01_p : 0 < p ∧ p < 1
+
+theorem Coin.p_lt_one [Coin] : Coin.p < 1 := Coin.in01_p.2
+
+-- a lemma with no argument but an instance is a fact, as a lemma applied to its arguments
+-- is: there is nothing to instantiate
+#guard_msgs in
+example [Coin] : Coin.p * 2 < 2 + 1 := by
+  smt_close [Coin.p_lt_one]
+
+#guard_msgs in
+example [Coin] : ∀ a : ℝ, a = Coin.p → 0 < a * 3 := by
+  smt_close [Coin.in01_p]
+
 -- the tuple chain of `sp` over `a, b <- z` (Gconcl_list's GAP 1): `auto_close` does not use it
 /--
 error: auto_close: a goal is left (state the lemmas EC's `smt` is given, or close it by hand)

@@ -190,6 +190,42 @@ theorem prhlStmt_conseq_frame {A A' B B' : ProgramState → ProgramState → Pro
     coupling_satisfies_snd (B := fun r : Unit × ProgramState => F₂ σ₂ r.2) (by rw [m2]; exact hF₂ σ₂)
   exact ⟨μ, m1, m2, fun w hw => hB σ₁ σ₂ hAσ _ _ (h1 w hw) (h2 w hw) (sat w hw)⟩
 
+/-- A Hoare triple from what holds on every outcome (the converse of `hoareStmt.satisfies`). -/
+theorem hoareStmt_of_satisfies {A B : ProgramState → Prop} {s : Stmt}
+    (h : ∀ σ, A σ → (programDenotation s σ).satisfies fun u => B u.2) : hoareStmt A s B :=
+  hoareStmt_of_wp fun σ hσ =>
+    SubProbability.expected_eq_zero_of_support fun a ha => by
+      have hB : B a.2 := h σ hσ a fun h0 => ha (by
+        show (programDenotation s σ).ofEvent {a} = 0
+        simp [SubProbability.ofEvent, h0])
+      simp [Set.indicator, hB]
+
+/-- **EC's `conseq` on a Hoare triple, with the frame**: `F` relates the state at the start to
+the state at the end (what the code keeps). -/
+theorem hoareStmt_conseq_frame {A A' B B' : ProgramState → Prop} {c : Stmt}
+    (F : ProgramState → ProgramState → Prop)
+    (hF : ∀ σ, (programDenotation c σ).satisfies fun r => F σ r.2)
+    (h : hoareStmt A' c B') (hA : ∀ σ, A σ → A' σ)
+    (hB : ∀ σ, A σ → ∀ τ, F σ τ → B' τ → B τ) : hoareStmt A c B :=
+  hoareStmt_of_satisfies fun σ hσ u hu =>
+    hB σ hσ u.2 (hF σ u hu) (hoareStmt.satisfies h (hA σ hσ) u hu)
+
+/-- **EC's `while I`** on a Hoare triple whose code ends with a loop: the body keeps `I`, and
+the code before establishes `I` and, for every final state `τ` of the loop that its frame `F`
+allows (what the loop keeps), `I` and a false guard give the postcondition. -/
+theorem hoareStmt_seq_while_ec {A Q I : ProgramState → Prop} {s body : Stmt}
+    {c : Getter Bool ProgramState} (F : ProgramState → ProgramState → Prop)
+    (hF : ∀ σ, (programDenotation (.while c body) σ).satisfies fun r => F σ r.2)
+    (hb : hoareStmt (fun σ => I σ ∧ c.get σ = true) body I)
+    (hpre : hoareStmt A s fun σ => I σ ∧ ∀ τ, F σ τ → I τ → c.get τ = false → Q τ) :
+    hoareStmt A (.seq s (.while c body)) Q := by
+  refine hoare_seq ?_ hpre
+  refine hoareStmt_conseq_frame F hF
+    (hoare_while I (B := fun σ => I σ ∧ c.get σ = false) hb fun σ hI hc => ⟨hI, hc⟩)
+    (fun _ h => h.1) ?_
+  rintro σ ⟨-, hK⟩ τ hf ⟨hI, hc⟩
+  exact hK τ hf hI hc
+
 namespace ECConseqFrame
 
 open Lean Meta Elab Tactic

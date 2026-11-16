@@ -50,8 +50,8 @@ infrastructure batch):
 * GAP 4 (closed 2026-11-15): `module ElGamal : Scheme` with its third procedure `dec`, which
   `Scheme` does not list, as in EC (`ElGamal.dec` is a procedure of its own).
 * GAP 5 (closed 2026-11-15): EC's `rnd f g` is `equiv_rnd f g` (`Logic/ECRnd.lean`).
-* GAP 6 (goals as shown): `byequiv` states `§allGlobals{1} = §allGlobals{2}` where EC shows
-  `={glob A}`.
+* GAP 6 (goals as shown): `byequiv` states `={allGlobals}` (the whole global state) where EC
+  shows `={glob A}`.
 -/
 
 set_option ec.strict true

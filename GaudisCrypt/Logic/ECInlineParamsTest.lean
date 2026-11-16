@@ -30,7 +30,7 @@ module M {
 
 -- three parameters: three assignments; the result's pair stays one statement
 /--
-trace: ⊢ equiv[ §a{1} = §a{2} ==> §u{1} + §v{1} = §u{2} + §v{2} ] {
+trace: ⊢ equiv[ ={a} ==> §u{1} + §v{1} = §u{2} + §v{2} ] {
       var a : ℕ, x : ℕ, y : ℕ, z : ℕ, s : ℕ, u : ℕ, v : ℕ;
       reset_vars {"x", "y", "z", "s"} ∪ stringsStartingWith "@." \ {"@.x", "@.y", "@.z", "@.s"};
       x <- §a;
@@ -57,7 +57,7 @@ example : equiv[ M.main ~ M.main : ={a} ==> ={res} ] := by
 
 -- one side only
 /--
-trace: ⊢ equiv[ §a{1} = §a{2} ==> §u{1} + §v{1} = §u{2} + §v{2} ] {
+trace: ⊢ equiv[ ={a} ==> §u{1} + §v{1} = §u{2} + §v{2} ] {
       var a : ℕ, x : ℕ, y : ℕ, z : ℕ, s : ℕ, u : ℕ, v : ℕ;
       reset_vars {"x", "y", "z", "s"} ∪ stringsStartingWith "@." \ {"@.x", "@.y", "@.z", "@.s"};
       x <- §a;

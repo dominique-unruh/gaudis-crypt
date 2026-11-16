@@ -26,7 +26,7 @@ example : hoare[ True ==> §y ≤ 2 ] {
       y <- 1;
     } := by
   hoare_conseq (: _ ==> §y = 1)
-  · intro σ h
+  · intro σ _ τ _ h
     simp_all
   · hoare_wp 1
     hoare_skip
@@ -68,6 +68,53 @@ example : equiv[ ={x, y} ==> ={x, y} ] {
   equiv_conseq (: _ ==> ={x})
   · auto_close
   · sim
+
+/-- EC's `conseq (: _ ==> Q)` on a Hoare triple: `x`, which the code does not modify, keeps its
+value from the precondition (EC's frame). -/
+example (k : ℕ) : hoare[ §x = k ==> §y = k + 1 ] {
+      var x : ℕ, y : ℕ;
+      y <- §x + 1;
+    } := by
+  hoare_conseq (: _ ==> §y = §x + 1)
+  · auto_close
+  · hoare_wp 1
+    hoare_skip
+    simp
+
+-- the `post` goal of `hoare_conseq`: the precondition at the start, the frame, `Q' => Q`
+/--
+trace: case post
+k : ℕ
+⊢ ∀ (σ : ProgramState),
+    GaudiExpr[ §(localVarLens "x" ℕ) = k ].get σ →
+      ∀ (τ : ProgramState),
+        (localVarLens "x" ℕ).get τ = (localVarLens "x" ℕ).get σ ∧ True →
+          GaudiExpr[ §(localVarLens "y" ℕ) = §(localVarLens "x" ℕ) + 1 ].get τ →
+            GaudiExpr[ §(localVarLens "y" ℕ) = k + 1 ].get τ
+
+case judgment
+k : ℕ
+⊢ hoare[ §x = k ==> §y = §x + 1 ] {
+      var x : ℕ, y : ℕ;
+      y <- §x + 1;
+}
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+-/
+#guard_msgs in
+example (k : ℕ) : hoare[ §x = k ==> §y = k + 1 ] {
+      var x : ℕ, y : ℕ;
+      y <- §x + 1;
+    } := by
+  hoare_conseq (: _ ==> §y = §x + 1)
+  trace_state
+  all_goals sorry
 
 /-- EC's `exists* x{1}, y{2}; elim* => a b` on a relational judgment. -/
 example : equiv[ ={x} ∧ §y{2} = 2 ==> §z{1} + 2 = §z{2} ] {

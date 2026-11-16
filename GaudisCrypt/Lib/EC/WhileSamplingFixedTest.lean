@@ -208,8 +208,8 @@ theorem pr_sampleWi (m : VariableAssignment) (x : input) (y : t) (P : t → Prop
       unfold mu; rw [SubProbability.expected_bot]; rfl
     phoare_hoare
     hoare_conseq (: _ ==> False)
-    · exact fun _ h => h.elim
-    hoare_while (§i = x ∧ test §i §r)
+    · exact fun _ _ _ _ h => h.elim
+    hoare_while_raw (§i = x ∧ test §i §r)
     · hoare_auto
       rintro i r ⟨⟨rfl, -⟩, -⟩ v hv
       exact ⟨rfl, test_of_mem_support _ hε v hv⟩

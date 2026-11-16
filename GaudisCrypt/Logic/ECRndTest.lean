@@ -57,7 +57,7 @@ example : equiv[ True ==> §x{2} = §x{1} + 3 ] {
 
 -- the functions may read the two memories
 /--
-trace: ⊢ equiv[ §k{1} = §k{2} ==> (∀ (b : ZMod 7), b = b - §k{2} + §k{1}) ∧ ∀ (a : ZMod 7), a = a + §k{1} - §k{2} ] {
+trace: ⊢ equiv[ ={k} ==> (∀ (b : ZMod 7), b = b - §k{2} + §k{1}) ∧ ∀ (a : ZMod 7), a = a + §k{1} - §k{2} ] {
       var k : ZMod 7;
       skip;
 } ~

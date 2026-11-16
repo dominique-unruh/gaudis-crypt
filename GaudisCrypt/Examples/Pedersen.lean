@@ -62,8 +62,8 @@ batch):
   m_neq_m'` names (`rename_i`, `obtain`).
 * GAP 8 (closed 2026-11-15): `inline{2} DL.StdRedAdversary(DLogAttacker(B)).guess` finds the
   call the experiment makes through its module type.
-* GAP 7 (goals as shown): `byequiv` states `§allGlobals{1} = §allGlobals{2}` where EC shows
-  `={glob U}`.
+* GAP 7 (goals as shown): `byequiv` states `={allGlobals}` (the whole global state) where EC
+  shows `={glob U}`.
 -/
 
 set_option ec.strict true
