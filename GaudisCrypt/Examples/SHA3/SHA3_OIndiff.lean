@@ -18,8 +18,8 @@ Translation:
 * EC's hypothesis on `Dist` has no restriction on `F` and `P`; `security`'s has (`{-OD(Dist)}`).
 
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: `PSome(Perm).init` and `Perm.f` behind the first port's records and views are not opened
-  by `inline*`: unfolded first (`simp only [PSome, …]`, `simp only [PRIMITIVE.view, Perm, …]`).
+* GAP 1: `PSome(Perm).init` behind the first port's record is not opened by `inline*`: unfolded
+  first (`simp only [PSome, …]`).  (`Perm.f` behind the first port's views: closed 2026-11-17.)
 * GAP 2: `sim` does not go through the loops of the inlined `IRO.f` and `Sponge.f` (GAP 2 of
   `SHA3Indiff.lean`): the `while` rule with the variables' equalities.  In the body of
   `Sponge.f`'s second loop the closers split `={sa, sc}` at `x <- (sa, sc)` into components, and
@@ -436,12 +436,9 @@ theorem SHA3OIndiff (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: proc; inline*; sp; auto; sp; if; auto; sp.
-    --     (GAP 1: `Perm.f` behind the first port's views on the right, opened and inlined; EC's
-    --     `auto` unfolds the operator `increase_counter`)
+    --     (EC's `auto` unfolds the operator `increase_counter`)
     · equiv_proc; stmt_inline*
-      simp only [Indifferentiability.PRIMITIVE.view, Perm, PRP.RP.RP, PRP.StrongPRP.PRP.mk,
-        SHA3_OIndiff.increase_counter]
-      stmt_inline*
+      simp only [SHA3_OIndiff.increase_counter]
       stmt_sp
       stmt_if
       · ec_close

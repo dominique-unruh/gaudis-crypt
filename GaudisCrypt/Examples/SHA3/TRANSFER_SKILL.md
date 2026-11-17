@@ -658,9 +658,13 @@ Document each in the docstring when it applies.
   global variable").
 * **No frame where one is expected** (`call H`, `conseq H`: the goal after it asks `={glob M}`
   or a variable for arbitrary final globals): the footprint of a concrete callee is not known.
-  State it (`@[fp_bound] theorem fvP_X_f : FVP.fvP X.f ≤ X.mp.footprint := by fp_module X.mp`),
-  for the procedure and for the modules it is applied to (`fvP_RaiseFun : … ≤ ⊥`), outside any
-  `include R`.
+  Since 2026-11-17 `fp_le` reads a `module`'s or a `module`'s procedure's footprint off its code
+  (`ModuleFootprint.cachedBound`, as `fp_disjoint` did), so a named concrete callee needs nothing
+  stated.  State it (`@[fp_bound] theorem fvP_X_f : FVP.fvP X.f ≤ X.mp.footprint := by fp_module
+  X.mp`) only where that fails (a module with more than one abstract argument, a callee spelled
+  through a record): for the procedure and for the modules it is applied to
+  (`fvP_RaiseFun : … ≤ ⊥`), outside any `include R`.  A frame that now applies where none did
+  changes the goal after `call`: the hand-written intro patterns after it may need adjusting.
 * **Side goals over parameter tuples and results** (`prhlProc_trans_ec`, `equiv_conseq_pre`,
   `equiv_conseq H` on procedures): the variables have the signature's types
   (`typeListToTuple [ℤ]`, `(procsig …).ret`) and the conditions are unreduced reads, so `omega`
@@ -814,7 +818,10 @@ Document each in the docstring when it applies.
 * **A module of one clone's module type handed to an adversary of another clone** (EC: one
   module type; `LowerDist(D, F, P) = D(RaiseFun(F), P)`): pass it as it is.  Its procedure in an
   oracle goal is then an accessor of one clone on a module of the other, which `equiv_proc`
-  does not open: `module_norm; equiv_proc; …` (a gap, `TacticReview.md`, last section).
+  opens (since 2026-11-17: `proc` and `inline` retry through the views where the plain pass
+  finds no body; `module_norm` first is no longer needed).  `inline*` then also inlines what is
+  behind a view (`Perm.f` behind `PRIMITIVE.view`), as EC's `inline*` does: where a proof keeps
+  such a call to `call` a losslessness lemma on it, inline one call site (`phoare_inline 0`).
 * **Both namespaces in one file**: in `namespace GaudisCrypt.SHA3.Pilot.Z`, `Y.name` is
   `GaudisCrypt.SHA3.Pilot.Y.name` when that exists, whatever is opened; the first port's is
   `SHA3.Y.name`.  A `simp only [Y.T.f.mk_simp]` that silently becomes the other clone's lemma

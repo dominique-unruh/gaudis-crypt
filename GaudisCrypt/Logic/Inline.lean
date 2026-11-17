@@ -2700,7 +2700,11 @@ A step that unfolds a *definition* carries no proof of its own — `none` is `rf
 composed proof states can end at a term that is only definitionally the result.  Both are
 correct; this is the one a caller (and a `#check`) would rather read. -/
 def unfoldProcedure (e : Expr) (views : Bool := false) : MetaM Simp.Result := do
-  let r ← unfoldProcedureCore e views
+  -- a procedure of a module read at another module type (another clone's: the accessor switched,
+  -- by definition) is reached through the views; tried only where the plain pass found no body
+  let r ← if views then unfoldProcedureCore e true else
+    try unfoldProcedureCore e catch ex =>
+      try unfoldProcedureCore e true catch _ => throw ex
   let some h := r.proof? | return r
   return { r with proof? := some (← mkExpectedTypeHint h (← mkEq e r.expr)) }
 

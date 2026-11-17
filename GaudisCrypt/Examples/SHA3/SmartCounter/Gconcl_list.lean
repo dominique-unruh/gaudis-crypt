@@ -1373,15 +1373,6 @@ theorem lemma_3 (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) s
           simp [oget]
 
 omit [BlockSponge.Params] [Params] in
-/-- `P`, at `DPRIMITIVE`, is `Perm`'s two procedures. -/
-theorem P_view : Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block) P =
-    Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
-      { f := PRP.RP.RP.f (block × capacity) dD Perm.m Perm.mi
-        fi := PRP.RP.RP.fi (block × capacity) dD Perm.m Perm.mi } := by
-  unfold Indifferentiability.PRIMITIVE.view P Perm PRP.RP.RP
-  simp [Indifferentiability.PRIMITIVE.f, Indifferentiability.PRIMITIVE.fi, PRP.StrongPRP.PRP.mk]
-
-omit [BlockSponge.Params] [Params] in
 /-- `format p (j + 1)` is `format p j` and one more `b0`. -/
 theorem format_succ (bl : List block) (j : ℤ) (hj : 0 < j) :
     format bl (j + 1) = format bl j ++ [b0] := by
@@ -1816,9 +1807,8 @@ set_option ec.strict true
   triple: in the `rcond` side goals our `auto` takes the code after the loop first.
 * GAP 10: `splitwhile`'s condition reads the variables of the code left only: `p`, which is in
   the conditions alone, is written with its lens.
-* GAP 11: `inline*` does not open a call of `Perm` behind the first port's `PRIMITIVE.view`
-  (`RealIndif(Sponge, Perm, D)` applies `Sponge` to that view; a compatibility choice of
-  `Flatten.moduleStep?` for the first port's proofs): `simp only [P_view]`, then `inline*`.
+* GAP 11 (closed 2026-11-17): `inline*` opens the calls of `Perm` behind the first port's
+  `PRIMITIVE.view` (`RealIndif(Sponge, Perm, D)` applies `Sponge` to that view).
 * GAP 12: `phoare_call` on an abstract module has the rule for lossless oracles (EC's
   `call (: true)`), not the one with an invariant (`call (: invm Perm.m Perm.mi)`,
   `Real_lossless`).  Hand-closed: `Perm.f`, `Perm.fi` are lossless in every state here.
@@ -4145,14 +4135,14 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
       --     the closer does not put them together)
       stmt_sp; stmt_if
       · ec_prep
-        have hx : x3₁ = x1₂ := Prod.ext (by simp only [*]) (by simp only [*])
+        have hx : x2₁ = x1₂ := Prod.ext (by simp only [*]) (by simp only [*])
         simp [hx]
       all_goals ec_auto
       all_goals ec_progress
       --     (the facts of the invariant, by their statements; the permutation's argument is the
       --     same state on both sides, GAP 8)
       all_goals
-        have hx : x3₁ = x1₂ := Prod.ext (by simp only [*]) (by simp only [*])
+        have hx : x2₁ = x1₂ := Prod.ext (by simp only [*]) (by simp only [*])
         subst hx
         have hinv : INV_Real count c₂ m₂ mi₂ pref := by assumption
         have hall : SLCommon.Prefix.all_prefixes prefixes₂ := by assumption
@@ -4166,8 +4156,8 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
         have hnd : ¬ FMap.dom prefixes₂ (take (i0₂ + 1) bl₂) := by assumption
         have hi0 : 0 ≤ i0₂ := by assumption
         obtain ⟨sa, sc, hget, hx3⟩ : ∃ sa sc, prefixes₂.get (take i0₂ bl₂) = some (sa, sc) ∧
-            x3₁ = (sa +^ nth default bl₂ i0₂, sc) :=
-          ⟨_, _, ‹prefixes₂.get (take i0₂ bl₂) = some _›, Prod.ext ‹x3₁.1 = _› ‹x3₁.2 = _›⟩
+            x2₁ = (sa +^ nth default bl₂ i0₂, sc) :=
+          ⟨_, _, ‹prefixes₂.get (take i0₂ bl₂) = some _›, Prod.ext ‹x2₁.1 = _› ‹x2₁.2 = _›⟩
         have hdi : FMap.dom prefixes₂ (take i0₂ bl₂) := (FMap.domE _ _).mpr (by rw [hget]; simp)
       --     - smt().
       --     - smt().
@@ -4175,7 +4165,7 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
       · rfl
       --     - smt(get_setE domE).
       --     - rewrite INV_Real_addm_mi//=;smt(supp_dexcepted).
-      · exact INV_Real_addm_mi _ _ _ _ _ _ _ hinv ‹¬ FMap.dom m₂ x3₁›
+      · exact INV_Real_addm_mi _ _ _ _ _ _ _ hinv ‹¬ FMap.dom m₂ x2₁›
           (not_of_mem_support_dexcepted ‹_›)
       --     - smt(mem_set).
       · exact absorb_dom hdom hi0 _ _ ‹_›
@@ -4757,10 +4747,6 @@ theorem squeeze_squeezeless :
   -- EC: proc;inline*;sp;auto;if;auto;sp;if;auto;
   --       last by progress;split;case:H0=>//=;smt(size_ge0).
   equiv_proc; stmt_inline*
-  --     (GAP 11: `Sponge(Perm)`'s calls of the permutation, behind the first port's view of
-  --     `Perm`, are not opened by `inline*`: the first port's `P_view`, then `inline*` again)
-  simp only [P_view]
-  stmt_inline*
   stmt_sp; stmt_if
   · ec_close
   on_goals 2 => ec_auto
@@ -5422,7 +5408,8 @@ permutation's sampling is lossless (`useful`).  `phoare_call` on an abstract mod
 for lossless oracles only, and here `Perm.f`, `Perm.fi` are lossless in every state (the first
 port's `P_f_ll`, `P_fi_ll`: a finite map missing a key misses a value).  So the call is EC's
 `call (: true)`, the oracles' proofs keep EC's steps without the invariant, and the calls of the
-permutation are not inlined. -/
+permutation are not inlined: EC's `inline*` on the functionality's oracle is `phoare_inline 0`
+(the sponge's call only), so that `call P_f_ll` applies to the permutation's calls. -/
 theorem Real_lossless : islossless RealIndif(Sponge, Perm, DRestr(Neg_D(D))).main := by
   have p_ll : islossless Perm.f :=
     EC.PRP.RP.f_ll dD_ll (dprod_fu BitWord.dunifin_fu BitWord.dunifin_fu)
@@ -5451,7 +5438,7 @@ theorem Real_lossless : islossless RealIndif(Sponge, Perm, DRestr(Neg_D(D))).mai
     · phoare_auto; phoare_call pi_ll; phoare_auto
     · phoare_auto
   -- EC: + proc;inline*;sp;if;auto;sp;if;auto.
-  · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+  · phoare_proc; phoare_inline 0; stmt_sp; stmt_if
     · stmt_sp; stmt_if
       -- EC: while(invm Perm.m Perm.mi)(n-i);auto.
       --     - sp;if;auto;2:smt();sp;if;auto;2:smt();progress.

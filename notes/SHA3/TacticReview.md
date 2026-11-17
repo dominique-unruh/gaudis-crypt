@@ -804,3 +804,26 @@ in one and a half), then one full rebuild per item.
    variables are declared, next to `Language/`: to be agreed with Dominique before building.
    Then: `BIRO`, `BIRO2` (and `Sponge`'s `BIRO`) as clones of the port's `IRO`, and the first
    port's `IRO` (a lens parameter) goes.
+
+### Status 2026-11-17
+
+* **Item 1 (procedures across clones' module types): done.**  `Flatten.unfoldProcedure` retries
+  through the views (`views := true`) where the plain pass finds no body, so `*_proc` and
+  `inline` (and every other user of `unfoldProcedure`) open them.  Removed: the six
+  `module_norm`s (`Sponge`, `SHA3Indiff`), the `simp only [PRIMITIVE.view, Perm, …]` lines
+  (`SHA3Security`, `SHA3_OIndiff`), `P_view` (`Gconcl_list`).  Side effects, fixed: `inline*` now
+  also inlines `Perm` behind the view (EC's `inline*` does too): `Real_lossless` keeps its
+  deviation by `phoare_inline 0`; one inlined variable renamed in `Gconcl_list`.  Not yet done:
+  the module types as clones (the first port's `Indifferentiability`/`OptionIndifferentiability`).
+* **Item 4 (`fp_le` on procedures): done.**  `concreteBound` bounds a `module`'s procedure too, and
+  `fp_le` asks `ModuleFootprint.cachedBound` (if the rest then goes through) before unfolding.
+  Two `call H` side goals in `Sponge` changed shape (a frame where there was none): EC's
+  `skip; progress; smt()` as `ec_progress` and one line.  Not yet done: deleting the stated
+  `@[fp_bound]` lemmas (83), file by file.
+* **Item 3 (EC's aliases): parked** (Denis, 2026-11-17).  `proc f = M(O).g` is not accepted by
+  `module`; for `RO_LRO_D`'s distinguisher also `procmod () → _` and `procmod (Unit) → _` are
+  different signatures (EC identifies them), and a generic wrapper over a Lean function `X F` is
+  refused by `module` (a call target must be a module expression).  The bridges stay; they can be
+  shortened (path form, one shared bridge script, restriction proofs by the solvers).
+* **Item 4 of the plan (per-clone variables): parked**, to agree with Dominique.
+

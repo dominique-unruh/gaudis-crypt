@@ -57,10 +57,9 @@ Translation:
   them (`-ERO.RO.m, -ERO.FRO.m`).
 
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: a procedure of a module of one clone's module type, read at another clone's (EC: one
-  module type; `LowerDist(Dist)` hands `BlockSponge`'s primitive to the bit sponge's `Dist`), is
-  not opened by `equiv_proc`: `module_norm` first.  (`Perm` itself is passed by EC's subtyping,
-  `module_subtype`: `proc; sim` opens `Perm.f`.)
+* GAP 1 (closed 2026-11-17): a procedure of a module of one clone's module type, read at
+  another clone's (`LowerDist(Dist)` hands `BlockSponge`'s primitive to the bit sponge's
+  `Dist`), is opened by `equiv_proc` as EC's `proc` does.
 * GAP 2: inside the library's `RO.sample` the callee is the library's `RO.get` itself, not the
   procedure of the module `ERO.RO`, so EC's `inline ERO.RO.get` does not name it: by index.
 * GAP 3: after a call whose result is discarded, the strict `auto` does not read through the
@@ -2710,10 +2709,8 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
       --     skip; progress; smt().
       · equiv_call (HybridIROEagerTrans_BlockSpongeTrans_next_block n')
         ec_auto
-        rintro xs₁ i₁ bs₁ mp₁ xs₂ i₂ bs₂ mp₂ ⟨rfl, rfl, rfl, hsz, rfl, ei⟩
-        refine ⟨⟨rfl, ge0_n', rfl, rfl, by ring, rfl, hsz, ei⟩, ?_⟩
-        rintro r₁ g₁ r₂ g₂ ⟨h1, h2, h3, h4, h5⟩
-        exact ⟨by rw [h2, h3], h3, h4, h1, h5⟩
+        ec_progress
+        ring
       -- EC: inline BlockSpongeTrans.next_block.
       --     wp; sp. call (_ : ={BlockSponge.BIRO.IRO.mp}). if=> //; wp; rnd; skip; smt().
       --     auto.
@@ -3104,8 +3101,8 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
         --     skip; progress; smt(divz_ge0 gt0_r).
         equiv_call (HybridIROEagerTrans_BlockSpongeTrans_loop (n1 / r))
         ec_auto
-        rintro xs₁ mp₁ x₂ mp₂ ⟨rfl, h0, ei⟩
-        exact ⟨⟨rfl, Int.ediv_nonneg h0 ge0_r, ei⟩, fun _ _ _ _ h => h⟩
+        ec_progress
+        exact Int.ediv_nonneg (by assumption) ge0_r
   -- (* either nothing more to do on either side, or a single block to add
   --    on the right side, and less than r bits to add on the left side *)
   -- EC: conseq
@@ -3667,10 +3664,8 @@ theorem RealIndif_Sponge_BlockSponge (m : VariableAssignment) :
   -- EC: call (_ : ={glob Perm}); first 2 sim.
   --     (as an invariant: the oracles' goals are then EC's, `glob Dist` framed by the rule)
   equiv_call (_ : §Perm.m{1} = §Perm.m{2} ∧ §Perm.mi{1} = §Perm.mi{2})
-  --     (GAP 1, what is left of it: on the right `Perm` is `BlockSponge`'s primitive read at the
-  --     bit sponge's module type, one module type in EC; `proc` does not open it: `module_norm`)
-  · module_norm; equiv_proc; sim
-  · module_norm; equiv_proc; sim
+  · equiv_proc; sim
+  · equiv_proc; sim
   -- EC: conseq Sponge_Raise_BlockSponge_f=> //.
   · equiv_conseq Sponge_Raise_BlockSponge_f
     · rintro a₁ g₁ a₂ g₂ ⟨rfl, hm, hmi⟩

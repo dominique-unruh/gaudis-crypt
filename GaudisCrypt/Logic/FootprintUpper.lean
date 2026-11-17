@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.FootprintSolver
 import GaudisCrypt.Logic.ConcreteFootprint
+import GaudisCrypt.Logic.ModuleFootprint
 
 /-!
 # Upper bounds of footprints
@@ -9,7 +10,8 @@ import GaudisCrypt.Logic.ConcreteFootprint
 variables", read off the code): the same descent through the module combinators (`fvP_app`,
 `fvP_pair`, `fvP_fst`, …, unfolding definitions) down to concrete modules with an `@[fp_bound]`
 bound, or modules with a bound hypothesis `FVP.fvP N ≤ B` in context, and `B`'s joinands found among
-`U`'s (`FootprintSolver.solveLeSup`).  A use: the frame rule `prhlProc_frame_equal_outside`, whose
+`U`'s (`FootprintSolver.solveLeSup`).  A concrete module or a `module`'s procedure with no stated
+bound has the one read off its code (`ModuleFootprint.cachedBound`, as `fp_disjoint` does).  A use: the frame rule `prhlProc_frame_equal_outside`, whose
 callees must stay within a lens.
 -/
 
@@ -70,6 +72,11 @@ partial def solve (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withContext 
       (``Module.fst', 3, ``FVP.fvP_fst'), (``Module.snd', 3, ``FVP.fvP_snd')] do
     if M.isAppOfArity c n then
       return ← viaBound (← mkAppM lem #[M.getArg! (n - 1)])
+  -- a concrete module or a `module`'s procedure: the bound read off its code (`fp_module`), if
+  -- the rest then goes through
+  if ← attempt (do
+      let some pf ← ModuleFootprint.cachedBound M | failure
+      viaBound pf) then return
   -- a definition (a module type's accessor or constructor, a named module): unfold it
   let some M' ← unfoldDefinition? M | throwError "fp_le: no bound for{indentExpr X}"
   let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M'], U])

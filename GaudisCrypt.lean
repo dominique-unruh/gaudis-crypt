@@ -169,6 +169,7 @@ import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.ECConseqTest
 import GaudisCrypt.Logic.ECWhileHoare
 import GaudisCrypt.Logic.ECWhileHoareTest
+import GaudisCrypt.Logic.ECProcViewsTest
 import GaudisCrypt.Logic.ECCallFrame
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECGoals

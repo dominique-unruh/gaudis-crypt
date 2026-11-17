@@ -16,6 +16,7 @@ import GaudisCrypt.Logic.ECProcInvTest
 import GaudisCrypt.Syntax.CloneTest
 import GaudisCrypt.Logic.ECWhileRelTest
 import GaudisCrypt.Logic.ECWhileHoareTest
+import GaudisCrypt.Logic.ECProcViewsTest
 import GaudisCrypt.Logic.GlobWritesTest
 import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PHoareSeqTest

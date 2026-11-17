@@ -44,8 +44,7 @@ Translation:
   rule `prhlStmt_seq_sample_run_map_right`; the only lemma of the file not in EC's script).
 
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: `Perm.f` behind the first port's views is not opened by `inline*`: unfolded first
-  (`simp only [PRIMITIVE.view, Perm, …]`).
+* GAP 1 (closed 2026-11-17): `inline*` opens `Perm.f` behind the first port's views.
 * GAP 2: the closers split `={sa, sc}` at `x <- (sa, sc)` into components; the pair's equation is
   put back by hand before the leaf is closed (as in `SHA3_OIndiff.lean`).
 * GAP 3: `FInit(F).get` is `F.f` in EC (an alias); here a call (E5), inlined first.  EC's path
@@ -604,8 +603,6 @@ theorem equiv_sponge_perm (c' : ℤ) (m : List Bool) :
   equiv_call (_ : ={arg, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1} ==>
     ={res, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1})
   · equiv_proc
-    --     (GAP 1)
-    simp only [Indifferentiability.PRIMITIVE.view, Perm, PRP.RP.RP, PRP.StrongPRP.PRP.mk]
     stmt_inline*
     -- EC: while(={i, n, sa, sc, z, glob Perm} /\ invm Perm.m{1} Perm.mi{1}); auto.
     equiv_while (={i, n, sa, sc, z, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1})
@@ -1301,8 +1298,6 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
             exact ‹GaudisCrypt.SHA3.SHA3Indiff.limit ≤ _›
           -- EC: auto; inline*; auto; sp; conseq(: _ ==> true); auto.
           stmt_wp
-          --     (GAP 1: `Perm.f` behind the first port's view is opened first)
-          simp only [Indifferentiability.PRIMITIVE.view, Perm, PRP.RP.RP, PRP.StrongPRP.PRP.mk]
           stmt_inline*
           stmt_sp
           equiv_conseq (: _ ==> True)
@@ -1731,8 +1726,6 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
             exact ‹GaudisCrypt.SHA3.SHA3Indiff.limit ≤ _›
           -- EC: auto; inline*; auto; sp; conseq(: _ ==> true); auto.
           stmt_wp
-          --     (GAP 1: `Perm.f` behind the first port's view is opened first)
-          simp only [Indifferentiability.PRIMITIVE.view, Perm, PRP.RP.RP, PRP.StrongPRP.PRP.mk]
           stmt_inline*
           stmt_sp
           equiv_conseq (: _ ==> True)
