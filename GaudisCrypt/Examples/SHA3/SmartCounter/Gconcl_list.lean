@@ -404,85 +404,58 @@ theorem lemma1 (m1 m2 m3 : FMap (List block) block) (p : List block) (i : ℤ) (
     inv_L_L3 m1 m2 m3 → valid p = true → 0 < i → ¬ FMap.dom m1 (format p i) →
     ¬ FMap.dom m2 (format p i) →
     inv_L_L3 (FMap.set m1 (format p i) r) (FMap.set m2 (format p i) r) m3 := by
-  rintro ⟨rfl, h2, h3⟩ hp hi hn1 hn2
-  have hpk : parse (format p i) = (p, i) := parseK p i hi (by simpa [valid] using hp)
-  have hget : ∀ (a b : FMap (List block) block) y,
-      FMap.get (FMap.add a b) y = if FMap.dom b y then FMap.get b y else FMap.get a y := by
-    intro a b y
-    unfold FMap.add FMap.get FMap.dom
-    split_ifs with h
-    · exact Finmap.lookup_union_left (Finmap.mem_keys.mp h)
-    · exact Finmap.lookup_union_right (mt Finmap.mem_keys.mpr h)
-  have hdom : ∀ (a b : FMap (List block) block) y,
-      FMap.dom (FMap.add a b) y ↔ FMap.dom a y ∨ FMap.dom b y := by
-    intro a b y
-    simp only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm]
-  have hn3 : ¬ FMap.dom m3 (format p i) := fun h => hn1 ((hdom _ _ _).mpr (Or.inr h))
-  refine ⟨?_, ?_, h3⟩
-  · refine (FMap.fmap_eqP _ _).mp fun y => ?_
-    rw [FMap.get_setE, hget, hget, FMap.get_setE]
-    by_cases hy : y = format p i
-    · subst hy; simp [hn3]
-    · simp [hy]
-  · intro l hl
-    rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
-    · exact h2 l hl
-    · rw [hpk]; exact hp
+  -- EC: move=>INV0 p_valid i_gt0 nin_dom1 nin_dom2;split;have[]add_maps valid_dom nvalid_dom:=INV0.
+  intro INV0 p_valid i_gt0 nin_dom1 nin_dom2
+  obtain ⟨add_maps, valid_dom, nvalid_dom⟩ := INV0
+  constructor
+  -- EC: + rewrite add_maps -fmap_eqP=>x.
+  --       by rewrite get_setE !joinE get_setE;smt(parseK formatK).
+  · rw [add_maps, ← FMap.fmap_eqP]; intro x
+    rw [FMap.get_setE, FMap.joinE, FMap.joinE, FMap.get_setE]
+    smt_close [parseK, formatK, FMap.mem_join, FMap.mem_set]
+  --     (`valid` given: EC's provers see through the operator)
+  -- EC: + smt(mem_set parseK formatK).
+  · smt_close [FMap.mem_set, parseK, formatK, valid]
+  -- EC: + smt(mem_set parseK formatK).
+  · smt_close [FMap.mem_set, parseK, formatK, valid]
 
 theorem lemma2 (m1 m2 m3 : FMap (List block) block) (p : List block) (i : ℤ) :
     inv_L_L3 m1 m2 m3 → valid p = true → 0 < i → FMap.dom m1 (format p i) →
     FMap.dom m2 (format p i) := by
-  rintro ⟨rfl, -, h3⟩ hp hi hd
-  have hpk : parse (format p i) = (p, i) := parseK p i hi (by simpa [valid] using hp)
-  have hd' : FMap.dom m2 (format p i) ∨ FMap.dom m3 (format p i) := by
-    simpa only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm] using hd
-  rcases hd' with hd' | hd'
-  · exact hd'
-  · have := h3 _ hd'
-    rw [hpk] at this
-    simp [hp] at this
+  -- EC: move=>INV0 p_valid i_gt0 domE1;have[]add_maps valid_dom nvalid_dom:=INV0.
+  intro INV0 p_valid i_gt0 domE1
+  obtain ⟨add_maps, valid_dom, nvalid_dom⟩ := INV0
+  -- EC: by have:= domE1; rewrite add_maps mem_join;smt(parseK formatK).
+  have := domE1; rw [add_maps, FMap.mem_join] at this
+  smt_close [parseK, formatK, valid]
 
 theorem incl_dom (m1 m2 m3 : FMap (List block) block) (l : List block) :
     inv_L_L3 m1 m2 m3 → (FMap.dom m1 l ↔ FMap.dom m2 l ∨ FMap.dom m3 l) := by
-  rintro ⟨rfl, -, -⟩
-  simp only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm]
+  -- EC: move=>INV0;have[]add_maps valid_dom nvalid_dom:=INV0.
+  intro INV0
+  obtain ⟨add_maps, valid_dom, nvalid_dom⟩ := INV0
+  -- EC: by rewrite add_maps mem_join.
+  rw [add_maps, FMap.mem_join]
 
 theorem lemma3 (m1 m2 m3 : FMap (List block) block) (x : List block) (r : block) :
     inv_L_L3 m1 m2 m3 → valid (parse x).1 = false → ¬ FMap.dom m1 x →
     inv_L_L3 (FMap.set m1 x r) m2 (FMap.set m3 x r) := by
-  rintro ⟨rfl, h2, h3⟩ hv hn1
-  have hget : ∀ (a b : FMap (List block) block) y,
-      FMap.get (FMap.add a b) y = if FMap.dom b y then FMap.get b y else FMap.get a y := by
-    intro a b y
-    unfold FMap.add FMap.get FMap.dom
-    split_ifs with h
-    · exact Finmap.lookup_union_left (Finmap.mem_keys.mp h)
-    · exact Finmap.lookup_union_right (mt Finmap.mem_keys.mpr h)
-  refine ⟨?_, h2, ?_⟩
-  · refine (FMap.fmap_eqP _ _).mp fun y => ?_
-    rw [FMap.get_setE, hget, hget, FMap.get_setE]
-    by_cases hy : y = x
-    · subst hy; simp [FMap.mem_set]
-    · simp [hy, FMap.mem_set]
-  · intro l hl
-    rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
-    · exact h3 l hl
-    · exact hv
-
-omit [BlockSponge.Params] [Params] in
-/-- The entries of `FMap.add a b`: `b`'s first. -/
-theorem add_get (a b : FMap (List block) block) (y : List block) :
-    FMap.get (FMap.add a b) y = if FMap.dom b y then FMap.get b y else FMap.get a y := by
-  unfold FMap.add FMap.get FMap.dom
-  split_ifs with h
-  · exact Finmap.lookup_union_left (Finmap.mem_keys.mp h)
-  · exact Finmap.lookup_union_right (mt Finmap.mem_keys.mpr h)
-
-omit [BlockSponge.Params] [Params] in
-/-- The domain of `FMap.add a b`. -/
-theorem add_dom (a b : FMap (List block) block) (y : List block) :
-    FMap.dom (FMap.add a b) y ↔ FMap.dom a y ∨ FMap.dom b y := by
-  simp only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm]
+  -- EC: move=>INV0 not_valid nin_dom1;have[]add_maps h1 h2:=INV0.
+  intro INV0 not_valid nin_dom1
+  have INV0' := INV0
+  obtain ⟨add_maps, h1, h2⟩ := INV0
+  -- EC: have nin_dom3: ! x \in m3 by smt(incl_dom).
+  have nin_dom3 : ¬ FMap.dom m3 x := by smt_close [incl_dom m1 m2 m3 x INV0']
+  -- EC: split.
+  constructor
+  -- EC: + by apply/fmap_eqP=>y;rewrite add_maps !get_setE!joinE!get_setE mem_set/#.
+  · rw [add_maps, ← FMap.fmap_eqP]; intro y
+    rw [FMap.get_setE, FMap.joinE, FMap.joinE, FMap.get_setE]; simp only [FMap.mem_set]
+    smt_close []
+  -- EC: + exact h1.
+  · exact h1
+  -- EC: smt(mem_set).
+  · smt_close [FMap.mem_set]
 
 namespace inv_L_L3
 
@@ -493,24 +466,24 @@ omit [Params]
 theorem dom_valid (h : inv_L_L3 m1 m2 m3) (hv : valid (parse x).1 = true) :
     FMap.dom m1 x ↔ FMap.dom m2 x := by
   obtain ⟨rfl, -, h3⟩ := h
-  rw [add_dom]
+  rw [FMap.mem_join]
   exact ⟨fun hd => hd.resolve_right fun hd3 => by have := h3 x hd3; simp [hv] at this, Or.inl⟩
 
 theorem get_valid (h : inv_L_L3 m1 m2 m3) (hv : valid (parse x).1 = true) :
     FMap.get m1 x = FMap.get m2 x := by
   obtain ⟨rfl, -, h3⟩ := h
-  rw [add_get, if_neg fun hd3 => by have := h3 x hd3; simp [hv] at this]
+  rw [FMap.joinE, if_neg fun hd3 => by have := h3 x hd3; simp [hv] at this]
 
 theorem dom_invalid (h : inv_L_L3 m1 m2 m3) (hv : valid (parse x).1 = false) :
     FMap.dom m1 x ↔ FMap.dom m3 x := by
   obtain ⟨rfl, h2, -⟩ := h
-  rw [add_dom]
+  rw [FMap.mem_join]
   exact ⟨fun hd => hd.resolve_left fun hd2 => by have := h2 x hd2; simp [hv] at this, Or.inr⟩
 
 theorem get_invalid (h : inv_L_L3 m1 m2 m3) (hv : valid (parse x).1 = false) :
     FMap.get m1 x = FMap.get m3 x := by
   obtain ⟨rfl, h2, -⟩ := h
-  rw [add_get]
+  rw [FMap.joinE]
   split_ifs with hd3
   · rfl
   · have : ¬ FMap.dom m2 x := fun hd2 => by have := h2 x hd2; simp [hv] at this
@@ -523,7 +496,7 @@ theorem set_valid (h : inv_L_L3 m1 m2 m3) (hv : valid (parse x).1 = true) (r : b
   have hn3 : ¬ FMap.dom m3 x := fun hd3 => by have := h3 x hd3; simp [hv] at this
   refine ⟨?_, ?_, h3⟩
   · refine (FMap.fmap_eqP _ _).mp fun y => ?_
-    rw [FMap.get_setE, add_get, add_get, FMap.get_setE]
+    rw [FMap.get_setE, FMap.joinE, FMap.joinE, FMap.get_setE]
     by_cases hy : y = x
     · subst hy; simp [hn3]
     · simp [hy]
@@ -539,7 +512,7 @@ omit [Params] in
 theorem inv_L_L3_empty : inv_L_L3 FMap.empty FMap.empty FMap.empty := by
   refine ⟨(FMap.fmap_eqP _ _).mp fun y => ?_, fun l h => absurd h (FMap.mem_empty _),
     fun l h => absurd h (FMap.mem_empty _)⟩
-  rw [add_get, if_neg (FMap.mem_empty _)]
+  rw [FMap.joinE, if_neg (FMap.mem_empty _)]
 
 /-- The call of EC's local `D2(D)(F)`:
 `D(FC(DSqueeze(Valid2(F))), PC(S(Valid2(F)))).distinguish`, its oracles in the form inlining `L2`
@@ -904,41 +877,31 @@ theorem lemma5 (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) blo
     (r : block) :
     INV_L4_ideal m1 m2 m3 m4 → ¬ FMap.dom m2 (p, i) → 0 ≤ i → valid p = true →
     INV_L4_ideal (FMap.set m1 (format p (i + 1)) r) (FMap.set m2 (p, i) r) m3 m4 := by
-  rintro ⟨⟨h1, h2, h3, h4⟩, inv34, hd2, hd4⟩ hn hi hp
-  have hpk : parse (format p (i + 1)) = (p, i + 1) :=
-    parseK p (i + 1) (by omega) (by simpa [valid] using hp)
-  have key : ∀ p' n x, parse x = (p', n + 1) → ((p', n) = (p, i) ↔ x = format p (i + 1)) := by
-    intro p' n x hx
-    constructor
-    · intro h
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
-      have := formatK x
-      rw [hx] at this
-      exact this.symm
-    · rintro rfl
-      rw [hpk] at hx
-      obtain ⟨rfl, h⟩ := Prod.mk.inj hx
-      rw [show i = n by omega]
-  refine ⟨⟨?_, ?_, ?_, ?_⟩, inv34, ?_, hd4⟩
+  -- EC: move=>INV0 nin_dom1 i_gt0 valid_p;have[]inv12 inv34 dom2 dom4:=INV0;
+  --     have[]h1[]h2[]h3 h4:=inv12;split=>//=.
+  intro INV0 nin_dom1 i_gt0 valid_p
+  obtain ⟨inv12, inv34, dom2, dom4⟩ := INV0
+  obtain ⟨h1, h2, h3, h4⟩ := inv12
+  refine ⟨⟨?_, ?_, ?_, ?_⟩, inv34, ?_, dom4⟩
+  --     (EC's `progress` splits the four parts of `inv_map`, the two equivalences in two
+  --     implications each; here an equivalence is one goal; `valid` given, as in `lemma1`)
+  -- EC: + progress.
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=[]->>->>;smt(parseK formatK).
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=;smt(parseK formatK).
+  · intro p' n x hx; rw [FMap.mem_set, FMap.mem_set]
+    smt_close [parseK, formatK, valid]
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=;smt(parseK formatK).
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=;smt(parseK formatK).
+  · intro p' n x hx; rw [FMap.mem_set, FMap.mem_set]
+    smt_close [parseK, formatK, valid]
+  --     - smt(get_setE parseK formatK).
   · intro p' n x hx
-    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
+    smt_close [FMap.get_setE, parseK, formatK, valid]
+  --     smt(get_setE parseK formatK).
   · intro p' n x hx
-    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
-  · intro p' n x hx
-    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
-    by_cases h : x = format p (i + 1)
-    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
-    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
-  · intro p' n x hx
-    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
-    by_cases h : x = format p (i + 1)
-    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
-    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
-  · intro p' n hd
-    rcases (FMap.mem_set _ _ _ _).mp hd with hd | h
-    · exact hd2 p' n hd
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
-      exact ⟨hp, hi⟩
+    smt_close [FMap.get_setE, parseK, formatK, valid]
+  -- EC: smt(get_setE parseK formatK mem_set).
+  · smt_close [FMap.get_setE, parseK, formatK, FMap.mem_set]
 
 theorem lemma5bis (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block)
     (m3 : FMap (List block) block) (m4 : FMap (List block × ℤ) block) (p : List block) (i : ℤ)
@@ -946,39 +909,32 @@ theorem lemma5bis (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) 
     INV_L4_ideal m1 m2 m3 m4 → ¬ FMap.dom m4 (p, i) → 0 ≤ i → valid p = false →
     parse (format p (i + 1)) = (p, i + 1) →
     INV_L4_ideal m1 m2 (FMap.set m3 (format p (i + 1)) r) (FMap.set m4 (p, i) r) := by
-  rintro ⟨inv12, ⟨h1, h2, h3, h4⟩, hd2, hd4⟩ hn hi hp hpk
-  have key : ∀ p' n x, parse x = (p', n + 1) → ((p', n) = (p, i) ↔ x = format p (i + 1)) := by
-    intro p' n x hx
-    constructor
-    · intro h
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
-      have := formatK x
-      rw [hx] at this
-      exact this.symm
-    · rintro rfl
-      rw [hpk] at hx
-      obtain ⟨rfl, h⟩ := Prod.mk.inj hx
-      rw [show i = n by omega]
-  refine ⟨inv12, ⟨?_, ?_, ?_, ?_⟩, hd2, ?_⟩
+  -- EC: move=>INV0 nin_dom1 i_gt0 nvalid_p parseK_p_i;
+  --       have[]inv12 inv34 dom2 dom4:=INV0;
+  --       have[]h1[]h2[]h3 h4:=inv34;
+  --     split=>//=.
+  intro INV0 nin_dom1 i_gt0 nvalid_p parseK_p_i
+  obtain ⟨inv12, inv34, dom2, dom4⟩ := INV0
+  obtain ⟨h1, h2, h3, h4⟩ := inv34
+  refine ⟨inv12, ⟨?_, ?_, ?_, ?_⟩, dom2, ?_⟩
+  --     (as in `lemma5`)
+  -- EC: + progress.
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=[]->>->>;smt(parseK formatK).
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=;smt(parseK formatK).
+  · intro p' n x hx; rw [FMap.mem_set, FMap.mem_set]
+    smt_close [parseK, formatK, valid]
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=;smt(parseK formatK).
+  --     - move:H0;rewrite 2!mem_set=>[][/#|]/=;smt(parseK formatK).
+  · intro p' n x hx; rw [FMap.mem_set, FMap.mem_set]
+    smt_close [parseK, formatK, valid]
+  --     - smt(get_setE parseK formatK).
   · intro p' n x hx
-    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
+    smt_close [FMap.get_setE, parseK, formatK, valid]
+  --     smt(get_setE parseK formatK).
   · intro p' n x hx
-    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
-  · intro p' n x hx
-    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
-    by_cases h : x = format p (i + 1)
-    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
-    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
-  · intro p' n x hx
-    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
-    by_cases h : x = format p (i + 1)
-    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
-    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
-  · intro p' n hd
-    rcases (FMap.mem_set _ _ _ _).mp hd with hd | h
-    · exact hd4 p' n hd
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
-      exact ⟨hp, hi⟩
+    smt_close [FMap.get_setE, parseK, formatK, valid]
+  -- EC: smt(get_setE parseK formatK mem_set).
+  · smt_close [FMap.get_setE, parseK, formatK, FMap.mem_set]
 
 omit [Params] in
 /-- The initial maps satisfy `INV_L4_ideal`. -/
@@ -1237,95 +1193,6 @@ theorem all_prefixes_of_INV_real (c1 c2 : ℤ) (m mi : FMap state state)
   · obtain ⟨b, c, hb, -⟩ := hmp bs hbs i ⟨by omega, by omega⟩
     rw [FMap.domE, hb]; simp
 
-theorem lemma2' (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
-    (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
-    INV_Real c1 c2 m mi p → 1 < i → valid bl = true → FMap.dom m (sa, sc) →
-    ¬ FMap.dom p (format bl i) → FMap.get p (format bl (i - 1)) = some (sa, sc) →
-    INV_Real c1 c2 m mi (FMap.set p (format bl i) (oget (FMap.get m (sa, sc)))) := by
-  intro inv0 hi hv hdm hnp hpbl
-  have hx0 : ∀ x : block, x +^ b0 = x := fun x => by
-    apply List.Vector.ext; intro j; simp [BitWord.xorw, b0, BitWord.zerow]
-  have hf : format bl i = rcons (format bl (i - 1)) b0 := by
-    simp only [format, nseq, rcons, List.append_assoc]
-    rw [show (i - 1).toNat = (i - 1 - 1).toNat + 1 by omega, List.replicate_succ']
-  have key : ∀ (bl : List block) (b sa : block) (sc : capacity),
-      FMap.dom m (sa +^ b, sc) → ¬ FMap.dom p (rcons bl b) → FMap.get p bl = some (sa, sc) →
-      INV_Real c1 c2 m mi (FMap.set p (rcons bl b) (oget (FMap.get m (sa +^ b, sc)))) := by
-    intro bl b sa sc hdm hnp hpbl
-    have hall := all_prefixes_of_INV_real c1 c2 m mi p inv0
-    obtain ⟨hc, ⟨h0, hmp⟩, hinv⟩ := inv0
-    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hdm)
-    have hdp : ∀ k, FMap.dom p k →
-        FMap.get (FMap.set p (rcons bl b) (oget (FMap.get m (sa +^ b, sc)))) k = FMap.get p k :=
-      fun k hk => FMap.get_set_neqE _ _ _ _ (fun h => hnp (h ▸ hk))
-    have hdpl : FMap.dom p bl := by rw [FMap.domE, hpbl]; simp
-    refine ⟨hc, ⟨?_, ?_⟩, hinv⟩
-    · rw [hdp [] (by rw [FMap.domE, h0]; simp)]; exact h0
-    · intro l hl j hj
-      rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
-      · obtain ⟨b', c', hb, hm⟩ := hmp l hl j hj
-        refine ⟨b', c', ?_, ?_⟩
-        · rw [hdp _ (hall l hl j)]; exact hb
-        · rw [hdp _ (hall l hl (j + 1))]; exact hm
-      · have hs : size (rcons bl b) = size bl + 1 := by simp [size, rcons]
-        have ht : ∀ k, k ≤ size bl → take k (rcons bl b) = take k bl := by
-          intro k hk
-          simp only [take, rcons, size] at hk ⊢
-          rw [List.take_append_of_le_length (by omega)]
-        by_cases hjs : j < size bl
-        · have hn : nth default (rcons bl b) j = nth default bl j := by
-            simp only [nth, rcons, size] at hjs ⊢
-            rw [if_pos hj.1, if_pos hj.1]
-            simp [List.getD_eq_getElem?_getD,
-              List.getElem?_append_left (show j.toNat < bl.length by omega)]
-          obtain ⟨b', c', hb, hm⟩ := hmp bl hdpl j ⟨hj.1, hjs⟩
-          refine ⟨b', c', ?_, ?_⟩
-          · rw [ht j (by omega), hdp _ (hall bl hdpl j)]; exact hb
-          · rw [ht (j + 1) (by omega), hdp _ (hall bl hdpl (j + 1)), hn]; exact hm
-        · have hj' : j = size bl := by omega
-          subst hj'
-          refine ⟨sa, sc, ?_, ?_⟩
-          · rw [ht _ le_rfl, take_size, hdp bl hdpl]; exact hpbl
-          · have hn : nth default (rcons bl b) (size bl) = b := by simp [nth, rcons, size]
-            have ht2 : take (size bl + 1) (rcons bl b) = rcons bl b :=
-              List.take_of_length_le (by simp [rcons, size])
-            rw [hn, ht2, FMap.get_set_sameE, hv]
-            simp [oget]
-  rw [hf] at hnp ⊢
-  have := key (format bl (i - 1)) b0 sa sc (by rw [hx0]; exact hdm) hnp hpbl
-  rwa [hx0] at this
-
-theorem take_format (bl : List block) (n i : ℤ) :
-    0 < n → 0 ≤ i ∧ i < size bl + n →
-    take i (format bl n) = if i ≤ size bl then take i bl else format bl (i - size bl + 1) := by
-  rintro hn ⟨hi0, his⟩
-  simp only [format, take, nseq, size, List.take_append, List.take_replicate] at his ⊢
-  split_ifs with h
-  · rw [show i.toNat - bl.length = 0 by omega]; simp
-  · rw [List.take_of_length_le (by omega)]
-    congr 2; omega
-
-theorem lemma4 (c c' : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
-    (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
-    INV_Real c c' m mi p → 0 < i → FMap.get p (format bl i) = some (sa, sc) →
-    FMap.dom p (format bl (i + 1)) → FMap.get p (format bl (i + 1)) = FMap.get m (sa, sc) := by
-  rintro ⟨-, ⟨-, hmp⟩, -⟩ hi hp hd
-  have hx0 : ∀ x : block, x +^ b0 = x := fun x => by
-    apply List.Vector.ext; intro j; simp [BitWord.xorw, b0, BitWord.zerow]
-  have hf : format bl (i + 1) = format bl i ++ [b0] := by
-    simp only [format, nseq, List.append_assoc]
-    rw [show (i + 1 - 1).toNat = (i - 1).toNat + 1 by omega, List.replicate_succ']
-  rw [hf] at hd ⊢
-  obtain ⟨b, c, hb, hm⟩ := hmp _ hd (size (format bl i)) ⟨by simp [size], by simp [size]⟩
-  have ht1 : take (size (format bl i)) (format bl i ++ [b0]) = format bl i := by simp [take, size]
-  have ht2 : take (size (format bl i) + 1) (format bl i ++ [b0]) = format bl i ++ [b0] :=
-    List.take_of_length_le (by simp [size])
-  have hn : nth default (format bl i ++ [b0]) (size (format bl i)) = b0 := by simp [nth, size]
-  rw [ht1, hp] at hb
-  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hb).symm
-  rw [hn, ht2, hx0] at hm
-  exact hm.symm
-
 theorem lemma_3 (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (bl : List block) (b sa : block) (sc : capacity) :
     INV_Real c1 c2 m mi p → FMap.dom m (sa +^ b, sc) → ¬ FMap.dom p (rcons bl b) →
@@ -1371,6 +1238,55 @@ theorem lemma_3 (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) s
             List.take_of_length_le (by simp [rcons, size])
           rw [hn, ht2, FMap.get_set_sameE, hv]
           simp [oget]
+
+/-- EC's `lemma2'`.  Deviation: from `lemma_3` (EC's later lemma, here before it), as
+`format bl i = rcons (format bl (i - 1)) b0`; EC goes through the prefixes of `format bl i`
+directly. -/
+theorem lemma2' (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
+    (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
+    INV_Real c1 c2 m mi p → 1 < i → valid bl = true → FMap.dom m (sa, sc) →
+    ¬ FMap.dom p (format bl i) → FMap.get p (format bl (i - 1)) = some (sa, sc) →
+    INV_Real c1 c2 m mi (FMap.set p (format bl i) (oget (FMap.get m (sa, sc)))) := by
+  intro inv0 hi _ hdm hnp hpbl
+  have hx0 : sa +^ b0 = sa := by
+    apply List.Vector.ext; intro j; simp [BitWord.xorw, b0, BitWord.zerow]
+  have hf : format bl i = rcons (format bl (i - 1)) b0 := by
+    simp only [format, nseq, rcons, List.append_assoc]
+    rw [show (i - 1).toNat = (i - 1 - 1).toNat + 1 by omega, List.replicate_succ']
+  rw [hf] at hnp ⊢
+  have := lemma_3 c1 c2 m mi p (format bl (i - 1)) b0 sa sc inv0 (by rw [hx0]; exact hdm) hnp hpbl
+  rwa [hx0] at this
+
+theorem take_format (bl : List block) (n i : ℤ) :
+    0 < n → 0 ≤ i ∧ i < size bl + n →
+    take i (format bl n) = if i ≤ size bl then take i bl else format bl (i - size bl + 1) := by
+  rintro hn ⟨hi0, his⟩
+  simp only [format, take, nseq, size, List.take_append, List.take_replicate] at his ⊢
+  split_ifs with h
+  · rw [show i.toNat - bl.length = 0 by omega]; simp
+  · rw [List.take_of_length_le (by omega)]
+    congr 2; omega
+
+theorem lemma4 (c c' : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
+    (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
+    INV_Real c c' m mi p → 0 < i → FMap.get p (format bl i) = some (sa, sc) →
+    FMap.dom p (format bl (i + 1)) → FMap.get p (format bl (i + 1)) = FMap.get m (sa, sc) := by
+  rintro ⟨-, ⟨-, hmp⟩, -⟩ hi hp hd
+  have hx0 : ∀ x : block, x +^ b0 = x := fun x => by
+    apply List.Vector.ext; intro j; simp [BitWord.xorw, b0, BitWord.zerow]
+  have hf : format bl (i + 1) = format bl i ++ [b0] := by
+    simp only [format, nseq, List.append_assoc]
+    rw [show (i + 1 - 1).toNat = (i - 1).toNat + 1 by omega, List.replicate_succ']
+  rw [hf] at hd ⊢
+  obtain ⟨b, c, hb, hm⟩ := hmp _ hd (size (format bl i)) ⟨by simp [size], by simp [size]⟩
+  have ht1 : take (size (format bl i)) (format bl i ++ [b0]) = format bl i := by simp [take, size]
+  have ht2 : take (size (format bl i) + 1) (format bl i ++ [b0]) = format bl i ++ [b0] :=
+    List.take_of_length_le (by simp [size])
+  have hn : nth default (format bl i ++ [b0]) (size (format bl i)) = b0 := by simp [nth, size]
+  rw [ht1, hp] at hb
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hb).symm
+  rw [hn, ht2, hx0] at hm
+  exact hm.symm
 
 omit [BlockSponge.Params] [Params] in
 /-- `format p (j + 1)` is `format p j` and one more `b0`. -/

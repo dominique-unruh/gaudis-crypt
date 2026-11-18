@@ -252,6 +252,18 @@ theorem fdom_set (m : FMap α β) (x : α) (b : β) : fdom (set m x b) = insert 
 theorem mem_set (m : FMap α β) (x : α) (b : β) (y : α) : dom (set m x b) y ↔ dom m y ∨ y = x := by
   rw [domE, domE, get_setE]; by_cases h : y = x <;> simp [h]
 
+/-- `joinE`: the bindings of `m1 + m2`, `m2`'s first. -/
+theorem joinE (m1 m2 : FMap α β) (x : α) :
+    get (add m1 m2) x = if dom m2 x then get m2 x else get m1 x := by
+  unfold add get dom
+  split_ifs with h
+  · exact Finmap.lookup_union_left (Finmap.mem_keys.mp h)
+  · exact Finmap.lookup_union_right (mt Finmap.mem_keys.mpr h)
+
+/-- `mem_join`. -/
+theorem mem_join (m1 m2 : FMap α β) (x : α) : dom (add m1 m2) x ↔ dom m1 x ∨ dom m2 x := by
+  simp only [dom, add, Finmap.mem_keys, Finmap.mem_union, or_comm]
+
 /-- `remE`. -/
 theorem remE (m : FMap α β) (x y : α) : get (rem m x) y = if y = x then none else get m y := by
   by_cases h : y = x

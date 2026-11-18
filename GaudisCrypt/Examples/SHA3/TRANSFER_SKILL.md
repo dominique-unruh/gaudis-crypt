@@ -1026,6 +1026,14 @@ Document each in the docstring when it applies.
   types (`Syntax/Clone.lean`; why the first port's module types are not clones yet:
   `notes/SHA3/TacticReview.md`, "Status 2026-11-18").
 
+* **A first-port lemma re-proved in EC's script (2026-11-18, `Gconcl_list.lemma1`–`lemma5bis`)**:
+  where the first port re-proves a library fact inline (`FMap.joinE`, `FMap.mem_join` for EC's
+  `m1 + m2`), move it to `Lib/EC` under EC's name first, then the script is EC's line by line:
+  `intro` the names of EC's `move=>`, `obtain` for `have[]…:=INV0`, `constructor` for `split`,
+  `smt_close [EC's hints]` for each `smt`.  Give `smt_close` the operators EC's provers see
+  through (`valid` for `valid p = true` against `valid_block p`); `rw` cannot rewrite a `dom`
+  under an `if` (its `Decidable` instance): `simp only [FMap.mem_set]`.
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in
