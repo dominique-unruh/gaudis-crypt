@@ -23,12 +23,17 @@ types are `outParam`s, so that inside the theory nothing is written).  A clone i
   current namespace shadows an opened one, as a later EC declaration does).
 
 The clone's instance is an instance: the theory's own instances (the coercions of EC's subtyping
-of module types, `module_subtype`) take the theory's, and are then found at the clone.  Clones at
-different types do not compete (the types select the instance), nor do clones of a theory without
-operators (its `Params` is a proposition, `class Params (p f_in f_out : outParam Type) : Prop`,
-its instances equal); two clones of one theory at the same types with different operators would,
-and are not supported (EC's `SRO` and a second `SRO'` at the same types).  Used through its
-namespace, each clone is its own: the aliases name the instance.
+of module types, `module_subtype`) take the theory's, and are then found at the clone.  Used
+through its namespace, each clone is its own: the aliases name the instance.  Found by instance
+search, clones of one theory compete, even at different types: the theory's types are
+`outParam`s, which Lean erases before the search, so the search answers with the latest clone's
+instance and fails at another clone's types.  So where two clones of one theory meet in a file,
+what finds the instance by search works for the latest clone only: record notation for a module
+type's `mk` (`C.FUNCTIONALITY.mk { f := … }`), the subtyping coercions, a theory lemma used
+without its clone's alias.  (SHA-3's `Gconcl_list` has `SLCommon`'s and `BlockSponge`'s clones of
+`Indifferentiability`; EC has many such files.  Not yet solved: `notes/SHA3/TacticReview.md`.)
+Two clones of one theory at the same types with different operators are not supported either
+(EC's `SRO` and a second `SRO'` at the same types).
 
 The clone's module variables are the theory's (`global_var`/`module_var` slots are named after
 `T`): two clones of one theory at the same types share them, where EC gives each clone its own.

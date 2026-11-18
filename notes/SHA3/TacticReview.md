@@ -832,3 +832,26 @@ in one and a half), then one full rebuild per item.
   shortened (path form, one shared bridge script, restriction proofs by the solvers).
 * **Item 4 of the plan (per-clone variables): parked**, to agree with Dominique.
 
+
+### Status 2026-11-18
+
+* **`stmt_swap` reads footprints off the code** (`27e4ba6`): the solver's default bound hook
+  (`FootprintSolver.defaultBoundHook`, set by `ModuleFootprint` to `cachedBound`) is passed by
+  `stmt_swap` only (for every caller, Gext timed out).  Gcol's `fvP_sample_c` went; the other
+  stated footprints stay (frames, speed).  76 stated before 2026-11-17, 56 now.
+* **The first port's module types as clones (item 2 of the "what is left" plan): blocked by the
+  clone design.**  Branch `wip/module-types-as-clones` (`cb41dd7`) switches `SLCommon`,
+  `BlockSponge`, `Sponge`, the `Option` files to clones of the port's theories, deletes the first
+  port's module types and views, and moves `SIMULATOR.call_*`, `representable_of_init` into the
+  theory (so that clones alias them).  `SLCommon` … `Gconcl` and `BlockSponge` build; `Gconcl_list`
+  and `Sponge` do not.  Cause: a theory's `Params` has its types as `outParam`s, which Lean erases
+  before instance search, so the search answers with the latest clone's instance whatever the
+  types; where two clones of one theory at different types meet (`SLCommon`'s and
+  `BlockSponge`'s `Indifferentiability` in `Gconcl_list`, as in EC), record notation for `mk`, the
+  subtyping coercions and unaliased theory lemmas fail at the other clone's types.  Tried:
+  `semiOutParam` (the theory's own definitions get stuck), a universal instance for a field-less
+  `Params` (Lean refuses instances with open out-params).  A fix changes how a theory receives
+  its types (`Syntax/Clone.lean`): e.g. the types as ordinary parameters with the theory's
+  declarations elaborated against its section variables, or the clone generating per-clone
+  structures/coercions so that nothing at a use site searches for `Params`.  To agree with
+  Dominique, like per-clone variables.

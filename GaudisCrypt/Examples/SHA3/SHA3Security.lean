@@ -150,27 +150,6 @@ theorem doutE1 (x : f_out) : (dout.1 {x}).toReal = ((2 : ℝ) ^ size_out)⁻¹ :
   have hl : ((Params.to_list x).length : ℤ) = size_out := hlen
   rw [← zpow_natCast, hl, ENNReal.toReal_ofNat, inv_zpow]
 
-/-! ## `clone import IndifRO_is_secure as S with type block <- block * capacity,
-type f_in <- bool list, type f_out <- f_out, op sampleto <- dout, op bound <- (limit ^ 2 - limit)%r
-/ (2 ^ (r + c + 1))%r + (4 * limit ^ 2)%r / (2 ^ c)%r, op limit <- sigma, op bound_counter <- limit,
-op increase_counter <- …` -/
-
-namespace S
-
-namespace Indiff0
-abbrev PRIMITIVE := Indifferentiability.PRIMITIVE (block × capacity) (List Bool) f_out
-abbrev DPRIMITIVE := Indifferentiability.DPRIMITIVE (block × capacity) (List Bool) f_out
-abbrev FUNCTIONALITY := Indifferentiability.FUNCTIONALITY (block × capacity) (List Bool) f_out
-abbrev DFUNCTIONALITY := Indifferentiability.DFUNCTIONALITY (block × capacity) (List Bool) f_out
-abbrev CONSTRUCTION := Indifferentiability.CONSTRUCTION (block × capacity) (List Bool) f_out
-abbrev SIMULATOR := Indifferentiability.SIMULATOR (block × capacity) (List Bool) f_out
-abbrev DISTINGUISHER := Indifferentiability.DISTINGUISHER (block × capacity) (List Bool) f_out
-end Indiff0
-
-end S
-
-open S
-
 /-- The bound of `SHA3Indiff`, `(limit ^ 2 - limit)%r / (2 ^ (r + c + 1))%r +
 (4 * limit ^ 2)%r / (2 ^ c)%r`, the clone's `bound`. -/
 noncomputable abbrev bound : ℝ := SHA3Indiff.bound
