@@ -33,12 +33,32 @@ arguments): `B` the footprint of its abstract module argument (at most one) and 
 its code, proven by `fp_module`. -/
 def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
   let M ← instantiateMVars M
-  let some c := M.getAppFn.constName? | return none
   let env ← getEnv
+  -- `Module.proc p` unfolded (`⟨(ModuleExpression.proc p).reduce, …⟩`, what a solver leaves
+  -- after unfolding definitions): folded back, by definition
+  let M ← do
+    if M.isAppOfArity ``Module.mk 4 then
+      let e := M.getArg! 1
+      if e.isAppOfArity ``ModuleExpression.reduce 1 && e.appArg!.isAppOf ``ModuleExpression.proc then
+        if let some M' ← observing? (mkAppM ``Module.proc #[e.appArg!.appArg!]) then
+          pure M' else pure M
+      else pure M
+    else pure M
+  -- a `module`'s procedure as a procedure module, `Module.proc (X.f.procedure args)` (what a
+  -- call inside inlined code names): read off `X.f.procedure`'s code, at `args`
+  let (hd, hdArgs) ← do
+    if M.isAppOf ``Module.proc then
+      let P := M.appArg!
+      let some c := P.getAppFn.constName? | return none
+      unless c.getString! == "procedure" && env.contains c.getPrefix do return none
+      pure (P.getAppFn, P.getAppArgs)
+    else pure (M.getAppFn, M.getAppArgs)
+  let some c := hd.constName? | return none
   -- an alias of a clone stands for the theory's module; a `module`'s procedure (`X.f`, with its
   -- `X.f.procedure`) is bounded as a module is
   let b := cloneBase env c
-  unless isModule env b || env.contains (b ++ `procedure) do return none
+  unless M.isAppOf ``Module.proc || isModule env b || env.contains (b ++ `procedure) do
+    return none
   -- the abstract modules among the explicit arguments
   let binfos ← forallTelescope (← getConstInfo c).type fun xs _ =>
     xs.mapM fun x => x.fvarId!.getBinderInfo
@@ -46,7 +66,7 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
   -- the global variables passed as lens arguments (`RO.asRO … RO.m`): the module's code writes
   -- its parameter, which is them
   let mut argLenses : Array Lean.Expr := #[]
-  for a in M.getAppArgs, bi in binfos do
+  for a in hdArgs, bi in binfos do
     if bi.isExplicit then
       if let some fa ← observing? (mkAppM ``FVP.fvP #[a]) then mods := mods.push fa
       else if let some d := a.getAppFn.constName? then
@@ -111,6 +131,9 @@ def cachedBound : FootprintSolver.BoundHook := fun M => do
   let pf ← concreteBound M
   if inScope M then boundCache.modify (·.push (M, pf))
   return pf
+
+/-- The footprints read off the code, for every caller of the solver. -/
+initialize FootprintSolver.defaultBoundHook.set cachedBound
 
 /-- A proof of `F.FinitelySupported`: a join of variables (`global_var`s, `module_var`s, pairs of
 them) and module footprints, each module declared (`Module.Declared`, `Module.ECModule` in

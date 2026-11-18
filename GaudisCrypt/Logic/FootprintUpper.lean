@@ -59,6 +59,12 @@ partial def solve (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withContext 
           if bi.isInstImplicit && !(← a.mvarId!.isAssigned) then
             a.mvarId!.assign (← synthInstance (← inferType a))
         viaBound (← instantiateMVars (mkAppN c args))) then return
+  -- a pair of variables: the join of their footprints (`Footprint.lens_pair`, the pair's own
+  -- disjointness instance)
+  if X.isAppOf ``Lens.footprint && X.appArg!.isAppOf ``Lens.pair then
+    let x := X.appArg!
+    return ← viaBound (← mkAppM ``le_of_eq #[← mkAppOptM ``Footprint.lens_pair
+      #[none, none, none, x.getArg! 3, x.getArg! 4, x.getArg! 5]])
   let_expr FVP.fvP _ _ M := X | throwError "fp_le: cannot bound{indentExpr X}"
   let M ← whnfCore (← instantiateMVars M)
   if M.isAppOfArity ``Module.app 6 then

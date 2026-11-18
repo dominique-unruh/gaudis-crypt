@@ -96,4 +96,17 @@ example : equiv[ G.run ~ H.run : ={cnt} ==> ={res, cnt} ] := by
 example : FVP.fvP Ctr.f ≤ cnt.footprint := by
   fp_le
 
+global_var other : ℤ
+
+-- the same procedure as a procedure module (`Module.proc Ctr.f.procedure`, how a call in inlined
+-- code names it): read off `Ctr.f.procedure`'s code, for `fp_le` and for `fp_disjoint` (what
+-- `stmt_swap` asks)
+#guard_msgs in
+example : FVP.fvP (Module.proc Ctr.f.procedure) ≤ cnt.footprint := by
+  fp_le
+
+#guard_msgs in
+example : FVP.fvP (Module.proc Ctr.f.procedure) ≤ (other.footprint)ᶜ := by
+  fp_disjoint
+
 end GaudisCrypt.ECProcViewsTest

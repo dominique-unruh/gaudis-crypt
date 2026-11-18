@@ -600,7 +600,7 @@ def callGlobal (s u X e : Lean.Expr) : MetaM Lean.Expr := do
     let pf ← if isFootprint then calleeFootprint t
       else if t.isAppOfArity ``LE.le 4 then do
         let g ← mkFreshExprSyntheticOpaqueMVar t
-        try FootprintSolver.solve g.mvarId!
+        try FootprintSolver.solve g.mvarId! (← FootprintSolver.defaultBoundHook.get)
         catch err => throwError "stmt_swap: cannot show that{indentExpr X}\nlies outside the \
           callee's footprint: {err.toMessageData}"
         instantiateMVars g
@@ -651,7 +651,7 @@ def callGlobalFrame (s u X e K : Lean.Expr) : MetaM Lean.Expr := do
     let pf ← if isFootprint then calleeFootprint t
       else if t.isAppOfArity ``LE.le 4 then do
         let g ← mkFreshExprSyntheticOpaqueMVar t
-        try FootprintSolver.solve g.mvarId!
+        try FootprintSolver.solve g.mvarId! (← FootprintSolver.defaultBoundHook.get)
         catch err => throwError "stmt_swap: cannot show that{indentExpr t}\n: {err.toMessageData}"
         instantiateMVars g
       else discharge t X?
@@ -746,7 +746,7 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Le
               let pf ← if isFp then calleeFootprint t
                 else if t.isAppOfArity ``LE.le 4 then do
                   let gm ← mkFreshExprSyntheticOpaqueMVar t
-                  FootprintSolver.solve gm.mvarId!
+                  FootprintSolver.solve gm.mvarId! (← FootprintSolver.defaultBoundHook.get)
                   instantiateMVars gm
                 -- (the assigned local pushed outward past the result's and the globals' writes)
                 else discharge t X?
@@ -802,7 +802,7 @@ partial def callDet (s d : Lean.Expr) : MetaM Lean.Expr := do
     let pf ← if isFp then calleeFootprint ty
       else if ty.isAppOfArity ``LE.le 4 then do
         let gm ← mkFreshExprSyntheticOpaqueMVar ty
-        try FootprintSolver.solve gm.mvarId!
+        try FootprintSolver.solve gm.mvarId! (← FootprintSolver.defaultBoundHook.get)
         catch err => throwError "stmt_swap: cannot show that{indentExpr ty}\n: {err.toMessageData}"
         instantiateMVars gm
       else discharge ty none

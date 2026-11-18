@@ -665,6 +665,11 @@ Document each in the docstring when it applies.
   through a record): for the procedure and for the modules it is applied to
   (`fvP_RaiseFun : … ≤ ⊥`), outside any `include R`.  A frame that now applies where none did
   changes the goal after `call`: the hand-written intro patterns after it may need adjusting.
+  Since 2026-11-18 `stmt_swap` (`swap`) reads them off the code too, including a callee named
+  as inlined code names it (`Module.proc M.f.procedure`); it is the only `fp_disjoint` caller
+  that does so by default (doing it for every caller made Gext time out: the solver then tries
+  the code of every module it meets before the stated bounds).  A stated bound that only
+  `swap` needed can go; one that a slow file needs for speed (Gext's procedure group) stays.
 * **Side goals over parameter tuples and results** (`prhlProc_trans_ec`, `equiv_conseq_pre`,
   `equiv_conseq H` on procedures): the variables have the signature's types
   (`typeListToTuple [ℤ]`, `(procsig …).ret`) and the conditions are unreduced reads, so `omega`

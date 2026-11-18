@@ -226,6 +226,11 @@ def finitelySupported (F : Lean.Expr) : MetaM Lean.Expr := do
 `module`, whose globals are read off its code: `Logic/ModuleFootprint.lean`): the proof, if any. -/
 abbrev BoundHook := Lean.Expr → MetaM (Option Lean.Expr)
 
+/-- The bound source of the footprints read off the code (`Logic/ModuleFootprint.lean` sets it),
+for the solver's callers that cannot import that file (`stmt_swap`: a callee's footprint against
+a moved assignment). -/
+initialize defaultBoundHook : IO.Ref BoundHook ← IO.mkRef (fun _ => pure none)
+
 /-- Close `X ≤ Aᶜ`, `X` a join of module footprints `FVP.fvP M` and variables: each `M` has a
 restriction hypothesis, an `@[fp_bound]`, or is bounded through the module combinators by modules
 that do; each variable is outside `A`'s modules (outside `glob D` by `D`'s finite support). -/

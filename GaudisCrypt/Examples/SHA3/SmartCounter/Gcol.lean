@@ -306,13 +306,6 @@ module Gcol (D : DISTINGUISHER) {
   };
 }
 
-/-- The footprint of `Gcol.sample_c` (for the solver, which reads concrete modules off their code
-but not a procedure called as a module, `Module.proc`). -/
-@[fp_bound] theorem fvP_sample_c :
-    FVP.fvP (Module.proc Gcol.sample_c.sample_c.procedure) ≤
-      FRO.m.footprint ⊔ (G1.bcol.footprint ⊔ Gcol.count.footprint) := by
-  fp_module (Lens.pair FRO.m (Lens.pair G1.bcol Gcol.count))
-
 section PROOF
 
 declare module D <: DISTINGUISHER {-C, -PF, -G1, -Gcol.sample_c}
