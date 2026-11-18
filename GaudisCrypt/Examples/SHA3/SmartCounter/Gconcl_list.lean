@@ -1516,21 +1516,12 @@ theorem fvP_A (D : DISTINGUISHER) : FVP.fvP (A D) ≤ FVP.fvP D ⊔ BlockSponge.
   fp_module BlockSponge.C.c
 
 omit [BlockSponge.Params] [Params] in
-/-- `DWord.dunifin1E`. -/
-theorem dunifin1E' {n : ℤ} (x : BitWord.word n) :
-    (BitWord.dunifin : SubProbability (BitWord.word n)).1 {x} = ((2 : ENNReal) ^ n.toNat)⁻¹ := by
-  letI : MeasurableSpace (BitWord.word n) := ⊤
-  change (PMF.uniformOfFintype (BitWord.word n)).toMeasure {x} = _
-  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton x), PMF.uniformOfFintype_apply]
-  simp [BitWord.word, card_vector]
-
-omit [BlockSponge.Params] [Params] in
 /-- `dstate`'s mass at a point (EC: `dprod1E`, `dunifin1E`, `block_card`, `capacity_card`). -/
 theorem dstate1E_toReal (x : state) :
     (SLCommon.dstate.1 {x}).toReal = 1 / ((2 ^ r.toNat : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) := by
   obtain ⟨a, b⟩ := x
   rw [SLCommon.dstate, dprod1E, bdistr, cdistr, Block.DBlock.dunifin, Capacity.DCapacity.dunifin,
-    dunifin1E', dunifin1E']
+    BitWord.dunifin1E, BitWord.dunifin1E]
   simp [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv]
 
 end Real_Ideal

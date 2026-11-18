@@ -71,6 +71,14 @@ theorem dunifin_fu : is_full (dunifin : SubProbability (word n)) := uniform_fu
 /-- `DWord.dunifin_funi`. -/
 theorem dunifin_funi : is_funiform (dunifin : SubProbability (word n)) := uniform_funi
 
+/-- `DWord.dunifin1E`: each word has mass `1 / 2 ^ n`. -/
+theorem dunifin1E (x : word n) :
+    (dunifin : SubProbability (word n)).1 {x} = ((2 : ENNReal) ^ n.toNat)⁻¹ := by
+  letI : MeasurableSpace (word n) := ⊤
+  change (PMF.uniformOfFintype (word n)).toMeasure {x} = _
+  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton x), PMF.uniformOfFintype_apply]
+  simp [word, card_vector]
+
 end BitWord
 
 /-- `w₁ +^ w₂`. -/

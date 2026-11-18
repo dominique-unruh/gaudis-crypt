@@ -357,27 +357,25 @@ over every oracle behaviour (`A` lossless for *all* lossless oracles, applied to
 replay the run's history), which the Gaudí rule does not formalize.  The oracles of the SHA-3 uses
 (`SLCommon.Pr_restr`, `Handle.eca`) are lossless everywhere, so nothing is lost there.
 
-## E12: `bypr` is replaced by equivalences through an auxiliary module
+## E12: EC's steps through `Sample.sample` and `LoopSnoc.sample` are one sampling against a call
 
-**EasyCrypt.** `BlockGen_loop_direct` (`Sponge.ec`) is proven by `bypr res{1} res{2}`: two
-procedures with no shared state are equivalent on `={res}` when every `Pr[_ : res = w]` agrees.
+**EasyCrypt.** `equiv_ro_iro` (`SHA3Security.ec`) and `rw_RF_List_While` (`SHA3OSecurity.ec`) go
+from a sampling of `dlist` to a loop by two `transitivity` steps, through `Sample.sample` and
+`LoopSnoc.sample` (theory `Program`, `Sample_LoopSnoc_eq`).
 
-**Gaudí.** There is no `bypr` rule (it needs a coupling built from equal result marginals, i.e.
-conditional distributions of the globals).  The statement is unchanged; the proof composes two
-equivalences through an auxiliary module `BlockGenCall` (`BlockGen.loop` with its loop the call
-`Prog.LoopSnoc.sample(r)`, not in EasyCrypt): EC's own `byequiv` step (the loops in lockstep), and
-a sampling against the call (`prhlStmt_seq_sample_run_map_right`), from the same facts EC uses as
-probabilities (`LoopSnoc.sample_denotation`: the loop samples `dlist {0,1} r`; `bdistr_dlist`:
-its image by `mkblock` is `bdistr`).
+**Gaudí.** EC's module `Sample` is not ported: the two steps are one, through `LoopSnoc.sample`,
+its first leg a sampling against the call of `LoopSnoc.sample` (`dout_LoopSnoc`,
+`dlist_LoopSnoc`: `prhlStmt_seq_sample_run_map_right`, `prhlStmt_dlist_left`, from
+`LoopSnoc.sample_denotation`).
 
-The same pattern for EC's `transitivity{2}` through code blocks in
-`HybridIROEagerTrans_BlockSpongeTrans_next_block` (`{ w <@ BlockGen.loop(); }`, then
-`{ w <@ BlockGen.direct(); }`): auxiliary modules `NextBlockSplitLoop`/`NextBlockSplitDirect`
-(`next_block_split` with its loop of bits replaced by those calls), each step an equivalence of
-procedures, composed by `prhlProc.trans`.  EC's ghosts (`exists* i{1}, bs{1}`) are read from the
-other side, which keeps them; EC's `exists* HybridIROEager.mp{1}` (the map before the writes) is
-folded into the invariant as the statement it is used for (`∀ mq, eager_eq_except … → … →
-eager_invar … mq`).
+**Closed (2026-11-18).** E12 also covered `BlockGen_loop_direct` (`Sponge.ec`), proven by two
+equivalences through an auxiliary module `BlockGenCall` for want of a `bypr` rule, and EC's
+`transitivity{2}` through code blocks in `HybridIROEagerTrans_BlockSpongeTrans_next_block`
+(auxiliary modules `NextBlockSplitLoop`/`NextBlockSplitDirect`).  The latter is EC's
+`transitivity{2}` since the port; `BlockGen_loop_direct` is EC's script since 2026-11-18:
+`bypr (res{1}) (res{2})` (`Logic/ByPrEquiv.lean`), `byphoare` for `BlockGen.direct`, `byequiv`
+with EC's `seq 2 2` and `while` for `BlockGen.loop` against `LoopSnoc.sample`, then
+`PrLoopSnoc_sample` and `dlist1E`.
 
 ## E13: `Gconcl`'s `Gext0` variables are fresh for `D` by hypothesis (`Gext0Fresh`)
 

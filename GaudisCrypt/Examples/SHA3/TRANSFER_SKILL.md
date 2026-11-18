@@ -1012,6 +1012,20 @@ Document each in the docstring when it applies.
   `Params (t : outParam Type)` with the operators and axioms as fields, `export Params (…)`,
   `variable {t : Type} [Params t]`.  `predC test` takes a `Bool` test (`Lib/EC/Logic.lean`).
 
+* **EC's `bypr res{1} res{2}=> // &1 &2 w` (2026-11-18, `Sponge.BlockGen_loop_direct`)**:
+  `bypr (res{1}) (res{2})`, `intro a1 m1 a2 m2 w _`; EC's `have -> : Pr[…] = …` by
+  `byphoare (: True ==> _)` / `byequiv` as written; then `cases a1; cases a2` and
+  `refine (?_ : _ = (x : ℝ)).trans h.symm` to chain the `Pr`s.  A value named like a local of
+  the procedure (EC's `w` and `BlockGen.direct`'s local `w`) is read as the local inside a
+  tactic's argument (`phoare_rnd (pred1 w)`): give it another name (`w0`).
+* **Several clones of one theory in a file (2026-11-18)**: a theory's types are `outParam`s of
+  its `Params`, so instance search finds the latest clone's instance whatever the types.  Reach
+  the theory's definitions and lemmas through each clone's aliases (`C.FUNCTIONALITY.mk`,
+  `C.SIMULATOR.call_init`), never the theory's names, where two clones of it are in scope; record
+  notation for `mk` and the subtyping coercions still search, and fail at the other clone's
+  types (`Syntax/Clone.lean`; why the first port's module types are not clones yet:
+  `notes/SHA3/TacticReview.md`, "Status 2026-11-18").
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in

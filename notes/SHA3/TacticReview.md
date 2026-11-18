@@ -855,3 +855,8 @@ in one and a half), then one full rebuild per item.
   declarations elaborated against its section variables, or the clone generating per-clone
   structures/coercions so that nothing at a use site searches for `Params`.  To agree with
   Dominique, like per-clone variables.
+* **`BlockGen_loop_direct` in EC's script** (item 4 of the "what is left" plan): `bypr (res{1})
+  (res{2})`, `byphoare`, `byequiv` with EC's `seq`/`while`, `PrLoopSnoc_sample`, `dlist1E`.  The
+  first port's proof (`bdistr_dlist`, `BlockGenCall` and its two equivalences) and the GAP 9
+  restatement go; EC's `DWord.dunifin1E` is `BitWord.dunifin1E` (`Lib/EC/BitWord.lean`, also
+  used by `Gconcl_list`); exception E12 keeps only the `Sample`/`LoopSnoc` step.

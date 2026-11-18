@@ -2518,7 +2518,7 @@ theorem Sponge_preimage_resistant (m : VariableAssignment) :
       -- EC: smt(dout_ll).
       · phoare_auto
         intros
-        exact (is_lossless_iff_expected _).mp GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
+        exact GaudisCrypt.SHA3.SHA3OSecurity.Params.dout_ll
       -- EC: - proc; inline*; auto; call Hf; auto.
       · simp only [SH.OIndif.ODFUNCTIONALITY.f.mk_simp]
         phoare_proc; phoare_auto; phoare_call Hf; phoare_auto

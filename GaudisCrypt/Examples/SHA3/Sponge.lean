@@ -19,6 +19,8 @@ import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Lib.EC.ListLemmas
 import GaudisCrypt.Logic.PrTactics
+import GaudisCrypt.Logic.ByPrEquiv
+import GaudisCrypt.Logic.PHoareRnd
 import GaudisCrypt.Logic.ECWhile
 import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Syntax.PrSyntax
@@ -42,8 +44,8 @@ import GaudisCrypt.Logic.FootprintSolver
 # The sponge construction (EasyCrypt `proof/Sponge.ec`) — EC-fidelity port
 
 Ported on the strict tactics: `Sponge_is_StdSponge` (EC l. 99); the whole theory `HybridIRO`
-(EC l. 256–1909; l. 1188–1305, the modules `BlockSpongeTrans`, `BlockGen` and
-`BlockGen_loop_direct` with its `bypr` proof, are the first port's, E12);
+(EC l. 256–1909; l. 1188–1282, the modules `BlockSpongeTrans` and `BlockGen`, are the first
+port's);
 `Sponge_Raise_BlockSponge_f` (EC l. 1922), which was the second tactic experiment and is
 described below; and the final section with `conclusion` (EC l. 1913–2163).
 
@@ -78,8 +80,8 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 8: `transitivity N (P₁ ==> Q₁) (P₂ ==> Q₂)` on procedures is the rule `prhlProc_trans_ec`,
   not a tactic: the second judgment is its own lemma, and the side conditions are over the
   parameter tuples (hypotheses restated by `replace` before use).
-* GAP 9: a first-port fact about a `module`-declared procedure names it `X.f.procedure`; the
-  judgment syntax names `X.f`'s procedure (`BlockGen_loop_direct`, restated by a rewrite).
+* GAP 9 (closed 2026-11-18): `BlockGen_loop_direct` is EC's `bypr` proof, no longer the first
+  port's restated by a rewrite.
 * GAP 10: after a loop, the guard's read of a local and the invariant's read of it can be
   different atoms for `omega` (equal by `rfl`): `le_antisymm` on the two hypotheses instead.
 * GAP 11: `={bs}` in a condition of `equiv_trans` is not resolved when the two sides of the
@@ -968,108 +970,6 @@ module BlockGen {
     return $w
   };
 }
-
-omit [BlockSponge.Params] in
-open Classical in
-/-- `bdistr` is `r` fair bits made a block (in EC's `BlockGen_loop_direct`: `mu1 bdistr w =
-1 / 2 ^ r`, and the same for the bits of `w` under `dlist {0,1} r`). -/
-theorem bdistr_dlist : bdistr = (dlist dbool r).hbind fun l => pure (mkblock l) := by
-  have hr := gt0_r
-  refine eq_distr fun w => ?_
-  symm
-  rw [mu1_eq_expected, SubProbability.expected_hbind]
-  simp only [expected_pure]
-  have hlen : ((ofblock w).length : ℤ) = r := by
-    have := BitWord.size_word hr.le w
-    simpa [size, ofblock] using this
-  change ∫⁻ l, _ ∂(dlist dbool r).1 = _
-  rw [lintegral_eq_tsum_smul (dlist dbool r).2.2, tsum_eq_single (ofblock w) ?_]
-  · rw [show mkblock (ofblock w) = w from BitWord.mkwordK w, if_pos rfl, mul_one,
-      dlist1E _ _ _ hlen]
-    simp only [dbool1E, List.map_const', List.prod_replicate]
-    letI : MeasurableSpace block := ⊤
-    change _ = (PMF.uniformOfFintype block).toMeasure {w}
-    rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton w)]
-    simp only [PMF.uniformOfFintype_apply, card_vector, Fintype.card_bool, Nat.cast_pow,
-      ENNReal.inv_pow]
-    congr 1
-    omega
-  · intro l hl
-    by_cases hl' : (l.length : ℤ) = r
-    · rw [if_neg]; · simp
-      rintro rfl
-      exact hl (BitWord.ofwordK l (by simp [size]; omega)).symm
-    · rw [dlist_supp _ _ _ (by omega), zero_mul]
-
--- Auxiliary (not in EC): `BlockGen.loop` with its loop the call `Prog.LoopSnoc.sample(r)`, for
--- EC's `byequiv` step of `BlockGen_loop_direct`
-module BlockGenCall {
-  proc loop () : block {
-    var cs : List Bool;
-    cs <- call Prog.LoopSnoc.sample (r);
-    return mkblock $cs
-  };
-}
-
-/-- EC's `byequiv` step of `BlockGen_loop_direct`: `BlockGen.loop`'s loop is
-`Prog.LoopSnoc.sample(r)`'s. -/
-theorem BlockGen_loop_BlockGenCall (P : VariableAssignment → VariableAssignment → Prop) :
-    prhlProc (fun _ g₁ _ g₂ => P g₁ g₂) BlockGen.loop.procedure BlockGenCall.loop.procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ P g₁ g₂) := by
-  equiv_proc_to_stmt
-  stmt_inline{1} 0
-  repeat stmt_inline{2} 0
-  stmt_wp
-  equiv_seq_last 1 1 : (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r ∧
-      P §allGlobals{1} §allGlobals{2})
-  · stmt_wp
-    equiv_skip
-    intros; simp_all
-  · equiv_while_raw (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r ∧
-        P §allGlobals{1} §allGlobals{2})
-    case body =>
-      stmt_wp
-      equiv_rnd
-      equiv_skip
-      intros; simp_all [rcons]
-    case guard => intros; simp_all
-    case exit => intros; simp_all
-    · equiv_skip; intros; simp_all
-
-/-- `BlockGen.direct` against `BlockGenCall.loop`: the bits from `LoopSnoc.sample` are `dlist {0,1}
-r` (`LoopSnoc.sample_denotation`), whose image by `mkblock` is `bdistr` (`bdistr_dlist`). -/
-theorem BlockGen_direct_BlockGenCall (P : VariableAssignment → VariableAssignment → Prop) :
-    prhlProc (fun _ g₁ _ g₂ => P g₁ g₂) BlockGen.direct.procedure BlockGenCall.loop.procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ P g₁ g₂) := by
-  equiv_proc_to_stmt
-  stmt_inline{1} 0
-  stmt_inline{2} 0
-  stmt_wp
-  stmt_split{1} 1
-  stmt_split{2} 1
-  refine prhlStmt_seq_sample_run_map_right (x₂ := liftLens (localVarLens "cs" (List Bool)))
-    (fun _ _ => dlist dbool r) mkblock ?_
-  stmt_wp
-  equiv_skip
-  intro τ _ hP
-  refine ⟨?_, bdistr_dlist, fun _ _ => hP⟩
-  generalize (resetSetter _).set () τ = σ
-  refine (programDenotation_call_apply _ _ _ σ).trans ?_
-  erw [DList.Program.LoopSnoc.sample_denotation]
-  refine SubProbability.ext_of_expected fun F => ?_
-  simp only [SubProbability.expected_hbind, expected_pure]
-  rw [show ProgramState.globalL.set σ.globals σ = σ from ProgramState.globalL.get_set σ]
-
-/-- `lemma BlockGen_loop_direct : equiv[BlockGen.loop ~ BlockGen.direct : true ==> ={res}]`.
-EC: `bypr`, comparing `Pr[_ : res = w]` (`PrLoopSnoc_sample`, `iter_mul_one_half_pos`); here the
-two equivalences above, composed (the same facts as distributions). -/
-theorem BlockGen_loop_direct :
-    prhlProc (fun _ _ _ _ => True) BlockGen.loop.procedure BlockGen.direct.procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) :=
-  prhlProc_conseq (prhlProc.trans (BlockGen_loop_BlockGenCall fun _ _ => True)
-      (prhlProc.symm (BlockGen_direct_BlockGenCall fun _ _ => True)))
-    (fun _ g _ _ _ => ⟨(), g, trivial, trivial⟩)
-    (fun _ _ _ _ ⟨_, _, h, h'⟩ => h.1.trans h'.1.symm)
 
 end Hybrid
 
@@ -2013,11 +1913,11 @@ theorem HybridIROEagerTrans_next_block_split :
 
 /-! ### `HybridIROEagerTrans.next_block` and `BlockSpongeTrans.next_block` (EC l. 1188–1505)
 
-EC l. 1188–1305 (`BlockSpongeTrans`, `Prog`, `PrLoopSnoc_sample`, `iter_mul_one_half_pos`,
-`BlockGen`, `BlockGen_loop_direct`) are the first port's. -/
+EC l. 1188–1282 (`BlockSpongeTrans`, `Prog`, `PrLoopSnoc_sample`, `iter_mul_one_half_pos`,
+`BlockGen`) are the first port's. -/
 
 open GaudisCrypt.SHA3.Sponge.HybridIRO (eager_inv_imp_block_bits_dom eager_inv_mem_dom1
-  eager_inv_not_mem_dom1 eager_invar_eq_except_upd1 BlockSpongeTrans BlockGen BlockGen_loop_direct)
+  eager_inv_not_mem_dom1 eager_invar_eq_except_upd1 BlockSpongeTrans BlockGen PrLoopSnoc_sample)
 
 omit [BlockSponge.Params] in
 /-- EC's `mkblockK` (the clone `Block` of `BitWord`). -/
@@ -2043,17 +1943,94 @@ theorem nth_change_dfl {α : Type} (x0 x1 : α) (s : List α) (n : ℤ) (h : 0 �
   simp [h.1, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hn]
 
 /-- EC's `lemma BlockGen_loop_direct : equiv[BlockGen.loop ~ BlockGen.direct : true ==> ={res}]`
-(EC l. 1283).  The proof is the first port's (EC: `bypr`, which has no rule here, E12); this is
-its statement in EC's form, for `call BlockGen_loop_direct`.  (GAP 9: the first port names a
-`module`-declared procedure `X.f.procedure`, the judgment syntax `X.f`'s procedure.) -/
-theorem BlockGen_loop_direct_ec :
+(EC l. 1269). -/
+theorem BlockGen_loop_direct :
     equiv[ BlockGen.loop ~ BlockGen.direct : True ==> ={res} ] := by
-  have h := BlockGen_loop_direct
-  rw [← show Module.Proc.procedure BlockGen.loop = BlockGen.loop.procedure from
-      Module.procedure_proc _,
-    ← show Module.Proc.procedure BlockGen.direct = BlockGen.direct.procedure from
-      Module.procedure_proc _] at h
-  exact h
+  -- EC: bypr res{1} res{2}=> // &1 &2 w.
+  --     (`w` is `w0`: `BlockGen.direct` has a local `w`, which a tactic's argument would read)
+  bypr (res{1}) (res{2})
+  intro a1 m1 a2 m2 w0 _
+  -- EC: have -> : Pr[BlockGen.direct() @ &2 : res = w] = 1%r / (2 ^ r)%r.
+  have h2 : Pr[ BlockGen.direct () @ &m2 : §res = w0 ] = 1 / 2 ^ r.toNat := by
+    -- EC: byphoare=> //.
+    --     proc; rnd; skip; progress.
+    byphoare (: True ==> _)
+    phoare_proc; phoare_rnd (pred1 w0); phoare_auto
+    -- EC: rewrite DBlock.dunifinE.
+    --     have -> : (transpose (=) w) = (pred1 w) by rewrite /pred1.
+    --     by rewrite DBlock.Support.enum_spec block_card.
+    refine ⟨?_, fun v _ => pred1E w0 v⟩
+    rw [mu_pred1, mu1, bdistr]
+    erw [BitWord.dunifin1E]
+    simp
+  -- EC: have -> :
+  --       Pr[BlockGen.loop() @ &1 : res = w] =
+  --       Pr[Prog.LoopSnoc.sample(r) @ &1 : res = ofblock w].
+  have h1 : Pr[ BlockGen.loop () @ &m1 : §res = w0 ] =
+      Pr[ HybridIRO.Prog.LoopSnoc.sample (r) @ &m1 : §res = ofblock w0 ] := by
+    -- EC: byequiv=> //; proc.
+    byequiv
+    equiv_proc
+    -- EC: seq 2 2 :
+    --       (r = n{2} /\ j{1} = i{2} /\ j{1} = 0 /\
+    --        cs{1} = l{2} /\ cs{1} = []);
+    --       first auto.
+    equiv_seq 2 2 : (r = §n{2} ∧ §j{1} = §i{2} ∧ §j{1} = 0 ∧ §cs{1} = §l{2} ∧ §cs{1} = [])
+    · equiv_auto
+    -- EC: while
+    --       (r = n{2} /\ j{1} = i{2} /\ cs{1} = l{2} /\ j{1} <= r /\
+    --        size cs{1} = j{1}).
+    equiv_while (r = §n{2} ∧ §j{1} = §i{2} ∧ §cs{1} = §l{2} ∧ §j{1} ≤ r ∧ size §cs{1} = §j{1})
+    -- EC: wp; rnd; skip.
+    --     progress; smt(cats1 gt0_r size_rcons).
+    · stmt_wp; equiv_rnd; equiv_skip
+      intro j₁ cs₁ n₂ i₂ l₂ ⟨⟨hn, hj, hcs, hle, hsz⟩, hlt, _⟩ a _
+      subst hn hj hcs
+      simp only [decide_eq_true_eq] at hlt
+      have : size (rcons cs₁ a) = size cs₁ + 1 := by simp [size, rcons]
+      exact ⟨⟨rfl, rfl, by simp [rcons], by omega, by omega⟩, rfl⟩
+    -- EC: skip=> &m1 &m2 [# <- <- -> <- ->].
+    --     split; first smt(gt0_r).
+    --     move=> cs j i ds not_lt_jr not_lt_ir [# _ eq_ji -> le_jr sz_cs_eq_j].
+    --     have sz_ds_eq_r : size ds = r by smt().
+    --     progress; [by rewrite ofblockK | by rewrite mkblockK].
+    · equiv_skip
+      intro j₁ cs₁ l₁ n₂ i₂ l₂ cs₂ ⟨hn, hj, hj0, hcs, hcs0⟩
+      subst hn hj hcs hcs0 hj0
+      refine ⟨⟨⟨rfl, rfl, rfl, gt0_r.le, by simp [size]⟩, rfl⟩, fun τ₁ τ₂ _ _ hI hg₁ _ => ?_⟩
+      obtain ⟨-, -, hcs, hle, hsz⟩ := hI
+      --     (GAP 10: the invariant's reads restated at the plain lenses for `omega`, `rw`)
+      have hcs' : (localVarLens "cs" (List Bool)).get τ₁ = (localVarLens "l" (List Bool)).get τ₂ :=
+        hcs
+      have hsz' : size ((localVarLens "cs" (List Bool)).get τ₁) = r := by
+        have : size ((localVarLens "cs" (List Bool)).get τ₁) = (localVarLens "j" ℤ).get τ₁ := hsz
+        have : ¬ (localVarLens "j" ℤ).get τ₁ < r := of_decide_eq_false hg₁
+        have : (localVarLens "j" ℤ).get τ₁ ≤ r := hle
+        omega
+      rw [← hcs']
+      exact ⟨by rintro rfl; rw [ofblockK _ hsz'], by intro h; rw [h, mkblockK]⟩
+  -- EC: rewrite (PrLoopSnoc_sample &1 (ofblock w)).
+  --     rewrite dlist1E 1:ge0_r size_block /=.
+  --     have -> :
+  --       (fun (x : bool) => mu1 {0,1} x) =
+  --       (fun (x : bool) => 1%r / 2%r).
+  --     apply fun_ext=> x; by rewrite dbool1E.
+  --     by rewrite Bigreal.BRM.big_const count_predT size_block
+  --                iter_mul_one_half_pos 1:gt0_r.
+  cases a1; cases a2
+  refine (?_ : _ = (1 / 2 ^ r.toNat : ℝ)).trans h2.symm
+  refine h1.trans ?_
+  have hl := PrLoopSnoc_sample m1 (ofblock w0)
+  have hlen : ((ofblock w0).length : ℤ) = r := by
+    have := BitWord.size_word gt0_r.le w0
+    simpa [size, ofblock] using this
+  rw [dlist1E _ _ _ hlen] at hl
+  simp only [dbool1E, List.map_const', List.prod_replicate] at hl
+  have := congrArg ENNReal.toReal hl
+  rw [ENNReal.coe_toReal] at this
+  refine this.trans ?_
+  rw [show (ofblock w0).length = r.toNat by omega]
+  simp [ENNReal.toReal_pow, ENNReal.toReal_inv, one_div, inv_pow]
 
 set_option maxHeartbeats 8000000 in
 -- one declaration: two cases, two one-sided loops and the two `transitivity{2}` steps
@@ -2238,7 +2215,7 @@ theorem next_block_split_BlockSpongeTrans (i2 : ℤ) :
         · exact fun σ _ => ⟨σ, trivial⟩
         · intro τ₁ τ τ₂ h1 h2; rw [h1, h2]
         · equiv_call (_ : True ==> ={res})
-          · exact BlockGen_loop_direct_ec
+          · exact BlockGen_loop_direct
           · ec_auto
         · stmt_inline{1} (BlockGen.direct)
           ec_auto
