@@ -3576,33 +3576,6 @@ concrete callee, which it has for the modules it can read and otherwise takes fr
 stated here (`@[fp_bound]`), each proved by `fp_module`.  They are what the frames of `call H`,
 `conseq H` and `proc (I)` below are found from.  Not EC lemmas. -/
 
-/-- `HybridIROEager.f` touches `HybridIROEager.mp`. -/
-@[fp_bound] theorem fvP_HybridIROEager_f :
-    FVP.fvP HybridIRO.HybridIROEager.f ≤ HybridIRO.HybridIROEager.mp.footprint := by
-  fp_module HybridIRO.HybridIROEager.mp
-
-/-- `HybridIROEager` touches `HybridIROEager.mp`. -/
-@[fp_bound] theorem fvP_HybridIROEager :
-    FVP.fvP HybridIRO.HybridIROEager ≤ HybridIRO.HybridIROEager.mp.footprint := by
-  fp_module HybridIRO.HybridIROEager.mp
-
-/-- `HybridIROLazy` touches `HybridIROLazy.mp`. -/
-@[fp_bound] theorem fvP_HybridIROLazy :
-    FVP.fvP HybridIRO.HybridIROLazy ≤ HybridIRO.HybridIROLazy.mp.footprint := by
-  fp_module HybridIRO.HybridIROLazy.mp
-
-omit [BlockSponge.Params] in
-/-- `BlockSponge.BIRO.IRO.f` touches `BlockSponge.BIRO.IRO.mp`. -/
-@[fp_bound] theorem fvP_BIRO_IRO_f :
-    FVP.fvP BlockSponge.BIRO.IRO.f ≤ BlockSponge.BIRO.IRO.mp.footprint := by
-  fp_module BlockSponge.BIRO.IRO.mp
-
-omit [BlockSponge.Params] in
-/-- `BlockSponge.BIRO.IRO.init` touches `BlockSponge.BIRO.IRO.mp`. -/
-@[fp_bound] theorem fvP_BIRO_IRO_init :
-    FVP.fvP BlockSponge.BIRO.IRO.init ≤ BlockSponge.BIRO.IRO.mp.footprint := by
-  fp_module BlockSponge.BIRO.IRO.mp
-
 omit [SLCommon.Params] [BlockSponge.Params] in
 /-- `IRO.f` touches `IRO.mp`. -/
 @[fp_bound] theorem fvP_IRO_f : FVP.fvP IRO.f ≤ IRO.mp.footprint := by
@@ -3617,11 +3590,6 @@ omit [BlockSponge.Params] in
 /-- `LowerHybridIRO` has no variables. -/
 @[fp_bound] theorem fvP_LowerHybridIRO :
     FVP.fvP GaudisCrypt.SHA3.Sponge.HybridIRO.LowerHybridIRO ≤ ⊥ := by
-  fp_module
-
-omit [BlockSponge.Params] in
-/-- `RaiseFun` has no variables. -/
-@[fp_bound] theorem fvP_RaiseFun : FVP.fvP RaiseFun ≤ ⊥ := by
   fp_module
 
 -- EC's `call (_ : I)` and `proc (I)` on a procedure of the simulator: the first port's rules

@@ -487,28 +487,7 @@ variable [SLCommon.Params]
 /-- EC's `state` (`SLCommonCore`'s, named here: a root `state` exists). -/
 abbrev state := GaudisCrypt.SHA3.SLCommon.state
 
-/-- The footprint of the handles' eager random oracle `RRO`: `FRO.m`. -/
-@[fp_bound] theorem fvP_RRO : FVP.fvP RRO ≤ (ROhandle.FRO.m).footprint := by
-  fp_module ROhandle.FRO.m
-
 /-! The footprints of `RRO`'s procedures (as `Lib/EC/PROM.lean`'s for `RO`; to move there). -/
-
-@[fp_bound] theorem fvP_RRO_init :
-    FVP.fvP (PROM.FullRO.FRO_T.init handle capacity RRO) ≤ (ROhandle.FRO.m).footprint := by
-  fp_module ROhandle.FRO.m
-
-@[fp_bound] theorem fvP_RRO_get :
-    FVP.fvP (PROM.FullRO.FRO_T.get handle capacity RRO) ≤ (ROhandle.FRO.m).footprint := by
-  fp_module ROhandle.FRO.m
-
-@[fp_bound] theorem fvP_RRO_set :
-    FVP.fvP (PROM.FullRO.FRO_T.set handle capacity RRO) ≤ (ROhandle.FRO.m).footprint := by
-  fp_module ROhandle.FRO.m
-
-@[fp_bound] theorem fvP_FRO_handle :
-    FVP.fvP (PROM.FullRO.FRO handle capacity ROhandle.dout ROhandle.FRO.m) ≤
-      (ROhandle.FRO.m).footprint := by
-  fp_module ROhandle.FRO.m
 
 @[fp_bound] theorem fvP_FRO_init_proc :
     FVP.fvP (Module.proc (PROM.FullRO.FRO.init.procedure handle capacity ROhandle.dout

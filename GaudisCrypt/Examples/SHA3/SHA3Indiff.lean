@@ -205,16 +205,6 @@ def cI (x y : ℤ × ℤ) : Prop := x.1 = y.2
 /-- `op wit_pair : block * capacity = witness`. -/
 def wit_pair : block × capacity := default
 
-/-- `IRO.init` touches its map only.  Not an EC lemma. -/
-@[fp_bound] theorem fvP_IRO_init_bool (valid : List Bool → Bool) (d : SubProbability Bool)
-    (mp : Lens (FMap (List Bool × ℤ) Bool) VariableAssignment) :
-    FVP.fvP (GaudisCrypt.SHA3.IRO.IRO.init Bool (List Bool) valid d mp) ≤ mp.footprint := by
-  fp_module mp
-
-/-- `BIRO.IRO` touches `IRO.mp` only.  Not an EC lemma. -/
-@[fp_bound] theorem fvP_IRO_asF : FVP.fvP IRO.asF ≤ (IRO.mp).footprint := by
-  fp_module IRO.mp
-
 /-- `FC` touches `Cntr.c` only.  Not an EC lemma. -/
 @[fp_bound] theorem fvP_FC : FVP.fvP FC ≤ Cntr.c.footprint := by
   fp_module Cntr.c

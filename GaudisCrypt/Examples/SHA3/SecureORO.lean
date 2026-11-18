@@ -87,10 +87,6 @@ end RO
 /-! The footprints of the theory's modules (EasyCrypt reads them off the code; `fp_disjoint` uses
 them). -/
 
-@[fp_bound] theorem fvP_RO :
-    FVP.fvP (RO.RO «from» «to» sampleto RO_m) ≤ RO_m.footprint := by
-  fp_module RO_m
-
 @[fp_bound] theorem fvP_LRO :
     FVP.fvP (RO.LRO «from» «to» sampleto RO_m) ≤ RO_m.footprint := by
   fp_module RO_m

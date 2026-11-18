@@ -2989,46 +2989,6 @@ theorem INV_CF_G1_init :
     obtain rfl : l = [] := by simpa [FMap.mem_set, FMap.mem_empty] using hl
     exact ⟨[], by simp [FMap.mem_set]⟩
 
-/-- `PF.init` touches `PF.m`, `PF.mi`.  Not an EC lemma (EC reads it off the code). -/
-@[fp_bound] theorem fvP_PF_init : FVP.fvP PF.init ≤ PF.m.footprint ⊔ PF.mi.footprint := by
-  have h : FVP.fvP PF.init ≤ (Lens.pair PF.m PF.mi).footprint := by
-    fp_module (Lens.pair PF.m PF.mi)
-  simpa only [Footprint.lens_pair] using h
-
-/-- `PF.f` touches `PF.m`, `PF.mi`.  Not an EC lemma (EC reads it off the code). -/
-@[fp_bound] theorem fvP_PF_f : FVP.fvP PF.f ≤ PF.m.footprint ⊔ PF.mi.footprint := by
-  have h : FVP.fvP PF.f ≤ (Lens.pair PF.m PF.mi).footprint := by
-    fp_module (Lens.pair PF.m PF.mi)
-  simpa only [Footprint.lens_pair] using h
-
-/-- `PF.fi` touches `PF.m`, `PF.mi`.  Not an EC lemma (EC reads it off the code). -/
-@[fp_bound] theorem fvP_PF_fi : FVP.fvP PF.fi ≤ PF.m.footprint ⊔ PF.mi.footprint := by
-  have h : FVP.fvP PF.fi ≤ (Lens.pair PF.m PF.mi).footprint := by
-    fp_module (Lens.pair PF.m PF.mi)
-  simpa only [Footprint.lens_pair] using h
-
-set_option maxHeartbeats 8000000 in
--- `within_lens` against a pair of ten variables is slow
-/-- `G1.S.f` touches `F.RO.m`, `FRO.m` and the variables of `G1`.  Not an EC lemma. -/
-@[fp_bound] theorem fvP_G1S_f : FVP.fvP G1.S.f ≤
-    (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
-    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
-      (Lens.pair G1.bext G1.bcol))))))))).footprint := by
-  fp_module (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
-    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
-      (Lens.pair G1.bext G1.bcol)))))))))
-
-set_option maxHeartbeats 8000000 in
--- `within_lens` against a pair of ten variables is slow
-/-- `G1.S.fi` touches what `G1.S.f` does.  Not an EC lemma. -/
-@[fp_bound] theorem fvP_G1S_fi : FVP.fvP G1.S.fi ≤
-    (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
-    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
-      (Lens.pair G1.bext G1.bcol))))))))).footprint := by
-  fp_module (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
-    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
-      (Lens.pair G1.bext G1.bcol)))))))))
-
 end GaudisCrypt.SHA3.Handle
 
 end FirstPort

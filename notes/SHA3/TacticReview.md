@@ -818,8 +818,13 @@ in one and a half), then one full rebuild per item.
 * **Item 4 (`fp_le` on procedures): done.**  `concreteBound` bounds a `module`'s procedure too, and
   `fp_le` asks `ModuleFootprint.cachedBound` (if the rest then goes through) before unfolding.
   Two `call H` side goals in `Sponge` changed shape (a frame where there was none): EC's
-  `skip; progress; smt()` as `ec_progress` and one line.  Not yet done: deleting the stated
-  `@[fp_bound]` lemmas (83), file by file.
+  `skip; progress; smt()` as `ec_progress` and one line.  Stated `@[fp_bound]` lemmas deleted
+  (2026-11-18), the build as judge: 19 of the 45 that nothing names (Handle 5, Gext 5, Sponge 6,
+  SHA3Indiff 2, SecureORO 1).  Still needed: those `stmt_swap` asks for (it reads footprints by
+  `fp_disjoint` on the callee's procedure module, `Module.proc p`, not a named module: Gcol's
+  `fvP_sample_c`, BR93's `fvP_Log`, Gext's procedure-module group and simulator accessors), and
+  frames that are lost without them (Gconcl_list 3, SHA3Indiff `fvP_RaiseSim`, SHA3OSecurity 8).
+  The rest (38) are named by `GlobBound` instances (restriction checks by instance search).
 * **Item 3 (EC's aliases): parked** (Denis, 2026-11-17).  `proc f = M(O).g` is not accepted by
   `module`; for `RO_LRO_D`'s distinguisher also `procmod () → _` and `procmod (Unit) → _` are
   different signatures (EC identifies them), and a generic wrapper over a Lean function `X F` is
