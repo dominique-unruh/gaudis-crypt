@@ -523,7 +523,18 @@ def equivCallFrameless (h? : Option Term) : TacticM Unit := withMainContext do
     let gPre ← match h? with
       | none => do
           let st ← saveState
-          let gs ← try applyLemma ``prhlStmt_seq_call_refl g
+          -- the same callee on both sides, within a budget: unifying two callees that differ
+          -- unfolds both (185 s for `OSimulator(…(RFList)).fi` against `OSimulator(…(RFWhile)).fi`
+          -- in `SHA3OSecurity`); past it, as for callees that differ, their equality is a goal
+          -- (`sim` closes it with its own budget)
+          let refl : TacticM (Array MVarId) :=
+            withCurrHeartbeats <|
+              withTheReader Core.Context (fun c => { c with maxHeartbeats := 50000 * 1000 }) do
+                applyLemma ``prhlStmt_seq_call_refl g
+          -- (the budget's runtime exception made an ordinary error, for the `catch` below)
+          let budgeted : TacticM (Array MVarId) := tryCatchRuntimeEx refl
+            (fun _ => throwError "equiv_call: the same-callee rule ran out of its budget")
+          let gs ← try budgeted
             catch _ =>
               -- calls of procedures spelled differently: their equality is left as a goal
               st.restore

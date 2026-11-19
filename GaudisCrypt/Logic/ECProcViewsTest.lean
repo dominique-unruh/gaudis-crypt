@@ -84,6 +84,51 @@ module H {
   };
 }
 
+-- `call` on the view's procedure against the module's: the same-callee rule (tried within a
+-- budget) does not see through the view, so their equality is left as the `callee` goal (`sim`
+-- closes it by `simp; rfl`)
+/--
+error: unsolved goals
+case callee
+⊢ CtrView.f.procedure = Ctr.f.procedure
+---
+trace: case hpre
+⊢ equiv[ ={cnt} ==> ={allGlobals} ] {
+      skip;
+} ~
+    {
+      skip;
+}
+
+case callee
+⊢ CtrView.f.procedure = Ctr.f.procedure
+-/
+#guard_msgs in
+example : equiv[ G.run ~ H.run : ={cnt} ==> ={res, cnt} ] := by
+  equiv_proc
+  equiv_call
+  trace_state
+  sorry
+
+-- `call` on the same procedure on both sides: the same-callee rule, no `callee` goal
+/--
+trace: case hpre
+⊢ equiv[ ={cnt} ==> ={allGlobals} ] {
+      skip;
+} ~
+    {
+      skip;
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ H.run ~ H.run : ={cnt} ==> ={res, cnt} ] := by
+  equiv_proc
+  equiv_call
+  trace_state
+  sorry
+
 -- `inline` of a call of the view's procedure
 #guard_msgs in
 example : equiv[ G.run ~ H.run : ={cnt} ==> ={res, cnt} ] := by

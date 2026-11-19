@@ -884,6 +884,11 @@ all.  The time is our tactics' failure paths:
   `Gext.M.f`, many lookups per `fp_disjoint`, failing or not.  Fixed: the free variables and
   constants are collected once, when the bound is cached.  `Gext` 1261 → 196 s, `Handle` 771 →
   271 s, `Gconcl` 401 → 215 s; full build 72 → 43 min.
+* **`call`'s same-callee rule** (`PRHLWp.equivCallFrameless`, also inside `sim`) unified the two
+  callees at default transparency with no limit: 185 s to find `OSimulator(…(RFList)).fi` and
+  `OSimulator(…(RFWhile)).fi` different, in each section's `rw_ideal_2`.  Fixed: tried within
+  `sim`'s callee budget (50M heartbeats); past it the callees' equality is the `callee` goal, as
+  for callees that differ.  `SHA3OSecurity` 720 → 579 s; full build 43 → 40 min.
 * Not ours: in `SHA3OSecurity` the same work (heartbeats) of a step took 16 s alone and up to
   22 min of wall time inside the file (`call (Eager.RO_LRO_D (Dist A))` in sections
   `SecondPreimage` and `Collision`, not in `Preimage`): a stall of Lean's parallel elaboration.
