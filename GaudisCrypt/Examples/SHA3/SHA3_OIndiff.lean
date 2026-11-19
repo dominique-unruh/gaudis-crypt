@@ -44,8 +44,8 @@ The first port's translation notes (some mention declarations that went with its
   type f_in <- bool list * int` is the namespace `OIndif` of abbreviations, opened.
 * `require import SHA3Indiff` comes last, so its `state`, `parse` and `valid` win over the
   root-level `state` and `Sponge.BIRO.valid`; stated with `export`.
-* `FSome(F)` has `proc init = F.init` and is used as a functor (`CSome`): its `init` calls `F.init`
-  (exception E5).  `PSome(P)` is only applied to `Perm`: it is a Lean function assembling
+* `FSome(F)` has `proc init = F.init` and is used as a functor (`CSome`): EC's alias (`proc f = c;`,
+  since 2026-11-20; before, its `init` called `F.init`, exception E5).  `PSome(P)` is only applied to `Perm`: it is a Lean function assembling
   `P.init` with its own `f`, `fi` (`PSome.own`).  `CSome(C)(P) = FSome(C(Poget(P)))` is
   `Module.comp FSome (Module.comp C Poget)`.
 * `OSimulator`, `OFC`, `OPC`, `DFSome`, `DPSome` have no type in EasyCrypt; they are declared at the
@@ -95,13 +95,9 @@ end OIndif
 
 open OIndif
 
--- EC's `FSome (F : FUNCTIONALITY) : OFUNCTIONALITY`; its `proc init = F.init` is wrapped in a call,
--- as `FSome` is used as a functor (`CSome`; exception E5)
+-- EC's `FSome (F : FUNCTIONALITY) : OFUNCTIONALITY`, with its alias `proc init = F.init`
 module FSome using (F : FUNCTIONALITY) : OFUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F.init ();
-    return ()
-  };
+  proc init = F.init;
   proc f (x : List Bool × ℤ) : (Option (List Bool)) {
     var z : List Bool;
     z <- call F.f ($x);

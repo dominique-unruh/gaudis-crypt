@@ -37,7 +37,8 @@ its `bound` queries are used up.  Translated as the pilot `SecureRO`:
 * `clone import PROM.FullRO as RO` is the clone's `RO.m`, `FRO.m`, `RO`, `RO.LRO`, `FRO`,
   `RO_LRO_D` (as the pilot `SecureRO`'s);
 * the procedure aliases of `RF(R)` (`proc init = R.init`, `proc sample = R.sample`) and of
-  `Bounder` (`proc sample = F.sample`) are wrapped in a call (exception E5).
+  `Bounder` (`proc sample = F.sample`) are EC's (`proc f = c;`, since 2026-11-20; before, they
+  were wrapped in a call, exception E5).
 -/
 
 section FirstPort
@@ -52,7 +53,8 @@ The first port's translation notes (some mention declarations that went with its
 * EasyCrypt's module type `RF` and module `RF` share a name; the module type is `RF_T`
   (exception E3).
 * `RF(R)` (`proc init = R.init`, `proc sample = R.sample`) and `Bounder(F)` (`proc sample =
-  F.sample`) are used as functors, so their aliased procedures call the aliased ones (exception E5).
+  F.sample`) are used as functors, so their aliased procedures called the aliased ones (exception
+  E5); since 2026-11-20 they are EC's aliases.
 * The module variables (`Bounder.bounder`, the clone's `RO.m`, `FRO.m`, and the sections' local
   `Preimage2.hash`, `SecondPreimage2.m2`, `D1.m1`) are lens parameters (exception E6 for the local
   ones).
@@ -172,27 +174,20 @@ moduletype RF_T {
   proc sample (x : «from») -> Unit;
 }
 
--- EC's `module RF (R : RO) : RF`; its aliases `proc init = R.init`, `proc sample = R.sample` are
--- wrapped in a call (exception E5)
+-- EC's `module RF (R : RO) : RF`, with its aliases `proc init = R.init`, `proc sample = R.sample`
 module RF using (R : RO_T) : RF_T {
-  proc init () : Unit {
-    _ <- call R.init ();
-    return ()
-  };
+  proc init = R.init;
   proc get (x : «from») : (Option «to») {
     var y : «to»;
     y <- call R.get ($x);
     return some $y
   };
-  proc sample (x : «from») : Unit {
-    _ <- call R.sample ($x);
-    return ()
-  };
+  proc sample = R.sample;
 }
 
 global_var Bounder.bounder : ℤ
 
--- `proc sample = F.sample` is wrapped in a call (exception E5)
+-- EC's `module Bounder (F : RF) : RF`, with its alias `proc sample = F.sample`
 module Bounder using (F : RF_T) : RF_T {
   proc init () : Unit {
     Bounder.bounder <- 0;
@@ -208,10 +203,7 @@ module Bounder using (F : RF_T) : RF_T {
     }
     return $y
   };
-  proc sample (x : «from») : Unit {
-    _ <- call F.sample ($x);
-    return ()
-  };
+  proc sample = F.sample;
 }
 
 -- EasyCrypt's `module type Oracle = { proc get(x : from) : to option {} }`
