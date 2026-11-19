@@ -106,4 +106,24 @@ example (g : VariableAssignment) :
   fail_if_success glob_set_present
   rfl
 
+/-! ### A bound `fp_module` cannot prove is no bound
+
+`Wrap(M)`, a functor applied to a concrete module, is bounded by `FVP.fvP M`; `fp_module`, meeting
+`M`'s variables in the code, cannot show it.  The footprint read off the code is then none (not a
+`sorry`, cached, with an error logged in the caller's proof), and `fp_disjoint` fails. -/
+
+set_option linter.gaudisCrypt.using false in
+module Wrap (P : Two) {
+  proc g (x : ℕ) : Bool {
+    var r : Bool;
+    r <- call P.f ($x);
+    return $r
+  };
+}
+
+#guard_msgs in
+example : True := by
+  fail_if_success have : FVP.fvP (Wrap M) ≤ (gwOther.footprint)ᶜ := by fp_disjoint
+  trivial
+
 end GaudisCrypt.GlobWritesTest

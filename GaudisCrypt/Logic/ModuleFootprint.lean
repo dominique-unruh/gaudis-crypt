@@ -107,9 +107,21 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
     let tac ← match lensT with
       | some t => `(tactic| fp_module $t)
       | none => `(tactic| fp_module)
-    let gs ← try Tactic.run mv.mvarId! (evalTactic tac) catch _ => return none
-    unless gs.isEmpty do return none
-    return some (← instantiateMVars mv)
+    -- without error recovery: a goal `fp_module` cannot close is a failure here, not a `sorry`
+    -- in a bound that is then cached (and an error logged in the caller's proof); `SimLast(S)`,
+    -- its argument's variables met in its code, was one
+    let log ← Core.getMessageLog
+    Core.resetMessageLog
+    try
+      let gs ← try Term.withoutErrToSorry <| Tactic.run mv.mvarId! (withoutRecover (evalTactic tac))
+        catch _ => return none
+      unless gs.isEmpty do return none
+      if (← Core.getMessageLog).hasErrors then return none
+      let pf ← instantiateMVars mv
+      if pf.hasSorry then return none
+      return some pf
+    finally
+      Core.setMessageLog log
 
 /-- A cached bound: the module, the proof (if any), and the proof's free variables and constants
 (collected once: the proof is a large shared term, and walking it on each use, as
