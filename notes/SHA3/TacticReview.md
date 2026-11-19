@@ -895,7 +895,14 @@ all.  The time is our tactics' failure paths:
   `Gconcl_list`'s six local tactic macros, declared at their first use, made it elaborate in
   stretches (181% CPU): declared after the namespace's header now, `Gconcl_list` 578 → 340 s;
   `Handle`'s `pf_bad_leaf` likewise, 268 → 179 s.  The proofs are unchanged (TRANSFER_SKILL §6).
+* Parallelism: `SHA3OSecurity` is 2389 s of work on one thread (`lean -j1`), 570 s by default
+  (~590% CPU: 4.2× faster, ~40% overhead).  `LEAN_NUM_THREADS` does not limit the elaboration
+  inside a file (588% CPU with it set to 1); `lean -j N` does.  The file's time is now its longest
+  proofs (`rw_ideal_2`, `eager_ideal` of the three sections).
 * Not ours: in `SHA3OSecurity` the same work (heartbeats) of a step took 16 s alone and up to
   22 min of wall time inside the file (`call (Eager.RO_LRO_D (Dist A))` in sections
   `SecondPreimage` and `Collision`, not in `Preimage`): a stall of Lean's parallel elaboration.
-  Not reproduced with a sleeping or one heavy concurrent proof; parked.
+  Not reproduced with a sleeping or one heavy concurrent proof, nor with sleeping theorems
+  around it; still 420 s of `Collision.eager_ideal`'s 774 s after the fixes, so it now sets the
+  file's time.  Hypothesis (unchecked): the step waits for a small task (a lemma the `module Dist`
+  command generates?) queued behind the heavy proofs.  Parked.
