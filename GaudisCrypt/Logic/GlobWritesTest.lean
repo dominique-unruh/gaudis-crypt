@@ -142,4 +142,16 @@ example : (FVP.fvP Al).HasWrites gwCount := by fp_writes
 /-- The bound read off the code, through the aliases. -/
 example : FVP.fvP Al ≤ (gwOther.footprint)ᶜ := by fp_disjoint
 
+/-! A concrete module met twice inside another (`M` in both aliases of `AlM`): `fp_module` bounds
+it by its own bound (read off its code once, cached) instead of reading its code at each
+occurrence. -/
+
+module AlM : Two {
+  proc init = M.init;
+  proc f = M.f;
+}
+
+example : FVP.fvP AlM ≤ (gwOther.footprint)ᶜ := by fp_disjoint
+example : (FVP.fvP AlM).HasWrites gwCount := by fp_writes
+
 end GaudisCrypt.GlobWritesTest

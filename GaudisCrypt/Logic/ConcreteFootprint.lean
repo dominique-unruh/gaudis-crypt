@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.FrameTactics
 
 /-!
 # The footprint of concrete code that only uses locals
@@ -436,16 +437,42 @@ def runOn (g : MVarId) (stx : TSyntax `tactic) : TacticM (List MVarId) := do
   evalTactic stx
   getGoals
 
+/-- At a closed module `c` inside the module being bounded (a `module` applied to its Lean
+arguments, a clone's module): `c`'s own bound `FVP.fvP c ≤ B_c` from the bound hook (read off
+`c`'s code once per file and cached, `Logic/ModuleFootprint.lean`), then `B_c ≤ B` (each of `B_c`'s
+variables among `B`'s, `fp_sub`).  `false`, and the goal untouched, if there is no such bound or
+it does not fit: the caller then unfolds `c`.  A sub-module met several times (`DSqueeze2` in
+`Gconcl_list.D5`, `FC`, `PC` in `D2` … `D6`) is so read once, not at each occurrence. -/
+def subBound (g : MVarId) (c : Lean.Expr) : TacticM Bool := g.withContext do
+  unless c.getAppFn.isConst do return false
+  let some pf ← (← FootprintSolver.defaultBoundHook.get) c | return false
+  let s ← saveState
+  try
+    let gs ← runOn g (← `(tactic| refine LE.le.trans $(← Term.exprToSyntax pf) ?_))
+    for g' in gs do
+      let r ← runOn g' (← `(tactic| first
+        | exact bot_le
+        | exact le_rfl
+        | (simp only [Footprint.lens_pair]; fp_sub)))
+      unless r.isEmpty do throwError "fp_module: the sub-module's bound does not fit"
+    return true
+  catch _ =>
+    s.restore
+    return false
+
 /-- Bound `L ≤ B`, `L` a join of `FVP.fvP M`, `evalMexpr` of module expressions and procedure
-footprints, through the module's expression down to its procedures, each closed by `close`. -/
-partial def go (close : TSyntax `tactic) (g : MVarId) (fuel : Nat := 64) : TacticM Unit :=
+footprints, through the module's expression down to its procedures, each closed by `close`.
+`atRoot`: still at the module being bounded itself, before its expression is taken apart; below
+it, a closed sub-module is bounded by its own bound where it has one (`subBound`). -/
+partial def go (close : TSyntax `tactic) (g : MVarId) (fuel : Nat := 64) (atRoot : Bool := true) :
+    TacticM Unit :=
     g.withContext do
   if fuel == 0 then throwError "fp_module: gave up"
   let ty ← instantiateMVars (← g.getType)
   let_expr LE.le _ _ L _ := ty | throwError "fp_module: not an inequality:{indentExpr ty}"
   let L ← whnfR L
-  let next (stx : TSyntax `tactic) : TacticM Unit := do
-    for g' in ← runOn g stx do go close g' (fuel - 1)
+  let next (stx : TSyntax `tactic) (atRoot' : Bool := atRoot) : TacticM Unit := do
+    for g' in ← runOn g stx do go close g' (fuel - 1) atRoot'
   if L.isAppOfArity ``Max.max 4 then
     return ← next (← `(tactic| refine sup_le ?_ ?_))
   if L.isAppOf ``Bot.bot then
@@ -462,18 +489,22 @@ partial def go (close : TSyntax `tactic) (g : MVarId) (fuel : Nat := 64) : Tacti
   let e := L.appArg!
   -- a module expression the simp set did not take apart
   let_expr Module.expression _ c := e
-    | next (← `(tactic| simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair,
+    | next (atRoot' := false) (← `(tactic| simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair,
         evalMexpr_fst, evalMexpr_snd, evalMexpr_var, evalMexpr_unit, evalMexpr_proc,
         evalMexpr_procHoles, sup_bot_eq, bot_sup_eq]))
   let c ← whnfR c
   if c.isAppOf ``Module.procWithHoles then
-    return ← next (← `(tactic| refine (evalMexpr_procWithHoles_le _).trans ?_))
+    return ← next (atRoot' := false)
+      (← `(tactic| refine (evalMexpr_procWithHoles_le _).trans ?_))
   if c.isAppOf ``ModuleExpression.toModule then
-    return ← next (← `(tactic| (
+    return ← next (atRoot' := false) (← `(tactic| (
       refine (evalMexpr_toModule_le _ _).trans ?_
       try simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_fst,
         evalMexpr_snd, evalMexpr_var, evalMexpr_unit, evalMexpr_proc, evalMexpr_procHoles,
         sup_bot_eq, bot_sup_eq])))
+  -- a closed sub-module with a bound of its own
+  if !atRoot then
+    if ← subBound g c then return
   -- a named module (a `module`, one of its procedures): unfold it
   let some c' ← unfoldDefinition? c
     | -- an abstract module (a parameter): its footprint must be part of the bound
@@ -482,7 +513,7 @@ partial def go (close : TSyntax `tactic) (g : MVarId) (fuel : Nat := 64) : Tacti
       unless gs.isEmpty do throwError "fp_module: cannot unfold{indentExpr c}"
       return
   let L' := mkApp L.appFn! (mkApp e.appFn! c')
-  go close (← g.replaceTargetDefEq (← mkAppM ``LE.le #[L', ty.getArg! 3])) (fuel - 1)
+  go close (← g.replaceTargetDefEq (← mkAppM ``LE.le #[L', ty.getArg! 3])) (fuel - 1) atRoot
 
 end FpModule
 

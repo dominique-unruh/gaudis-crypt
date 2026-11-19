@@ -937,3 +937,10 @@ all.  The time is our tactics' failure paths:
   * The SHA-3 imports are a single chain (each file uses the previous one), so the build time is
     the sum along it; no import to trim.
   Full build 40.4 → 33.2 min.
+* Third round (2026-11-19, after `equiv_ideal`'s lazy/eager steps moved to EC's form): the four
+  `RO_LRO_D` side conditions (`ec_module`/`fp_disjoint` over `D2(D)` … `D6(D)`) ran inside
+  `equiv_ideal`, 5.5G heartbeats, `D5`/`D6` 2.2G each, spread over `fp_module` reading the same
+  sub-modules' code (`DSqueeze2` twice in each, `FC`, `PC`, `S2`) again and again; Gconcl_list
+  320 → 406 s.  `fp_module` now bounds a closed sub-module below the root by its own bound (the
+  bound hook, cached per file: `FpModule.subBound`), unfolding only where that bound does not
+  fit.  Gconcl_list 304 s; full build 33.2 min, as before the change.
