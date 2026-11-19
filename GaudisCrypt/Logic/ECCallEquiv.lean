@@ -133,6 +133,7 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
         Term.synthesizeSyntheticMVarsNoPostponing
         let hJ ← instantiateMVars hJ
         unless (← whnfR (← inferType hJ)).isAppOf ``prhlProc do return (none, none)
+        let hJ ← unfoldAliasesIn hJ
         let B := ty.getArg! 3
         let (_, gls) ← ECSim.varsOf #[B]
         let Rs ← ECConseqFrame.regionsOf #[B]

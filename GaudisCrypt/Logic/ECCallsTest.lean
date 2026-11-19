@@ -195,6 +195,69 @@ example (R : ℤ → ℤ → Prop) :
   trace_state
   all_goals sorry
 
+-- `call H`, `H` a judgment about procedure aliases of the callees (`proc get = O.get;`, EC's
+-- `call (RO_LRO_D (D2(D)))`): the aliases are rewritten to their callees first.  A single-procedure
+-- module without a module type (`Fw(Inc).get` is `Fw` applied), and one with a type (`FwT(Inc).get`
+-- is `Orc.get` of it applied)
+module Fw using (O : Orc) {
+  proc get = O.get;
+}
+
+module FwT using (O : Orc) : Orc {
+  proc get = O.get;
+}
+
+theorem Fw_Inc_Inc2 : equiv[ Fw(Inc).get ~ Fw(Inc2).get : ={arg, cCount} ==> ={res, cCount} ] := by
+  simp only [Fw.apply_simp, Fw.get.apply_simp]
+  exact Inc_Inc2
+
+theorem FwT_Inc_Inc2 :
+    equiv[ FwT(Inc).get ~ FwT(Inc2).get : ={arg, cCount} ==> ={res, cCount} ] := by
+  simp only [FwT.apply_simp, Orc.get.mk_simp, FwT.get.apply_simp]
+  exact Inc_Inc2
+
+/--
+trace: R : ℤ → ℤ → Prop
+⊢ equiv[ ={x, cCount} ==>
+      ={r, cCount} ∧
+        ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+          r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂ → R r₁ r₂ ]
+      {
+      var x : ℤ, r : ℤ;
+      r <- call Inc.get.procedure (§x);
+} ~ {
+      var x : ℤ, r : ℤ;
+      r <- call Inc2.get.procedure (§x);
+}
+---
+trace: R : ℤ → ℤ → Prop
+⊢ equiv[ ={x, cCount} ==>
+      ={x, cCount} ∧
+        ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+          r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂ →
+            (r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂) ∧
+              ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+                r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂ → R r₁ r₂ ]
+      {
+      var x : ℤ;
+      skip;
+} ~
+    {
+      skip;
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (R : ℤ → ℤ → Prop) :
+    equiv[ Twice(Inc).main ~ Twice(Inc2).main : ={arg, cCount} ==> R §res{1} §res{2} ] := by
+  equiv_proc
+  equiv_call Fw_Inc_Inc2
+  trace_state
+  equiv_call FwT_Inc_Inc2
+  trace_state
+  all_goals sorry
+
 -- `call (_ : ={x})` on the same callee on both sides, no footprint stated for it: the one read
 -- off its code (`fp_le`), and EC's frame (what the callee does not write is kept)
 /--

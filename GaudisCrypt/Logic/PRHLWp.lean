@@ -510,6 +510,41 @@ elab "equiv_seq_last " k₁:num ppSpace k₂:num " : " M:term : tactic => withMa
     let #[g₂, g₁] := gs | throwError "equiv_seq_last: `prhlStmt_seq` left {gs.size} goals"
     replaceMainGoal [g₁, g₂]
 
+/-- A procedure judgment `h` with the procedure aliases of `module`s in its type (`proc f = c;`,
+`@[gaudiModuleAlias]`) rewritten to their callees by their `X.f.apply_simp` lemmas: EC's
+`call (RO_LRO_D (D2(D)))` names the alias, the program calls the callee.  A module made of
+aliases only is opened too (`X.apply_simp`, and the accessors' `mk_simp` on the record it gives):
+`D2(D)` applied, a single-procedure module, is its alias.  `h` itself when its type mentions no
+alias. -/
+def unfoldAliasesIn (h : Lean.Expr) : MetaM Lean.Expr := do
+  let ty ← instantiateMVars (← inferType h)
+  let env ← getEnv
+  let isAlias (c : Name) := gaudiModuleAliasAttr.hasTag env c
+  -- the procedures of a `module` all of whose procedures are aliases
+  let aliasProcs? (c : Name) : Option (Array Name) := Id.run do
+    let some v := (env.find? c).bind (·.value?) | return none
+    let procs := v.getUsedConstants.filter fun d => d.getPrefix == c && isModuleProc env d
+    if !procs.isEmpty && procs.all isAlias then return some procs else return none
+  let consts := ty.getUsedConstants
+  -- the aliases, and the modules of aliases with their procedures (which the module's lemma
+  -- brings in)
+  let opened := (consts.foldl (init := #[]) fun acc c =>
+    if isAlias c then acc.push c
+    else match aliasProcs? c with
+      | some ps => acc.push c ++ ps
+      | none => acc).filter fun c => env.contains (c ++ `apply_simp)
+  if opened.isEmpty then return h
+  let mut thms : SimpTheorems := {}
+  for c in opened do thms ← thms.addConst (c ++ `apply_simp)
+  -- the accessors of the records the modules' `apply_simp` give
+  for c in consts do
+    if env.contains (c ++ `mk_simp) then thms ← thms.addConst (c ++ `mk_simp)
+  let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
+  let (r, _) ← simp ty ctx
+  match r.proof? with
+  | some pf => mkEqMP pf h
+  | none => return h
+
 /-- The call rule without a frame (`prhlStmt_seq_call`, `prhlStmt_seq_call_refl`): what
 `equiv_call h` and `equiv_call` do when no framed rule applies (`Logic/ECCallEquiv.lean`), and
 `equiv_call_frameless` by name. -/
@@ -552,7 +587,7 @@ def equivCallFrameless (h? : Option Term) : TacticM Unit := withMainContext do
       | some h => do
           let hE ← elabTerm h none
           Term.synthesizeSyntheticMVarsNoPostponing
-          let hE ← instantiateMVars hE
+          let hE ← unfoldAliasesIn (← instantiateMVars hE)
           let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call
           let (ms, _, concl) ← forallMetaTelescope (← inferType c)
           let isJ (m : Lean.Expr) : TacticM Bool := do

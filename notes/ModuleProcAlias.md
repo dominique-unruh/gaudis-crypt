@@ -76,6 +76,13 @@ field, so a module may mix aliases and ordinary procedures.
   definitions modules (with aliases, now possible) rather than to teach the proof to unfold.
   A definition that only rearranges the parameter's own fields goes through.
 
+## `equiv_call` with a judgment about an alias
+
+EC's `call (RO_LRO_D (D2(D)))` names the alias, while the program (after `inline*`) calls the
+callee.  `equiv_call h` now rewrites the aliases in `h`'s type first (`PRHLWp.unfoldAliasesIn`:
+the aliases' `X.f.apply_simp`, and for a module made of aliases only its `X.apply_simp` and the
+accessors' `mk_simp`).  Golden test in `Logic/ECCallsTest.lean` (`Fw`, `FwT`).
+
 ## Checked on the real case (scratch, not committed)
 
 In `Gconcl_list`: `module V2 using (F) { proc init = F.init; }` gives
