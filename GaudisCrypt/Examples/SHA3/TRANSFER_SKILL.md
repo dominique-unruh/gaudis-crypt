@@ -954,8 +954,10 @@ Document each in the docstring when it applies.
   (`abbrev rand : Type := BitWord.word l`) need no annotations at their uses.
 * **A nested module** (`module QRO = { … }` inside `module I`): a module next to it, named
   `I.QRO`, with the outer module's parameters it uses (`A(I.QRO(H)).a1`).  **A procedure
-  alias** (`proc a1 = A(H).a1`): a procedure with the one call; one more `inline` where EC's
-  script sees the callee directly.
+  alias** (`proc a1 = A(H).a1`): `proc a1 = A(H).a1;` inside the `module` (since 2026-11-19,
+  `notes/ModuleProcAlias.md`).  `X.a1.apply_simp` rewrites the alias to its callee, so EC's
+  script sees the callee as EC's does, with no `inline`.  Older ports wrap it in a procedure with
+  the one call (E5).
 * **A wrapper around a declared adversary, passed to a lemma of another section** (`apply
   (Reduction (A_CPA(A)) _ _ &m)`): `module A_CPA (A : Adv) using (H : POracle) : AdvProcs`
   (`A` a Lean parameter: `A_CPA A` is EC's `A_CPA(A)`), `theorem fvP_A_CPA : FVP.fvP (A_CPA A)

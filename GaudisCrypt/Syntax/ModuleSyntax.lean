@@ -1013,7 +1013,27 @@ naming it takes an application of `X` all the way to a hole-free `Procedure`.
 It is left out of the `simp` set on purpose.  Its right-hand side is the whole procedure body, so as
 a `@[simp]` lemma it turns every goal that so much as mentions an instantiated procedure into that
 body; inlining a procedure is a step to ask for by name.  The `@[simp]` lemmas above it stop exactly
-at `Module.proc (X.<f>.procedure.instantiate …)`. -/
+at `Module.proc (X.<f>.procedure.instantiate …)`.
+
+## Procedure aliases — `proc f = c;`
+
+EasyCrypt's `proc f = M.g` makes `f` the procedure `M.g` itself.  Inside `module` that is
+```
+module Valid2 using (F : RO_T) : RO_T {
+  proc init = F.init;
+  proc get (x : List block) : block { … };
+}
+```
+where the callee `c` is any procedure-valued module term over the module parameters (what a `call`
+accepts as callee).  An alias has no body, hence no `X.<f>.procedure`: `X.<f>` is `c` itself when
+`c` mentions no module parameter, and otherwise `c` read back as a module expression (as a hole's
+callee is) under one `.abs` per parameter it uses.  Its `@[simp]` lemma `X.<f>.apply_simp` is
+`Module.app (… (Module.app X.f A) …) Z = c`, so that after `simp` the alias *is* its callee —
+no call in between, nothing to inline.  `X` and `X.apply_simp` treat an alias as any other field.
+
+`X.<f>` is tagged `@[gaudiModuleAlias]`, which is how the tools that recognise a `module`'s
+procedure by its `X.<f>.procedure` know it is one (`isModuleProc`), and gets
+`@[gaudiProcParamNames]` when the head of `c` records them. -/
 
 /-- One procedure of a `module` declaration: `proc f (x : T, …) : R { … };`.  Same shape as
 the `proc` *term* syntax (which it expands to), plus a name and a trailing `;`. -/
@@ -1026,6 +1046,11 @@ syntax "proc " ident "(" proc_binder,* ")" (" : " term:max)? "{"
          gaudi_stmt*
          "return" term (";")?
        "}" (";")? : gaudi_module_proc
+
+/-- A procedure alias, EasyCrypt's `proc f = M.g`: `f` *is* the procedure `c` (any
+procedure-valued module term over the module parameters), not a procedure calling it.  The `;` is
+required: without it the callee term would run on into the next `proc`. -/
+syntax (name := gaudiModuleProcAlias) "proc " ident " = " term ";" : gaudi_module_proc
 
 -- `atomic` on the Lean parameters, because an implicit one (`{α : Type}`) and the `{ … }` body
 -- start with the same token: without it the parser commits to reading the body as one more
@@ -1207,6 +1232,28 @@ def procApply (x : Name) : TacticM Unit := do
   -- (`rw`'s closing `rfl` may already prove the rewritten goal: a callee built in place,
   -- `{ expression := c.reduce, … }`)
   repeatAllTac <| peel <|> (do spec; unless (← getGoals).isEmpty do moduleCallee) <|> moduleCallee
+
+open Lean Elab Tactic in
+/-- Proves `Module.app (… (Module.app X.f A₁) …) Aₖ = c` for an alias `proc f = c;` of a
+`module X (…) { … }` declaration — the `X.f.apply_simp` lemma `ModuleDecl.elabAlias` emits.
+
+`procApply` without its last part: `X.f` is the callee's own module expression under one `.abs` per
+parameter it uses, so unfolding and β-reducing (the same loop) leaves `c'.reduce = c.expression`,
+with `c'` the callee read back by the command — which is `moduleCallee`'s goal. -/
+def aliasApply (x : Name) : TacticM Unit := do
+  applyConst ``Module.ext
+  simpOnlyConsts (moduleUnfoldStep (← resolveHere x))
+  repeatTac <| reduceSimp <|> simpOnlyConsts
+    (#[``Module.substituteSimultaneously_expression, ``Module.rename_expression,
+       ``Module.reduce_expression, ``Module.proc, ``Module.toModule_expression,
+       ``ModuleExpression.reduce_proc] ++ reduceStripComposite)
+  unless (← getGoals).isEmpty do
+    try moduleCallee catch ex =>
+      -- the usual cause: a Lean definition building a module (`def V (F) := T.mk …`) on the way
+      -- to the callee, read through when `X.f` was built and named in the lemma
+      throwError "module: could not prove that the alias `{x}`, applied, is its callee.  If the \
+        callee goes through a Lean definition that builds a module (`T.mk …`), declare that \
+        definition as a `module` instead.\n\n{ex.toMessageData}"
 
 end GaudisCrypt
 
@@ -1509,6 +1556,10 @@ structure ProcResult where
   contributing one each).  Recorded in `@[gaudiProcParamNames]` on both `X.<f>.procedure` and
   `X.<f>`. -/
   paramNames : Array Ident
+  /-- For an alias `proc f = c;` (`elabAlias`), the signature of `c`, as syntax: an alias has no
+  `X.<f>.procedure` to read it off, and `declId`, `declRef`, `instThmId` are then `X.<f>`,
+  `X.<f>` with the Lean parameters applied, and `X.<f>.apply_simp`. -/
+  aliasSig? : Option Term := none
 
 /-- Declare `X.<f>.procedure` for one `proc f (…) : R { … }` of a `module X (…)` declaration.
 Returns `none` if the body does not type-check (the errors have then been reported already). -/
@@ -1691,6 +1742,90 @@ def elabProcApplySimp (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × T
     run_tac _root_.GaudisCrypt.procApply $(quote modId.getId)))
   return thmId
 
+/-- Declare an alias `proc f = c;` of `module X (…)`, EasyCrypt's `proc f = M.g`:
+
+* `X.<f>`, the callee `c` itself when it mentions no module parameter, and otherwise `c` read as a
+  module expression (`toModuleExpr`, as a hole's callee is) abstracted over the parameters it uses,
+  of type `Module.Arr T₁ (… (Module.Arr Tₖ (Module.Proc sig)))`;
+* `@[simp] X.<f>.apply_simp : Module.app (… (Module.app X.<f> A₁) …) Aₖ = c`, by `rfl` or by
+  `aliasApply` — so that after `simp` the alias *is* `c`, with no call in between.
+
+`X.<f>` is tagged `@[gaudiModuleAlias]` (it has no `X.<f>.procedure`, by which the other tools
+recognise a `module`'s procedure, `isModuleProc`), and gets `@[gaudiProcParamNames]` when the
+head of `c` records them (an accessor, `F.init`).  Returns `none` if `c` is not a procedure (the
+errors have then been reported). -/
+def elabAlias (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)) (fn : Ident)
+    (c : Term) : CommandElabM (Option ProcResult) := do
+  let bs := P.binders
+  let usedPos := (Array.range paramBs.size).filter fun i => mentions [paramBs[i]!.1.getId] c.raw
+  let errsBefore := errorCount (← get).messages
+  -- the callee, with the module parameters in the local context: its signature (as syntax), its
+  -- module expression over the parameters, the parameter names its head records
+  let res? ← try
+      some <$> runTermElabM fun _ => P.withBinders <| withParams paramBs.toList fun fvars => do
+        let sigMV ← mkFreshExprMVar (Lean.mkConst ``GaudisCrypt.ProcedureSignature)
+        let e ← Term.elabTerm c none
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let e ← instantiateMVars e
+        if e.hasSyntheticSorry then return none
+        let ty ← inferType e
+        unless ← isDefEq ty (mkApp (Lean.mkConst ``GaudisCrypt.Module)
+            (mkApp (Lean.mkConst ``GaudisCrypt.ModuleTypeRep.proc) sigMV)) do
+          throwErrorAt c "module: `proc {fn.getId} = …;` is an alias of a procedure, \
+            but{indentExpr e}\nis a module of type{indentExpr ty}"
+        let sig ← instantiateMVars sigMV
+        if sig.hasExprMVar then
+          throwErrorAt c "module: cannot determine the signature of the aliased \
+            procedure{indentExpr e}"
+        let params : List (FVarId × Nat) :=
+          (fvars.toList.zipIdx).map fun (x, i) => (x.fvarId!, i)
+        let ex ← if usedPos.isEmpty then pure c else toModuleExpr params e
+        let names := e.getAppFn.constName?.bind (gaudiProcParamNamesAttr.getParam? (← getEnv))
+        return some (← PrettyPrinter.delab (← whnf sig), ex, names)
+    catch ex => logException ex; pure none
+  if errorCount (← get).messages > errsBefore then return none
+  let some (some (sig, expr, names?)) := res? | return none
+  let modId := mkIdent (nm.getId ++ fn.getId)
+  let thmId := mkIdent (modId.getId ++ `apply_simp)
+  if usedPos.isEmpty then
+    elabCommand (← `(command| noncomputable def $modId:ident $bs* :
+      GaudisCrypt.Module.Proc $sig := $c))
+  else
+    let mut ty ← `(GaudisCrypt.Module.Proc $sig)
+    for i in usedPos.reverse do ty ← `(GaudisCrypt.Module.Arr $(paramBs[i]!.2) $ty)
+    -- the `j`-th used parameter is `.var (k-1-j)`, as in `elabProcModule`
+    let subst := (Array.range paramBs.size).map fun i =>
+      match usedPos.findIdx? (· == i) with
+      | some j => Syntax.mkCApp ``GaudisCrypt.ModuleExpression.var
+                    #[Syntax.mkNatLit (usedPos.size - 1 - j)]
+      | none => paramPlaceholder i
+    let mut body : Term := ⟨substParams subst expr⟩
+    for _ in usedPos do body ← `(GaudisCrypt.ModuleExpression.abs $body)
+    elabCommand (← `(command| noncomputable def $modId:ident $bs* : $ty :=
+      GaudisCrypt.ModuleExpression.toModule (m := $body)))
+  elabCommand (← `(command| attribute [gaudiModuleAlias] $modId:ident))
+  let pns := (names?.getD #[]).map mkIdent
+  if names?.isSome then
+    elabCommand (← `(command| attribute [gaudiProcParamNames $pns,*] $modId:ident))
+  let modRef ← P.ref modId
+  if usedPos.isEmpty then
+    elabCommand (← `(command| @[simp] theorem $thmId:ident $bs* :
+      $modRef = ($c : GaudisCrypt.Module.Proc $sig) := rfl))
+  else
+    let mut lhs : Term := modRef
+    for i in usedPos do lhs ← appR lhs paramBs[i]!.1
+    -- the statement, as a `(x : T) → …` chain (as in `elabProcApplySimp`)
+    let mut stmt ← `($lhs = ($c : GaudisCrypt.Module.Proc $sig))
+    for i in [0 : usedPos.size] do
+      let (x, ty) := paramBs[usedPos[usedPos.size - 1 - i]!]!
+      stmt ← `(($x : $ty) → $stmt)
+    let ids := usedPos.map (paramBs[·]!.1)
+    elabCommand (← `(command| @[simp] theorem $thmId:ident $bs* : $stmt := by
+      intro $ids*
+      run_tac _root_.GaudisCrypt.aliasApply $(quote modId.getId)))
+  return some { fn, declId := modId, declRef := modRef, usedPos, calleeExprs := #[],
+                callees := #[c], instThmId := thmId, paramNames := pns, aliasSig? := some sig }
+
 /-- `f x₁ (f x₂ (… xₙ))` — every tuple built here is right-nested, and a one-element one is just
 its element (as in `moduletype`, whose product of `n` field types has `n-1` `.prod`s).  `xs` must
 not be empty. -/
@@ -1850,7 +1985,10 @@ def elabModule (nm : Ident) (P : LeanParams) (params? : Option (Array (Ident × 
   let mt ← match mt? with
     | some mt => pure mt
     | none => rightNest prod (← procs.mapM fun r => do
-        `(GaudisCrypt.Module.Proc $(← runTermElabM fun _ => procSig P r.declRef)))
+        let sig ← match r.aliasSig? with
+          | some sig => pure sig
+          | none => runTermElabM fun _ => procSig P r.declRef
+        `(GaudisCrypt.Module.Proc $sig))
   let paramProd ←
     if n == 0 then `(GaudisCrypt.Module.Unit) else rightNest prod (paramBs.map (·.2))
   let ty ← match params? with
@@ -1936,6 +2074,29 @@ elab_rules : command
     let mut declared : Array DeclInfo := #[]
     let mut results : Array ProcResult := #[]
     for p in procs do
+      if let `(gaudi_module_proc| proc $fn:ident = $c:term ;) := p then
+        let some r ← elabAlias nm P paramBs fn c | continue
+        results := results.push r
+        let f := fn.getId
+        let used := ", ".intercalate (r.usedPos.toList.map fun i => s!"`{paramBs[i]!.1.getId}`")
+        declared := declared.push ⟨r.declId.getId,
+          if r.usedPos.isEmpty then s!"proc {f}, an alias"
+          else s!"proc {f}, an alias, in {used}",
+          if r.usedPos.isEmpty then
+            s!"`proc {f} = …;` of `module {nm.getId}`: an alias, EasyCrypt's `proc {f} = M.g`.  \
+              Its callee mentions no module parameter, so `{r.declId.getId}` is the callee itself."
+          else
+            s!"`proc {f} = …;` of `module {nm.getId}`: an alias, EasyCrypt's \
+              `proc {f} = M.g` — the callee itself, as a module abstracted over the module \
+              parameters it uses ({used}, in declaration order).  It has no `{r.declId.getId}.procedure`: applied \
+              with the `@[simp]` lemma `{r.instThmId.getId}`, it *is* the callee."⟩
+        declared := declared.push ⟨r.instThmId.getId,
+          if r.usedPos.isEmpty then s!"proc {f} as its callee"
+          else s!"applying proc {f} to {used}",
+          s!"`@[simp]`: the alias `{r.declId.getId}`{if r.usedPos.isEmpty then "" else
+            s!", applied to the parameters its callee uses ({used}),"} is its callee, as written \
+            in the declaration."⟩
+        continue
       let some r ← elabProcedure nm P paramBs p | continue
       results := results.push r
       let fn := r.fn.getId

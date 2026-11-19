@@ -650,4 +650,142 @@ open Lean in
 #eval show CoreM _ from do
   return gaudiProcParamNamesAttr.getParam? (← getEnv) ``PartlyNamed.f
 
+/- ### Procedure aliases (`proc f = c;`)
+
+EasyCrypt's `proc f = M.g`: `f` is the procedure `c` itself, not a procedure calling it.  `X.f` is
+`c` abstracted over the module parameters it uses, and `X.f.apply_simp` gives `c` back. -/
+
+-- an alias of a parameter's procedure, as the whole of a module
+module Fwd using (S : OneField) : OneField {
+  proc only = S.only;
+}
+
+/-- info: Experiment.Fwd.only.apply_simp (S : OneField) : Module.app Fwd.only S = S.only -/
+#guard_msgs in
+#check Fwd.only.apply_simp
+
+-- the module, applied, has the parameter's procedure as its field: `simp` gets there with the
+-- module's lemma, the field lemma, and the alias's lemma
+example (S : OneField) : OneField.only (Module.app Fwd S) = OneField.only S := by
+  simp only [Fwd.apply_simp, OneField.only.mk_simp, Fwd.only.apply_simp]
+
+-- aliases and ordinary procedures in one module, and an alias of a sibling of the parameter
+module Mixed using (A : M2) : M2 {
+  proc g = A.h;
+  proc h() : Unit {
+    _ <- call (A.g) ();
+    return ();
+  };
+}
+
+/-- info: Experiment.Mixed.g.apply_simp (A : M2) : Module.app Mixed.g A = A.h -/
+#guard_msgs in
+#check Mixed.g.apply_simp
+
+example (A : M2) : M2.g (Module.app Mixed A) = A.h := by
+  simp only [Mixed.apply_simp, M2.g.mk_simp, Mixed.g.apply_simp]
+
+-- an alias of a functor applied: to a closed module, and to another parameter
+module Applied using (A : Module.Arr TestModule (procmod () → Unit), B : TestModule) {
+  proc closed = Module.app A myMod;
+  proc open_ = Module.app A B;
+}
+
+/--
+info: Experiment.Applied.closed.apply_simp (A : TestModule →ₘ procmod () → Unit) :
+  Module.app Applied.closed A = Module.app A myMod
+-/
+#guard_msgs in
+#check Applied.closed.apply_simp
+
+/--
+info: Experiment.Applied.open_.apply_simp (A : TestModule →ₘ procmod () → Unit) (B : TestModule) :
+  Module.app (Module.app Applied.open_ A) B = Module.app A B
+-/
+#guard_msgs in
+#check Applied.open_.apply_simp
+
+-- an alias of a closed procedure: the procedure itself, by definition
+module Closed {
+  proc main = myMod.main;
+}
+
+/-- info: Experiment.Closed.main.apply_simp : Closed.main = myMod.main -/
+#guard_msgs in
+#check Closed.main.apply_simp
+
+-- the alias is tagged (it has no `.procedure`), and takes the parameter names its callee records
+module NamedAlias using (S : NamedParams) {
+  proc commit = S.commit;
+}
+
+open Lean in
+/--
+info: Fwd.only: true none
+Mixed.g: true (some #[])
+Mixed.h: true (some #[])
+NamedAlias.commit: true (some #[h, m])
+Closed.main: true none
+-/
+#guard_msgs in
+#eval show CoreM Unit from do
+  let env ← getEnv
+  for d in [``Fwd.only, ``Mixed.g, ``Mixed.h, ``NamedAlias.commit, ``Closed.main] do
+    IO.println s!"{d.replacePrefix `Experiment .anonymous}: {isModuleProc env d} \
+      {gaudiProcParamNamesAttr.getParam? env d}"
+
+-- a callee through a Lean definition that builds a module from a procedure module applied to the
+-- parameter, passed on to a functor (the first SHA-3 port's `Valid2`): read through when the alias
+-- is built, named in its lemma, and the two are not compared — the error says to make it a
+-- `module`
+module Inner using (S : OneField) {
+  proc only (n : Nat) : Bool {
+    var b : Bool;
+    b <- call S.only ($n);
+    return $b
+  };
+}
+noncomputable def Rewrapped (S : OneField) : OneField :=
+  OneField.mk { only := Module.app Inner.only S }
+module Outer using (T : OneField) : OneField {
+  proc only (n : Nat) : Bool {
+    var b : Bool;
+    b <- call T.only ($n);
+    return !$b
+  };
+}
+
+/--
+error: module: could not prove that the alias `ThroughDef.only`, applied, is its callee.  If the callee goes through a Lean definition that builds a module (`T.mk …`), declare that definition as a `module` instead.
+
+Tactic `apply` failed: could not unify the conclusion of `@ModuleExpression.reduce_snd_congr`
+  (ModuleExpression.snd ?a).reduce = (ModuleExpression.snd ?c).reduce
+with the goal
+  (Outer.expression.app (Inner.only.expression.app S.expression)).reduce =
+    (Outer.expression.app (Rewrapped S).expression).reduce
+
+Note: The full type of `@ModuleExpression.reduce_snd_congr` is
+  ∀ {a c : ModuleExpression}, a.reduce = c.reduce → a.snd.reduce = c.snd.reduce
+
+S : OneField
+⊢ (Outer.expression.app (Inner.only.expression.app S.expression)).reduce =
+    (Outer.expression.app (Rewrapped S).expression).reduce
+-/
+#guard_msgs(error, drop info) in
+module ThroughDef using (S : OneField) {
+  proc only = OneField.only (Module.app Outer (Rewrapped S));
+}
+
+-- the callee has to be a procedure
+/--
+error: module: `proc aux = …;` is an alias of a procedure, but
+  S.aux
+is a module of type
+  GaudisCrypt.Module ((ModuleTypeRep.proc (procsig (ℕ) → String)).arr ModuleTypeRep.unit)
+-/
+#guard_msgs(error, drop info) in
+module NotAProc using (S : TestModule) {
+  proc aux = S.aux;
+}
+
 end Experiment

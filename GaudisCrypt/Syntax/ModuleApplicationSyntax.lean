@@ -105,14 +105,14 @@ where
     let arg ← (args.pop).foldrM (fun a acc => `(Module.pair $a $acc)) last
     `(Module.app $m $arg)
 
-/-- The procedures of the `module` `x`: the constants `x.f` its definition mentions that have a
-`x.f.procedure`. -/
+/-- The procedures of the `module` `x`: the constants `x.f` its definition mentions that are
+procedures of it (`isModuleProc`: a `x.f.procedure`, or an alias). -/
 def moduleProcs (env : Environment) (x : Name) : Array Name := Id.run do
   let some ci := env.find? x | return #[]
   let some v := ci.value? | return #[]
   let mut out := #[]
   for c in v.getUsedConstants do
-    if c.getPrefix == x && env.contains (c ++ `procedure) && !out.contains c then
+    if c.getPrefix == x && isModuleProc env c && !out.contains c then
       out := out.push c
   return out
 

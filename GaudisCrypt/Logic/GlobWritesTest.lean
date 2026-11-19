@@ -126,4 +126,20 @@ example : True := by
   fail_if_success have : FVP.fvP (Wrap M) ≤ (gwOther.footprint)ᶜ := by fp_disjoint
   trivial
 
+/-! ### A module of procedure aliases
+
+`proc f = c;` makes `f` the procedure `c`: `Al`'s procedures are `M.init` and `Fill.fill`, with no
+`.procedure` of their own.  The footprint is read off them all the same. -/
+
+module Al : Two {
+  proc init = M.init;
+  proc f = Fill.fill;
+}
+
+/-- A write in an aliased procedure. -/
+example : (FVP.fvP Al).HasWrites gwCount := by fp_writes
+
+/-- The bound read off the code, through the aliases. -/
+example : FVP.fvP Al ≤ (gwOther.footprint)ᶜ := by fp_disjoint
+
 end GaudisCrypt.GlobWritesTest

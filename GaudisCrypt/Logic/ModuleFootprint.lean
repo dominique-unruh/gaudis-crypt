@@ -22,11 +22,11 @@ namespace GaudisCrypt.ModuleFootprint
 
 open Lean Meta Elab Tactic
 
-/-- `c` is a `module` (its definition mentions procedures `c.f` with a `c.f.procedure`). -/
+/-- `c` is a `module` (its definition mentions procedures `c.f`, `isModuleProc`). -/
 def isModule (env : Environment) (c : Name) : Bool := Id.run do
   let some ci := env.find? c | return false
   let some v := ci.value? | return false
-  return v.getUsedConstants.any fun d => d.getPrefix == c && env.contains (d ++ `procedure)
+  return v.getUsedConstants.any fun d => d.getPrefix == c && isModuleProc env d
 
 /-- A bound `FVP.fvP M ≤ B` for the concrete module `M` (a `module` applied to its Lean
 arguments): `B` the footprint of its abstract module argument (at most one) and of the globals of
@@ -54,10 +54,10 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
       pure (P.getAppFn, P.getAppArgs)
     else pure (M.getAppFn, M.getAppArgs)
   let some c := hd.constName? | return none
-  -- an alias of a clone stands for the theory's module; a `module`'s procedure (`X.f`, with its
-  -- `X.f.procedure`) is bounded as a module is
+  -- an alias of a clone stands for the theory's module; a `module`'s procedure (`X.f`, ordinary
+  -- or an alias) is bounded as a module is
   let b := cloneBase env c
-  unless M.isAppOf ``Module.proc || isModule env b || env.contains (b ++ `procedure) do
+  unless M.isAppOf ``Module.proc || isModule env b || isModuleProc env b do
     return none
   -- the abstract modules among the explicit arguments
   let binfos ← forallTelescope (← getConstInfo c).type fun xs _ =>

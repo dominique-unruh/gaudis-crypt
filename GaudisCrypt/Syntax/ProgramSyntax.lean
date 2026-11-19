@@ -137,7 +137,8 @@ nowhere else. -/
 A `ProcedureSignature` records parameter *types* only, so the names written in a
 `moduletype` field or a `module` procedure would be lost.  They are kept in this attribute
 instead, on the declaration that names the procedure — a `moduletype` accessor `MT.f`, a
-`module`'s procedure module `X.f` and its `X.f.procedure` — so that notation about a
+`module`'s procedure module `X.f` and its `X.f.procedure`, a `module`'s alias `X.f` when its
+callee records them — so that notation about a
 procedure can bind its parameters by name even when the procedure itself is abstract (a field
 of an arbitrary module of a declared module type has no body to read names off).
 
@@ -167,6 +168,18 @@ initialize GaudisCrypt.gaudiProcParamNamesAttr : ParametricAttribute (Array Name
       | `(attr| gaudiProcParamNames $ids,*) => return ids.getElems.map (·.getId)
       | _ => throwError "invalid `gaudiProcParamNames` attribute"
   }
+
+open Lean in
+/-- `@[gaudiModuleAlias]` marks a procedure alias `X.f` of a `module` (`proc f = c;`): a procedure
+of the module that has no `X.f.procedure`, being the procedure `c` itself.  Written by the `module`
+command; read through `GaudisCrypt.isModuleProc`. -/
+initialize GaudisCrypt.gaudiModuleAliasAttr : TagAttribute ←
+  registerTagAttribute `gaudiModuleAlias "a procedure alias of a `module` (`proc f = c;`)"
+
+/-- `c` is a procedure of a `module`: an ordinary one, with its body `c.procedure`, or an alias
+(`@[gaudiModuleAlias]`). -/
+def GaudisCrypt.isModuleProc (env : Lean.Environment) (c : Lean.Name) : Bool :=
+  env.contains (c ++ `procedure) || GaudisCrypt.gaudiModuleAliasAttr.hasTag env c
 
 namespace GaudisCrypt
 

@@ -139,7 +139,9 @@ sections' `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In`, `Di
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
 same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
-(`BlockSponge.Sim`).
+(`BlockSponge.Sim`).  For a procedure alias, the `module` command now has `proc f = c;`
+(2026-11-19, `notes/ModuleProcAlias.md`): `X.f.apply_simp` rewrites the alias to `c` itself.
+The wrappers listed above are not converted yet.
 
 ## E6: variables of local clones and local modules are lens parameters, fresh by hypothesis
 

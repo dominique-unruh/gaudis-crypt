@@ -151,4 +151,24 @@ noncomputable example : procmod () → Bool := Two(FairCoin, ((FairCoin : Flip))
 noncomputable example : procmod (Int) → Int := Two(FairCoin, ((FairCoin : Flip))).second
 noncomputable example : procmod (Int) → Int := Two(FairCoin, ((FairCoin : Flip))).both
 
+-- procedure aliases (`proc f = c;`): the path names them as it names ordinary procedures, each
+-- applied to the parameters its callee uses, and the alias then is its callee
+module Pick using (C : Coin, F : Flip) {
+  proc coin = C.neg;
+  proc other = F.flip;
+  proc call_ () : Bool {
+    var b : Bool;
+    b <- call Pick(C, F).other ();
+    return $b
+  };
+}
+
+example : Pick(FairCoin, ((FairCoin : Flip))).coin = Coin.neg FairCoin := by
+  simp only [Pick.coin.apply_simp]
+example : Pick(FairCoin, ((FairCoin : Flip))).other = Flip.flip (FairCoin : Flip) := by
+  simp only [Pick.other.apply_simp]
+#roundtrip Pick(FairCoin, FairCoin).coin
+-- the parameter names, from the callee (`Coin.neg`'s `n`)
+#roundtrip hoare[ Pick(FairCoin, FairCoin).coin : §n = 3 ==> §res = -3 ]
+
 end GaudisCrypt.ModuleApplicationSyntaxTest
