@@ -1196,13 +1196,17 @@ def procApply (x : Name) : TacticM Unit := do
           | exact $(mkIdent ``ModuleExpression.Normal.unit)
           | exact $(mkIdent ``ModuleExpression.Normal.proc)
           | refine $(mkIdent ``ModuleExpression.Normal.pair) ?_ ?_
-          | refine $(mkIdent ``Module.reduce_pair_of) .proc ?_ ?_ ?_
-          -- the component goal is `c.reduce = .proc m.procedure`, while `moduleCallee` proves
-          -- `c.reduce = m.expression`; `procedure_spec` is the step between
-          | rw [← $(mkIdent ``Module.procedure_spec)])))
+          | refine $(mkIdent ``Module.reduce_pair_of) .proc ?_ ?_ ?_)))
+  -- the component goal is `c.reduce = .proc m.procedure`, while `moduleCallee` proves
+  -- `c.reduce = m.expression`; `procedure_spec` is the step between.  It is taken only right
+  -- before `moduleCallee` (not as a `peel` step of its own: the loop would then retry it on the
+  -- rewritten goal, where it fails, after searching the whole callee — seconds on a large one,
+  -- twice, `Gconcl_list.D2`)
   let spec : TacticM Unit := do
     evalTactic (← `(tactic| rw [← $(mkIdent ``Module.procedure_spec)]))
-  repeatAllTac <| peel <|> (do spec; moduleCallee) <|> moduleCallee
+  -- (`rw`'s closing `rfl` may already prove the rewritten goal: a callee built in place,
+  -- `{ expression := c.reduce, … }`)
+  repeatAllTac <| peel <|> (do spec; unless (← getGoals).isEmpty do moduleCallee) <|> moduleCallee
 
 end GaudisCrypt
 
