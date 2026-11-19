@@ -63,7 +63,9 @@ Translation:
   `simp only [ODPRIMITIVE_f_mk]` (`ODPRIMITIVE_fi_mk`) in front of `proc` on the primitive's
   procedures;
 * GAP 4: after `sp` through a game's initializations, `glob A` is equal in the two memories by
-  the memories' equation, taken out by hand (GAP 7 of `SHA3Security.lean`);
+  the memories' equation, taken out by hand (GAP 7 of `SHA3Security.lean`).  Where the two sides'
+  initializations are the same, `ec_auto` derives the memories' equality itself (`subst_states`,
+  2026-11-19: the three `RO_LRO_D` steps); elsewhere still by hand;
 * GAP 5: `equiv_call (_ : ={x₁, …})` on the adversary puts `={glob A}` into the oracles'
   judgments (EC's do not have it), and the `wp`s below then carry `glob A` read over written
   memories, on which `inline` does not end (40M heartbeats).  Where the oracles' proofs are
@@ -1832,11 +1834,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         · sim 2 2; equiv_call rw_RF_List_While; ec_auto
         · ec_auto
       · ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
-    ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
+    ec_auto
   -- EC: rewrite (eager_ideal &m).
   rw [h1, eager_ideal A m]; clear h1
   -- EC: have->:Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
@@ -3158,11 +3156,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
         · sim 2 2; equiv_call rw_RF_List_While; ec_auto
         · ec_auto
       · ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
-    ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
+    ec_auto
   -- EC: rewrite (eager_ideal &m).
   rw [h1, eager_ideal A m]; clear h1
   -- EC: have->:Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
@@ -4418,11 +4412,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         · sim 2 2; equiv_call rw_RF_List_While; ec_auto
         · ec_auto
       · ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
-    ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
+    ec_auto
   -- EC: rewrite (eager_ideal &m).
   rw [h1, eager_ideal A m]; clear h1
   -- EC: have->:Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),

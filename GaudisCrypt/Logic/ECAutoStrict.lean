@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ReadNorm
+import GaudisCrypt.Logic.StateEq
 
 /-!
 # EC's `auto` on the strict `skip`
@@ -61,7 +62,11 @@ elab "ec_auto" : tactic => do
       | exact le_rfl
       | (clear_decl_hyps; simp_all; done)
       | ((try simp only [decide_eq_true_eq, decide_eq_false_iff_not] at *)
-         casesm* _ ∧ _; (try subst_vars); glob_reads; first | assumption | (clear_decl_hyps; simp_all; done)))))
+         casesm* _ ∧ _; (try subst_vars); glob_reads; first | assumption | (clear_decl_hyps; simp_all; done))
+      -- the states before the same initializations on both sides, equal (EC's memories after
+      -- `sp`: `={glob D}` for any `D`): `subst_states`, then the states are one
+      | (casesm* _ ∧ _, Exists _; subst_states; (try subst_vars);
+         first | rfl | (clear_decl_hyps; simp_all; done)))))
 
 open Lean Meta Elab Tactic in
 /-- **`ec_intro`**: introduce the values a strict `skip` generalized (the goal's leading binders
