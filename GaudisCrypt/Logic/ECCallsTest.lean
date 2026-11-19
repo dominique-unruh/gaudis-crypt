@@ -579,6 +579,16 @@ example : Footprint.Restricted R cFlag.footprint := inferInstance
 
 example : Module.Declared A cFlag.footprint := inferInstance
 
+-- `sim`'s closer with the restrictions in context (cleared for its `simp_all` attempts, which
+-- would otherwise simplify them each time): the implication `equiv_skip` leaves is closed
+#guard_msgs in
+example : equiv[ ={cCount} ==> ={cCount} ] {
+      cCount <- $cCount + 1;
+    } ~ {
+      cCount <- $cCount + 1;
+    } := by
+  sim
+
 end
 
 section

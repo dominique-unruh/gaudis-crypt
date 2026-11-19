@@ -194,7 +194,9 @@ def closeImp (g : MVarId) : TacticM (Option MVarId) := do
             pure gNew
           g' := gNew
         catch _ => s'.restore
-    let [] ← withoutRecover <| evalTacticAt (← `(tactic| (simp_all; done))) g' | throwError "left"
+    -- the region facts are in; a declared module's restrictions are of no use to `simp_all`
+    let [] ← withoutRecover <| evalTacticAt (← `(tactic| (clear_decl_hyps; simp_all; done))) g'
+      | throwError "left"
     return none
   catch _ =>
     s.restore

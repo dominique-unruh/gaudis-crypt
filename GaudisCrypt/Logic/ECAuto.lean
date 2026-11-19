@@ -56,28 +56,6 @@ theorem expected_le_of_null (h : ∀ a ∈ d.support, f a = 0) : d.expected f �
 
 end SubProbability
 
-open Lean Meta Elab Tactic in
-/-- **`clear_decl_hyps`**: clear the hypotheses that state a declared module's restrictions
-(`Module.Declared A S`, `Footprint.Restricted R S`, `Module.ECGlob A R`: instances that
-`declare module` puts in the context), where nothing depends on them.
-
-For the closers, in front of `simp_all`: it simplifies every hypothesis, and a restriction is a
-join of dozens of footprints that it can do nothing with (measured: 4 s per call under
-`SHA3Security.ec`'s adversary, in every `auto`).  Only where the goal is then closed or the step
-undone: the footprint tactics need these hypotheses. -/
-elab "clear_decl_hyps" : tactic => liftMetaTactic1 fun g => g.withContext do
-  let classes : List Name := [`GaudisCrypt.Module.Declared, `GaudisCrypt.Footprint.Restricted,
-    `GaudisCrypt.Module.ECGlob]
-  let mut g := g
-  for d in (← getLCtx).decls.toArray.reverse do
-    let some d := d | continue
-    if d.isImplementationDetail then continue
-    let ty := (← instantiateMVars d.type).cleanupAnnotations
-    let some c := ty.getAppFn.constName? | continue
-    unless classes.contains c do continue
-    g ← g.tryClear d.fvarId
-  return some g
-
 /-- An event's indicator is `1` exactly when the event holds (what a `phoare … = 1` leaves). -/
 @[simp] theorem indicatorE_eq_one_iff (Q : Prop) : indicatorE Q = 1 ↔ Q := by
   by_cases h : Q <;> simp [indicatorE, h]

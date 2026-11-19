@@ -860,3 +860,26 @@ in one and a half), then one full rebuild per item.
   first port's proof (`bdistr_dlist`, `BlockGenCall` and its two equivalences) and the GAP 9
   restatement go; EC's `DWord.dunifin1E` is `BitWord.dunifin1E` (`Lib/EC/BitWord.lean`, also
   used by `Gconcl_list`); exception E12 keeps only the `Sample`/`LoopSnoc` step.
+
+### Build time (2026-11-19)
+
+The full build took 95 min (4 threads), almost all of it the serial SHA-3 chain `ConcreteF` →
+`Handle` → `Gcol` → `Gext` → `Gconcl` → `Gconcl_list` → `SHA3Indiff` → `SHA3_OIndiff` →
+`SHA3OSecurity`.  Profiled (`-Dprofiler`, `trace.profiler`); kernel checking is about 1 min in
+all.  The time is our tactics' failure paths:
+
+* **`sim`'s closer** (`ECSim.closeImp`) tried up to eight `simp_all`s with the declared module's
+  restrictions in context; under `SHA3OSecurity.ec`'s adversary (a restriction of ~40 modules) a
+  `simp_all` on a trivial goal costs 7 s.  43 runs that closed nothing took ~170 CPU-min, the
+  successful ones ~46.  Fixed: its `simp_all` attempts (and `ECProcInv`'s closer) go after
+  `clear_decl_hyps`, as `auto`/`ec_close` already did (`clear_decl_hyps` moved to
+  `DeclareModule.lean` so that `ECSim` can use it).  `SHA3OSecurity` 33.6 → 12.2 min, full build
+  95 → 72 min.
+* **`call`'s frame search** (`ECCallFrameRel.frameFor`) tries `fp_disjoint` for each global the
+  condition reads; when the callee writes it, the solver fails after ~20 s.  `Gext` (21 min, one
+  proof, `EG2_Gext`): 39 such failures, 12.7 min; `Handle`: ~17 CPU-min.  Open: a cache of failed
+  goals in the solver (behaviour-preserving), else a pre-check against the callee's code bound.
+* Not ours: in `SHA3OSecurity` the same work (heartbeats) of a step took 16 s alone and up to
+  22 min of wall time inside the file (`call (Eager.RO_LRO_D (Dist A))` in sections
+  `SecondPreimage` and `Collision`, not in `Preimage`): a stall of Lean's parallel elaboration.
+  Not reproduced with a sleeping or one heavy concurrent proof; parked.

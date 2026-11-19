@@ -164,7 +164,10 @@ def lastKind (s : Lean.Expr) : MetaM Last := do
     if l'.isAppOf ``StmtWithHoles.call' then return .call
   return .other
 
-/-- Close `∀ …, A → B` (what `equiv_skip` leaves) by `simp_all`, if it can. -/
+/-- Close `∀ …, A → B` (what `equiv_skip` leaves) by `simp_all`, if it can.  The attempts by
+`simp_all` alone go without a declared module's restrictions (`clear_decl_hyps`: a join of
+dozens of footprints, which `simp_all` would simplify in each attempt); those through `glob A`
+keep them, for `fp_disjoint`. -/
 def closeImp (g : MVarId) : TacticM (List MVarId) := do
   let s ← saveState
   -- the reads through writes to the state (`HoareWp.simpReadsDecls`: locals past resets and
@@ -174,20 +177,21 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
   let readsTac ← `(tactic| simp_all (config := { decide := true }) [$[$reads:ident],*])
   try
     let gs ← evalTacticAt (← `(tactic| first
-      | (intros; subst_vars; simp_all; done)
-      | (intros; subst_vars; simp_all [lensWriteNorm]; done)
-      | (intros
+      | (clear_decl_hyps; intros; subst_vars; simp_all; done)
+      | (clear_decl_hyps; intros; subst_vars; simp_all [lensWriteNorm]; done)
+      | (clear_decl_hyps; intros
          -- states equal outside a frame: an equation of chains of writes
          simp only [Lens.equal_outside_iff_set] at *
          simp_all [Lens.set_get, Lens.get_of_disjoint_set, lensWriteNorm]; done)
-      | (intros
+      | (clear_decl_hyps; intros
          -- … with the same conditional writes on both sides, once the hypotheses are substituted
          simp only [Lens.equal_outside_iff_set] at *
          casesm* _ ∧ _
          subst_vars
          split_ifs <;> simp_all [Lens.set_get, Lens.get_of_disjoint_set, lensWriteNorm]; done)
-      | (intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]; done)
-      | (intros; subst_vars; $readsTac:tactic; done)
+      | (clear_decl_hyps; intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]
+         done)
+      | (clear_decl_hyps; intros; subst_vars; $readsTac:tactic; done)
       | (intros
          -- states agreeing on `glob A` and some variables (EC's `={glob A, x}`, the invariant
          -- `globInvF` of an abstract call): `glob A` past the writes outside it (`fp_disjoint`),

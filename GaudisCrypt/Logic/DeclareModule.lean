@@ -513,4 +513,27 @@ elab_rules : command
       {$R : Footprint VariableAssignment} [Module.ECGlob $A $R] [Footprint.Restricted $R $S]))
     elabCommand (← `(set_option linter.unusedSectionVars false))
 
+open Lean Meta Elab Tactic in
+/-- **`clear_decl_hyps`**: clear the hypotheses that state a declared module's restrictions
+(`Module.Declared A S`, `Footprint.Restricted R S`, `Module.ECGlob A R`: instances that
+`declare module` puts in the context), where nothing depends on them.
+
+For the closers, in front of `simp_all`: it simplifies every hypothesis, and a restriction is a
+join of dozens of footprints that it can do nothing with (measured: 4 s per call under
+`SHA3Security.ec`'s adversary, in every `auto`; 7 s per call under `SHA3OSecurity.ec`'s, in
+`sim`'s closer before it cleared them).  Only where the goal is then closed or the step undone:
+the footprint tactics need these hypotheses. -/
+elab "clear_decl_hyps" : tactic => liftMetaTactic1 fun g => g.withContext do
+  let classes : List Name := [`GaudisCrypt.Module.Declared, `GaudisCrypt.Footprint.Restricted,
+    `GaudisCrypt.Module.ECGlob]
+  let mut g := g
+  for d in (← getLCtx).decls.toArray.reverse do
+    let some d := d | continue
+    if d.isImplementationDetail then continue
+    let ty := (← instantiateMVars d.type).cleanupAnnotations
+    let some c := ty.getAppFn.constName? | continue
+    unless classes.contains c do continue
+    g ← g.tryClear d.fvarId
+  return some g
+
 end GaudisCrypt
