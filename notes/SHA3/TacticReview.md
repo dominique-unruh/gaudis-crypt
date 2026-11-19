@@ -796,6 +796,13 @@ in one and a half), then one full rebuild per item.
    `(())`).  Then: `D2`, `D3`, `D5`, `D6` in `Gconcl_list` as EC's aliases, `equiv_ideal`'s
    four steps by `call (F.FullEager.RO_LRO_D (D2 D))` (the clone-level lemma stated once, as
    `SecureORO`'s), and the first port's `D2o`…`L4_F2_RO_LRO` deleted.
+   *Status 2026-11-19:* option A done (`proc f = c;`, `notes/ModuleProcAlias.md`); the probe
+   answered no (`procmod ()` ≠ `procmod (Unit)`), so PROM's `RO_LRO_D` takes any procedure
+   signature; `equiv_call H` rewrites the aliases in `H`; `ec_auto` derives the memories'
+   equality after the same initializations (`subst_states`).  `D2`, `D3` done (steps e3, e8 of
+   `equiv_ideal` are EC's script; the first port's `D2o`…`L_RO_LRO`, `IF'`, `Valid2`, `L`, `L2`
+   deleted).  Left: `D5`, `D6` (with `S2`, `DValid` as aliases, `equiv_L3_L4` and
+   `equiv_L4_ideal` lose their extra inline after the simulator's call).
 4. **`clone`'s module variables** (item 3 above; a design decision, the least certain).
    First a test (`Syntax/CloneTest.lean`): two clones of one theory at the same types with
    different operators, to see what breaks in fact (used through their namespaces they may

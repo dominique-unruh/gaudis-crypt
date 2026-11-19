@@ -957,7 +957,12 @@ Document each in the docstring when it applies.
   alias** (`proc a1 = A(H).a1`): `proc a1 = A(H).a1;` inside the `module` (since 2026-11-19,
   `notes/ModuleProcAlias.md`).  `X.a1.apply_simp` rewrites the alias to its callee, so EC's
   script sees the callee as EC's does, with no `inline`.  Older ports wrap it in a procedure with
-  the one call (E5).
+  the one call (E5).  **EC's `call (F.FullEager.RO_LRO_D (D2(D)) _)` with `D2` such an alias**
+  (`Gconcl_list.equiv_ideal`): `D2` a `module` with `proc distinguish = D(…).distinguish;`, the
+  clone-level `F.FullEager.RO_LRO_D` stated once with `ec_module`/`fp_disjoint` defaults (as
+  `SecureRO`'s), and EC's script as it stands: `byequiv; equiv_proc; stmt_inline*; stmt_sp;
+  stmt_wp; equiv_call (F.FullEager.RO_LRO_D (D2 D)); ec_auto`.  `equiv_call` rewrites the alias to
+  its callee; `ec_auto` sees the two memories equal after the same initializations.
 * **A wrapper around a declared adversary, passed to a lemma of another section** (`apply
   (Reduction (A_CPA(A)) _ _ &m)`): `module A_CPA (A : Adv) using (H : POracle) : AdvProcs`
   (`A` a Lean parameter: `A_CPA A` is EC's `A_CPA(A)`), `theorem fvP_A_CPA : FVP.fvP (A_CPA A)

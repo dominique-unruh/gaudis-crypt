@@ -785,7 +785,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
 | 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` | done |
+| 296 | local module | `IF'` | section Ideal. | `IF'` (`module`, `proc init = F.init;` an alias) | def |
 | 315 | local module | `L` | section Ideal. | `L` (alias) | def |
+| 319 | local module | `Valid2` | section Ideal. | `Valid2` (`module`, `proc init = F.init;` an alias) | def |
 | 330 | local module | `L2` | section Ideal. | `L2` (alias) | def |
 | 334 | local equiv | `Ideal_equiv_valid` | section Ideal. | `Ideal_equiv_valid` | done |
 | 365 | local equiv | `ideal_equiv2` | section Ideal. | `ideal_equiv2` | done |
@@ -794,7 +796,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace
 | 661 | local module | `L4` | section Ideal. | `L4` (alias) | def |
 | 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` (local macros `l3l4_round`, `l3l4_i_lt_n` for the loop side goals EC repeats) | done |
 | 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (EC's `lemma5`, `lemma5bis`; the invariant's readings stated once at the top) | done |
-| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the four lazy/eager steps are the old port's `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | exc |
+| 599, 603 | local modules | `D2`, `D3` | section Ideal. | `D2`, `D3` (`module`s, `proc distinguish = D(…).distinguish;` aliases) | def |
+| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the steps with `D2`, `D3` EC's, by `F.FullEager.RO_LRO_D`; the two with `D5`, `D6` the old port's `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | exc |
 | 973–1097 | inductive, local lemmas | `m_p`, `INV_Real`, `INV_Real_incr` … `take_format` | section Real. | the first port's (plain lemmas) | done |
 | 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` (`Perm` for EC's alias `P`; the facts EC proves inline twice are `absorb_dom` … `absorb_step`, `squeeze_known_head`, `squeeze_known_tail`; local macros `sponge_round`, `sponge_last`, `sponge_guard`) | done |
 | 1437, 1463 | local lemmas | `lemma4`, `lemma_3` | section Real. | the first port's (plain lemmas) | done |
