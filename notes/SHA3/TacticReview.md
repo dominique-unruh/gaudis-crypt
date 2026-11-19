@@ -801,8 +801,12 @@ in one and a half), then one full rebuild per item.
    signature; `equiv_call H` rewrites the aliases in `H`; `ec_auto` derives the memories'
    equality after the same initializations (`subst_states`).  `D2`, `D3` done (steps e3, e8 of
    `equiv_ideal` are EC's script; the first port's `D2o`…`L_RO_LRO`, `IF'`, `Valid2`, `L`, `L2`
-   deleted).  Left: `D5`, `D6` (with `S2`, `DValid` as aliases, `equiv_L3_L4` and
-   `equiv_L4_ideal` lose their extra inline after the simulator's call).
+   deleted).  `D5`, `D6` done the same day (with `S2(…)` for EC's `S(Last(…))`; the first port's
+   `L4`, `L4F`, `L4G` and their bridges deleted): `equiv_ideal`'s four steps are EC's.  Cost:
+   `Gconcl_list` 314 s → 406 s (the four `RO_LRO_D` side conditions, `ec_module`/`fp_disjoint`
+   over `D2(D)` … `D6(D)`, run inside `equiv_ideal`, where the bridges' footprint lemmas ran in
+   parallel).  Left: `S2`, `DValid` as aliases (then `equiv_L3_L4`, `equiv_L4_ideal` lose their
+   extra inline after the simulator's call).
 4. **`clone`'s module variables** (item 3 above; a design decision, the least certain).
    First a test (`Syntax/CloneTest.lean`): two clones of one theory at the same types with
    different operators, to see what breaks in fact (used through their namespaces they may

@@ -797,7 +797,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace
 | 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` (local macros `l3l4_round`, `l3l4_i_lt_n` for the loop side goals EC repeats) | done |
 | 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (EC's `lemma5`, `lemma5bis`; the invariant's readings stated once at the top) | done |
 | 599, 603 | local modules | `D2`, `D3` | section Ideal. | `D2`, `D3` (`module`s, `proc distinguish = D(…).distinguish;` aliases) | def |
-| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the steps with `D2`, `D3` EC's, by `F.FullEager.RO_LRO_D`; the two with `D5`, `D6` the old port's `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | exc |
+| 916, 919 | local modules | `D5`, `D6` | section Ideal. | `D5`, `D6` (`module`s with aliases; `S2(…)` for EC's `S(Last(…))`, `S2` being a module of its own, E5) | exc |
+| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (the four lazy/eager steps EC's, by the clones' `F.FullEager.RO_LRO_D`, `F2.FullEager.RO_LRO_D`) | done |
 | 973–1097 | inductive, local lemmas | `m_p`, `INV_Real`, `INV_Real_incr` … `take_format` | section Real. | the first port's (plain lemmas) | done |
 | 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` (`Perm` for EC's alias `P`; the facts EC proves inline twice are `absorb_dom` … `absorb_step`, `squeeze_known_head`, `squeeze_known_tail`; local macros `sponge_round`, `sponge_last`, `sponge_guard`) | done |
 | 1437, 1463 | local lemmas | `lemma4`, `lemma_3` | section Real. | the first port's (plain lemmas) | done |
