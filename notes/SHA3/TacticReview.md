@@ -889,6 +889,12 @@ all.  The time is our tactics' failure paths:
   `OSimulator(…(RFWhile)).fi` different, in each section's `rw_ideal_2`.  Fixed: tried within
   `sim`'s callee budget (50M heartbeats); past it the callees' equality is the `callee` goal, as
   for callees that differ.  `SHA3OSecurity` 720 → 579 s; full build 43 → 40 min.
+* **Syntax declarations mid-file are barriers**: a `macro`/`syntax`/`notation` (also `moduletype`,
+  `clone`) waits for every proof before it (its parser is run at once); `module`, `def`,
+  `instance`, `global_var`, `declare module` do not (measured with sleeping theorems).
+  `Gconcl_list`'s six local tactic macros, declared at their first use, made it elaborate in
+  stretches (181% CPU): declared after the namespace's header now, `Gconcl_list` 578 → 340 s;
+  `Handle`'s `pf_bad_leaf` likewise, 268 → 179 s.  The proofs are unchanged (TRANSFER_SKILL §6).
 * Not ours: in `SHA3OSecurity` the same work (heartbeats) of a step took 16 s alone and up to
   22 min of wall time inside the file (`call (Eager.RO_LRO_D (Dist A))` in sections
   `SecondPreimage` and `Collision`, not in `Preimage`): a stall of Lean's parallel elaboration.

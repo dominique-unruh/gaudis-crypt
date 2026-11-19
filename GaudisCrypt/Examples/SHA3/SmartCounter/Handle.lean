@@ -3013,6 +3013,15 @@ variable [SLCommon.Params]
 @[simp] theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
   (is_lossless_iff_expected _).mp BitWord.dunifin_ll
 
+-- (a local tactic macro of the proofs below, declared before them: a syntax declaration waits for
+-- every proof before it, its parser run at once)
+/-- EC's `smt(get_setE mem_set DBlock.dunifin_ll DCapacity.dunifin_ll)` closing the leaves of
+`PFf_Cf`'s second loop in the bad case (the bad event stays, the samplings are lossless), by
+hand. -/
+local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all [FMap.get_setE,
+  FMap.mem_set, F.dout, bdistr_expected_one, cdistr_expected_one] <;>
+  (intros; (try refine ⟨FMap.get_some _ _ ‹_›, ?_⟩); simp only [← Bool.not_eq_true] at *; tauto))))
+
 -- EC's subtyping `PRIMITIVE <: DPRIMITIVE` (the old port's module types are abbreviations)
 module_subtype SLCommon.PRIMITIVE <: DPRIMITIVE
 
@@ -3347,13 +3356,6 @@ theorem PFf_Cf_dom_next (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh 
   obtain ⟨-, -, -, Iq, -⟩ := id hmp
   obtain ⟨c, hc⟩ := Iq _ hmem
   exact all_prefixes_of_m_p _ _ _ hmp _ ((FMap.domE _ _).2 (by simp [hc])) _
-
-/-- EC's `smt(get_setE mem_set DBlock.dunifin_ll DCapacity.dunifin_ll)` closing the leaves of
-`PFf_Cf`'s second loop in the bad case (the bad event stays, the samplings are lossless), by
-hand. -/
-local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all [FMap.get_setE,
-  FMap.mem_set, F.dout, bdistr_expected_one, cdistr_expected_one] <;>
-  (intros; (try refine ⟨FMap.get_some _ _ ‹_›, ?_⟩); simp only [← Bool.not_eq_true] at *; tauto))))
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 2: the second loop still uses the older `equiv_while_raw` (four goals, no frame); the

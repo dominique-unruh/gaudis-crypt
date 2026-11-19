@@ -394,6 +394,15 @@ Mappings for ssreflect idioms:
 * Probing a large goal: `trace_state` + `lake env lean file | grep` (the LSP may choke);
   `#count_heartbeats` misses async elaboration (`set_option Elab.async false in`);
   `lean_profile_proof` fails on same-file modules — use `set_option profiler true in`.
+* **Declare local tactic macros (and any `syntax`/`notation`) before a file's heavy proofs**, not
+  at their first use: a syntax declaration waits for every proof before it to finish (its parser
+  is run at once), so one in the middle of a file splits it into stretches elaborated one after
+  the other (`Gconcl_list`'s six macros, 2026-11-19).  `module`, `def`, `instance`, `global_var`
+  do not wait.  Hygienic macros resolve names where they are declared: after what they name.
+* Measuring: `-Dprofiler=true -Dprofiler.threshold=1000` (per kind), `-Dtrace.profiler=true
+  -Dtrace.profiler.threshold=500` (per declaration and tactic, wall time),
+  `trace.profiler.useHeartbeats` (work rather than waiting); a slow step with no slow child: time
+  its parts in a scratch file importing the built module (`run_tac` with `IO.monoMsNow`).
 * Long proofs: `sorry` the later bullets while working on early ones; files outside the barrel
   are checked with `lake env lean`.  For one bullet of a long proof, work in an uncommitted
   scratch copy of the file with every other bullet `sorry`'d (`GcolScratch.lean`: 7 s per

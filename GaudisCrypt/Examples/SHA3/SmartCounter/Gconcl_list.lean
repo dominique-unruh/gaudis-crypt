@@ -1750,6 +1750,113 @@ open GaudisCrypt.SHA3.Gconcl (IF S)
 
 variable [SLCommon.Params] [BlockSponge.Params] [Gconcl_list.Params]
 
+-- the local tactic macros of the proofs below, declared before them: a syntax declaration
+-- waits for every proof before it (its parser is run at once), so declared at their first use
+-- they made the file elaborate its proofs one stretch at a time
+
+set_option hygiene false in
+/-- EC's `auto` and `by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.`,
+the side goal of each `rcond` on the last round of `equiv_L3_L4`'s squeezing loop: the loop keeps
+`i < n` (through the functionality's two inner loops).  (No hygiene: `§i`, `§n` are the program's
+variables.) -/
+local macro "l3l4_round" : tactic => `(tactic| (
+  intro σ₂
+  (try stmt_wp)
+  hoare_while_raw (§i < §n)
+  · stmt_sp; stmt_if
+    · stmt_sp; stmt_if
+      · ec_auto; hoare_while_raw (§i < §n)
+        · ec_auto <;> ec_close
+        · ec_close
+        · ec_auto <;> ec_close
+      · ec_auto; hoare_while_raw (§i < §n)
+        · ec_auto <;> ec_close
+        · ec_close
+        · ec_auto <;> ec_close
+    · ec_auto <;> ec_close
+  · ec_close
+  · ec_auto <;> ec_close))
+
+set_option hygiene false in
+/-- EC's `auto` and `by while(i<n);auto;smt(parse_valid parse_gt0).`, the side goal of an `rcond`
+on the last round of a sampling loop in `equiv_L3_L4`'s simulator oracle: the loop keeps `i < n`,
+and `n` is positive (`parse_gt0`).  (No hygiene: `§i`, `§n` are the program's variables.) -/
+local macro "l3l4_i_lt_n" : tactic => `(tactic| (
+  intro σ
+  (try ec_auto)
+  hoare_while_raw (§i < §n)
+  · ec_auto <;> ec_close
+  · first
+    | ec_close
+    | (ec_prep; simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega)
+  · ec_auto; ec_prep
+    first | exact parse_gt0 _ | omega))
+
+set_option hygiene false in
+/-- EC's `smt(size_cat size_nseq)` on the guards of `equiv_sponge`'s split loops: the sizes of
+the formats and the guards' conjunctions as linear facts, then `omega`.  (GAP 9: the closer
+leaves a split loop's guard `a && b` as it is.) -/
+local macro "sponge_guard" : tactic => `(tactic| (
+  simp only [size_format, Bool.and_eq_true, Bool.and_eq_false_iff, decide_eq_true_eq,
+    decide_eq_false_iff_not] at *
+  omega))
+
+set_option hygiene false in
+/-- EC's `auto` and `while(i < n);auto;2:smt(). by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;
+auto.`, the side goal of each `rcond` on the last round of `equiv_sponge`'s squeezing loop: the
+loop keeps `i < n` (through the squeezeless sponge's inlined loop).  (No hygiene: `§i`, `§n` are
+the program's variables.) -/
+local macro "sponge_round" : tactic => `(tactic| (
+  intro σ
+  (try stmt_wp)
+  hoare_while_raw (§i < §n)
+  · stmt_sp; stmt_if
+    · ec_auto; stmt_sp; hoare_while_raw (§i < §n)
+      · ec_auto <;> ec_close
+      · ec_close
+      · ec_auto <;> ec_close
+    · ec_auto <;> ec_close
+  · ec_close
+  · ec_auto <;> ec_close))
+
+set_option hygiene false in
+/-- EC's `by auto; while(i1 < size p1);auto;1:if;2:(sp;if);auto;smt(size_cat size_nseq size_ge0)`
+and its variant through `seq 1 : (i1 = size p1 - 1)`, the side goals of the `rcond`s on the last
+block of `format p (i + 1)` in `equiv_sponge`'s squeezing loop: the split loop keeps
+`i1 < size p1`, and `p1` is not empty.  (No `seq` on a Hoare triple, GAP 9: our `auto` takes the
+last round first.  No hygiene: `§i1`, `§p1` are the program's variables.) -/
+local macro "sponge_last" : tactic => `(tactic| (
+  intro σ
+  (try ec_auto)
+  hoare_while_raw (§i1 < size §p1)
+  · ec_auto; ec_progress
+    all_goals
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+      omega
+  · first
+    | ec_close
+    | (ec_prep
+       have h : size p1 ≤ i1 + 1 := by
+         simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
+         omega
+       split_ifs <;> simp [h])
+  · ec_auto; ec_prep
+    simp only [format, size_cat, size_nseq]
+    refine lt_of_lt_of_le ?_ (le_add_of_nonneg_left (size_ge0 _))
+    omega))
+
+set_option hygiene false in
+/-- EC's `by while(i<n);auto;2:smt();sp;if;auto;sp;if;auto.`, the side goal of each `rcond` on the
+last round of the sponge's squeezing loop (the right side of `squeeze_squeezeless`): the loop
+keeps `i < n`.  (No hygiene: `§i`, `§n` are the program's variables.) -/
+local macro "sponge_round_r" : tactic => `(tactic| (
+  intro σ
+  (try stmt_wp)
+  hoare_while_raw (§i < §n)
+  · ec_auto <;> ec_close
+  · ec_close
+  · ec_auto <;> ec_close))
+
 /-! ## Section `Ideal` -/
 
 set_option maxHeartbeats 4000000 in
@@ -2704,44 +2811,6 @@ port's `L4` is a `def`). -/
 noncomputable abbrev L4 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) (F2 : F2.RO_T) :
     procmod () → Bool :=
   IdealIndif (Module.app DSqueeze2 (Module.pair F F2)) S2 (DValid (DRestr D))
-
-set_option hygiene false in
-/-- EC's `auto` and `by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.`,
-the side goal of each `rcond` on the last round of `equiv_L3_L4`'s squeezing loop: the loop keeps
-`i < n` (through the functionality's two inner loops).  (No hygiene: `§i`, `§n` are the program's
-variables.) -/
-local macro "l3l4_round" : tactic => `(tactic| (
-  intro σ₂
-  (try stmt_wp)
-  hoare_while_raw (§i < §n)
-  · stmt_sp; stmt_if
-    · stmt_sp; stmt_if
-      · ec_auto; hoare_while_raw (§i < §n)
-        · ec_auto <;> ec_close
-        · ec_close
-        · ec_auto <;> ec_close
-      · ec_auto; hoare_while_raw (§i < §n)
-        · ec_auto <;> ec_close
-        · ec_close
-        · ec_auto <;> ec_close
-    · ec_auto <;> ec_close
-  · ec_close
-  · ec_auto <;> ec_close))
-
-set_option hygiene false in
-/-- EC's `auto` and `by while(i<n);auto;smt(parse_valid parse_gt0).`, the side goal of an `rcond`
-on the last round of a sampling loop in `equiv_L3_L4`'s simulator oracle: the loop keeps `i < n`,
-and `n` is positive (`parse_gt0`).  (No hygiene: `§i`, `§n` are the program's variables.) -/
-local macro "l3l4_i_lt_n" : tactic => `(tactic| (
-  intro σ
-  (try ec_auto)
-  hoare_while_raw (§i < §n)
-  · ec_auto <;> ec_close
-  · first
-    | ec_close
-    | (ec_prep; simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega)
-  · ec_auto; ec_prep
-    first | exact parse_gt0 _ | omega))
 
 -- the oracles' three judgments, over the two functionalities' inlined loops (EC's 120 lines)
 set_option maxHeartbeats 16000000 in
@@ -3700,59 +3769,6 @@ theorem squeeze_known_tail {c1 c2 : ℤ} {m mi : FMap SLCommon.state SLCommon.st
 
 end SqueezeStep
 
-set_option hygiene false in
-/-- EC's `smt(size_cat size_nseq)` on the guards of `equiv_sponge`'s split loops: the sizes of
-the formats and the guards' conjunctions as linear facts, then `omega`.  (GAP 9: the closer
-leaves a split loop's guard `a && b` as it is.) -/
-local macro "sponge_guard" : tactic => `(tactic| (
-  simp only [size_format, Bool.and_eq_true, Bool.and_eq_false_iff, decide_eq_true_eq,
-    decide_eq_false_iff_not] at *
-  omega))
-
-set_option hygiene false in
-/-- EC's `auto` and `while(i < n);auto;2:smt(). by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;
-auto.`, the side goal of each `rcond` on the last round of `equiv_sponge`'s squeezing loop: the
-loop keeps `i < n` (through the squeezeless sponge's inlined loop).  (No hygiene: `§i`, `§n` are
-the program's variables.) -/
-local macro "sponge_round" : tactic => `(tactic| (
-  intro σ
-  (try stmt_wp)
-  hoare_while_raw (§i < §n)
-  · stmt_sp; stmt_if
-    · ec_auto; stmt_sp; hoare_while_raw (§i < §n)
-      · ec_auto <;> ec_close
-      · ec_close
-      · ec_auto <;> ec_close
-    · ec_auto <;> ec_close
-  · ec_close
-  · ec_auto <;> ec_close))
-
-set_option hygiene false in
-/-- EC's `by auto; while(i1 < size p1);auto;1:if;2:(sp;if);auto;smt(size_cat size_nseq size_ge0)`
-and its variant through `seq 1 : (i1 = size p1 - 1)`, the side goals of the `rcond`s on the last
-block of `format p (i + 1)` in `equiv_sponge`'s squeezing loop: the split loop keeps
-`i1 < size p1`, and `p1` is not empty.  (No `seq` on a Hoare triple, GAP 9: our `auto` takes the
-last round first.  No hygiene: `§i1`, `§p1` are the program's variables.) -/
-local macro "sponge_last" : tactic => `(tactic| (
-  intro σ
-  (try ec_auto)
-  hoare_while_raw (§i1 < size §p1)
-  · ec_auto; ec_progress
-    all_goals
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-      omega
-  · first
-    | ec_close
-    | (ec_prep
-       have h : size p1 ≤ i1 + 1 := by
-         simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
-         omega
-       split_ifs <;> simp [h])
-  · ec_auto; ec_prep
-    simp only [format, size_cat, size_nseq]
-    refine lt_of_lt_of_le ?_ (le_add_of_nonneg_left (size_ge0 _))
-    omega))
-
 -- the functionality's oracle: the squeezeless sponge's inlined loop three times (EC's 300 lines)
 set_option maxHeartbeats 16000000 in
 /-- EC's `local lemma equiv_sponge (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
@@ -4524,18 +4540,6 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
       hg
     rw [take_format_le p₂ (i₂ + 1) (i1₂ + 1) (by omega)] at hk ⊢
     exact FMap.get_some _ _ hk
-
-set_option hygiene false in
-/-- EC's `by while(i<n);auto;2:smt();sp;if;auto;sp;if;auto.`, the side goal of each `rcond` on the
-last round of the sponge's squeezing loop (the right side of `squeeze_squeezeless`): the loop
-keeps `i < n`.  (No hygiene: `§i`, `§n` are the program's variables.) -/
-local macro "sponge_round_r" : tactic => `(tactic| (
-  intro σ
-  (try stmt_wp)
-  hoare_while_raw (§i < §n)
-  · ec_auto <;> ec_close
-  · ec_close
-  · ec_auto <;> ec_close))
 
 omit [BlockSponge.Params] [Gconcl_list.Params] in
 /-- A known next prefix is the permutation's step from the current one.  EC proves it inline at
