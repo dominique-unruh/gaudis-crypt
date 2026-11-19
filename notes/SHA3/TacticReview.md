@@ -906,3 +906,23 @@ all.  The time is our tactics' failure paths:
   around it; still 420 s of `Collision.eager_ideal`'s 774 s after the fixes, so it now sets the
   file's time.  Hypothesis (unchecked): the step waits for a small task (a lemma the `module Dist`
   command generates?) queued behind the heavy proofs.  Parked.
+* Second round (work counted in heartbeats, `trace.profiler.useHeartbeats`, so contention does
+  not distort it; Gconcl_list, Gconcl, Gext, Handle: 66G heartbeats).  Failing attempts were
+  ~21% of it: two `rw`s 9.8% (fixed below), closers' `simp_all` 6.4%, `equiv_call`'s frame
+  search (`fp_disjoint` per variable) 4.6%.  The footprint solver (`fp_module`) is 11–14%,
+  nearly all successful.
+  * The `module` command's procedure lemma (`procApply`) retried `rw [← procedure_spec]` twice
+    on the goal it had just rewritten, failing after searching the whole callee: ~1G heartbeats
+    per generated lemma with a large callee (`Gconcl_list.D2`, `D3`).  Fixed (`f3e7055`).
+  * `glob_simp`'s `repeat (rw [touched_set_of_le_compl ?_]; …)` ended in a `rw` whose open
+    pattern was unified with every `get` of the goal: 1.3G heartbeats a call in
+    `Handle.CF_G1`.  Fixed by a syntactic guard, `glob_set_present` (`c17eace`).
+  * `concreteBound` cached a `sorry`'d bound when `fp_module` failed under error recovery
+    (`SimLast(S)`: a functor applied to a concrete module).  Fixed (`fa57869`, a correctness
+    fix of the tactic, time neutral).  Open: `fp_module` could bound such a module by its
+    argument's footprint.
+  * Closers' failing `simp_all`s cost 270–570M heartbeats, successful ones up to 380M: no budget
+    separates them.  Left as is.
+  * The SHA-3 imports are a single chain (each file uses the previous one), so the build time is
+    the sum along it; no import to trim.
+  Full build 40.4 → 33.2 min.
