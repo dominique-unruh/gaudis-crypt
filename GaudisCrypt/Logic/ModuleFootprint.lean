@@ -111,9 +111,18 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
     unless gs.isEmpty do return none
     return some (← instantiateMVars mv)
 
+/-- A cached bound: the module, the proof (if any), and the proof's free variables and constants
+(collected once: the proof is a large shared term, and walking it on each use, as
+`Expr.hasAnyFVar` does, without sharing, took 0.7 s per lookup under `Gext.M.f`). -/
+structure BoundEntry where
+  M : Lean.Expr
+  pf : Option Lean.Expr
+  fvars : Array FVarId
+  consts : Array Name
+
 /-- The bounds found so far (`concreteBound` is slow: `fp_module` over the module's code), shared
 by the tactic runs of a file: an entry is used only where all its free variables are in scope. -/
-initialize boundCache : IO.Ref (Array (Lean.Expr × Option Lean.Expr)) ← IO.mkRef #[]
+initialize boundCache : IO.Ref (Array BoundEntry) ← IO.mkRef #[]
 
 /-- `concreteBound`, each module bounded once (`boundCache`). -/
 def cachedBound : FootprintSolver.BoundHook := fun M => do
@@ -126,10 +135,20 @@ def cachedBound : FootprintSolver.BoundHook := fun M => do
     !e.hasAnyFVar (fun f => (lctx.find? f).isNone) && !e.hasMVar &&
       e.getUsedConstants.all env.contains
   if inScope M then
-    if let some (_, pf) := (← boundCache.get).find? (·.1 == M) then
-      if pf.all inScope then return pf
+    if let some en := (← boundCache.get).find? fun en =>
+        en.M == M && en.fvars.all lctx.contains && en.consts.all env.contains then
+      return en.pf
   let pf ← concreteBound M
-  if inScope M then boundCache.modify (·.push (M, pf))
+  if inScope M then
+    -- a proof with metavariables is not kept (as before: `inScope` failed on it)
+    unless pf.any (·.hasMVar) do
+      let fvars := match pf with
+        | some p => (collectFVars {} p).fvarIds
+        | none => #[]
+      let consts := match pf with
+        | some p => p.getUsedConstants
+        | none => #[]
+      boundCache.modify (·.push { M, pf, fvars, consts })
   return pf
 
 /-- The footprints read off the code, for every caller of the solver. -/

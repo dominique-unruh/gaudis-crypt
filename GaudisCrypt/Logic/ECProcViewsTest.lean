@@ -109,4 +109,16 @@ example : FVP.fvP (Module.proc Ctr.f.procedure) ≤ cnt.footprint := by
 example : FVP.fvP (Module.proc Ctr.f.procedure) ≤ (other.footprint)ᶜ := by
   fp_disjoint
 
+-- the bound read off the code is cached (`ModuleFootprint.boundCache`): used again in the same
+-- proof, for a variable outside it and (failing) for one in it
+#guard_msgs in
+example : FVP.fvP Ctr.f ≤ (other.footprint)ᶜ ∧ FVP.fvP Ctr.f ≤ cnt.footprint := by
+  refine ⟨by fp_disjoint, by fp_le⟩
+
+#guard_msgs in
+example : True := by
+  have : FVP.fvP Ctr.f ≤ (other.footprint)ᶜ := by fp_disjoint
+  fail_if_success have : FVP.fvP Ctr.f ≤ (cnt.footprint)ᶜ := by fp_disjoint
+  trivial
+
 end GaudisCrypt.ECProcViewsTest

@@ -877,8 +877,13 @@ all.  The time is our tactics' failure paths:
   95 → 72 min.
 * **`call`'s frame search** (`ECCallFrameRel.frameFor`) tries `fp_disjoint` for each global the
   condition reads; when the callee writes it, the solver fails after ~20 s.  `Gext` (21 min, one
-  proof, `EG2_Gext`): 39 such failures, 12.7 min; `Handle`: ~17 CPU-min.  Open: a cache of failed
-  goals in the solver (behaviour-preserving), else a pre-check against the callee's code bound.
+  proof, `EG2_Gext`): 39 such failures, 12.7 min; `Handle`: ~17 CPU-min.  Cause, found by timing
+  the solver's pieces: each lookup in the cache of bounds read off the code
+  (`ModuleFootprint.cachedBound`) checked that the cached proof's free variables are in scope with
+  `Expr.hasAnyFVar`, which walks the (large, shared) proof as a tree: 0.7 s per lookup under
+  `Gext.M.f`, many lookups per `fp_disjoint`, failing or not.  Fixed: the free variables and
+  constants are collected once, when the bound is cached.  `Gext` 1261 → 196 s, `Handle` 771 →
+  271 s, `Gconcl` 401 → 215 s; full build 72 → 43 min.
 * Not ours: in `SHA3OSecurity` the same work (heartbeats) of a step took 16 s alone and up to
   22 min of wall time inside the file (`call (Eager.RO_LRO_D (Dist A))` in sections
   `SecondPreimage` and `Collision`, not in `Preimage`): a stall of Lean's parallel elaboration.
