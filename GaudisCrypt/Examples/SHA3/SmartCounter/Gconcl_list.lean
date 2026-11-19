@@ -608,7 +608,7 @@ theorem L2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       (Lens.pair Gconcl.S.mi Gconcl.S.paths))).footprint.FinitelySupported := by
     simp only [Footprint.lens_pair]
     repeat (first | exact .varLens _ | refine .sup ?_ ?_)
-  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (D2 D)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block (D2 D)
     ((hD.finitelySupported.sup hX).mono (fvP_D2 D))
   unfold DRestrictions_Ideal at _hDd
   have hdisj : FVP.fvP (D2 D) ≤ ((SLCommon.F.RO.m).footprint ⊔ (SLCommon.F.FRO.m).footprint)ᶜ := by
@@ -620,7 +620,7 @@ theorem L2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · refine (Footprint.le_compl_comm _ _).mp (sup_le _hDd' ?_)
       simp only [Footprint.lens_pair]
       fp_disjoint
-  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool SLCommon.F.dout
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block SLCommon.F.dout
     SLCommon.F.FRO.m (fun _ => BitWord.dunifin_ll) SLCommon.F.RO.m (D2 D) hmod hdisj
   have h := prhlProc_conseq (prhlProc.trans (D2o_D2 D SLCommon.F.RO.asRO)
       (prhlProc.trans hRO (D2_D2o D SLCommon.F.LRO)))
@@ -731,7 +731,7 @@ theorem L_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       (Lens.pair Gconcl.S.mi Gconcl.S.paths))).footprint.FinitelySupported := by
     simp only [Footprint.lens_pair]
     repeat (first | exact .varLens _ | refine .sup ?_ ?_)
-  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (D3 D)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block (D3 D)
     ((hD.finitelySupported.sup hX).mono (fvP_D3 D))
   unfold DRestrictions_Ideal at _hDd
   have hdisj : FVP.fvP (D3 D) ≤ ((SLCommon.F.RO.m).footprint ⊔ (SLCommon.F.FRO.m).footprint)ᶜ := by
@@ -743,7 +743,7 @@ theorem L_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · refine (Footprint.le_compl_comm _ _).mp (sup_le _hDd' ?_)
       simp only [Footprint.lens_pair]
       fp_disjoint
-  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool SLCommon.F.dout
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block SLCommon.F.dout
     SLCommon.F.FRO.m (fun _ => BitWord.dunifin_ll) SLCommon.F.RO.m (D3 D) hmod hdisj
   have h := prhlProc_conseq (prhlProc.trans (D3o_D3 D SLCommon.F.RO.asRO)
       (prhlProc.trans hRO (D3_D3o D SLCommon.F.LRO)))
@@ -1016,7 +1016,7 @@ theorem L4_F_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       (Lens.pair Gconcl.S.paths F2.RO.m)))).footprint.FinitelySupported := by
     simp only [Footprint.lens_pair]
     repeat (first | exact .varLens _ | refine .sup ?_ ?_)
-  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (L4F D)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block (L4F D)
     ((hD.finitelySupported.sup hX).mono (fvP_L4F D))
   obtain ⟨h1, h2⟩ := _hDd
   unfold DRestrictions_Ideal at h1
@@ -1028,7 +1028,7 @@ theorem L4_F_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · refine (Footprint.le_compl_comm _ _).mp (sup_le (by fp_disjoint) ?_)
       simp only [Footprint.lens_pair]
       fp_disjoint
-  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool SLCommon.F.dout
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block SLCommon.F.dout
     SLCommon.F.FRO.m (fun _ => BitWord.dunifin_ll) SLCommon.F.RO.m (L4F D) hmod hdisj
   exact prhlProc_conseq (prhlProc.trans (L4F_bridge D SLCommon.F.RO.asRO)
       (prhlProc.trans hRO (L4F_bridge' D SLCommon.F.LRO)))
@@ -1103,7 +1103,7 @@ theorem L4_F2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       (Lens.pair Gconcl.S.paths SLCommon.F.RO.m)))).footprint.FinitelySupported := by
     simp only [Footprint.lens_pair]
     repeat (first | exact .varLens _ | refine .sup ?_ ?_)
-  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (L4G D)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block (L4G D)
     ((hD.finitelySupported.sup hX).mono (fvP_L4G D))
   obtain ⟨h1, h2⟩ := _hDd
   unfold DRestrictions_Ideal at h1
@@ -1115,7 +1115,7 @@ theorem L4_F2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · refine (Footprint.le_compl_comm _ _).mp (sup_le (by fp_disjoint) ?_)
       simp only [Footprint.lens_pair]
       fp_disjoint
-  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool F2.dout
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block F2.dout
     F2.FRO.m (fun _ => BitWord.dunifin_ll) F2.RO.m (L4G D) hmod hdisj
   exact prhlProc_conseq (prhlProc.trans (L4G_bridge D F2.RO.asRO)
       (prhlProc.trans hRO (L4G_bridge' D F2.LRO)))
@@ -5973,7 +5973,7 @@ theorem Simplify_simulator : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO
     byequiv; equiv_proc; stmt_inline*; sim
   rw [b1, b2]
   -- EC: by byequiv(RO_LRO_D L _)=> //=; exact/dunifin_ll.
-  byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) block Unit Bool IRO2.dout IRO2.FRO.m
+  byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) block IRO2.dout IRO2.FRO.m
     (fun _ => BitWord.dunifin_ll) IRO2.RO.m (LF D) (by ec_module) (by fp_disjoint))
 
 end Simplify_Simulator

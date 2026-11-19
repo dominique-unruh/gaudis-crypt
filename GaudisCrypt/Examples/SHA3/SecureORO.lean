@@ -156,13 +156,13 @@ noncomputable abbrev FRO : PROM.FullRO.FRO_T «from» «to» :=
   PROM.FullRO.FRO «from» «to» (fun _ => sampleto) FRO.m
 
 /-- The clone's `RO_LRO_D`, its side conditions found (`ec_module`, `fp_disjoint`). -/
-theorem RO_LRO_D [Countable «from»] [Countable «to»] {d_in d_out : Type} [Inhabited d_in]
-    [Inhabited d_out] (D : PROM.FullRO.RO_Distinguisher «from» «to» d_in d_out)
+theorem RO_LRO_D [Countable «from»] [Countable «to»] {sig : ProcedureSignature}
+    (D : PROM.FullRO.RO_T «from» «to» →ₘ Module.Proc sig)
     (hD : Module.ECModule D (PROM.FullRO.RO_ext «from» «to») := by ec_module)
     (hdisj : FVP.fvP D ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by fp_disjoint) :
-    type_of% (PROM.FullRO.FullEager.RO_LRO_D «from» «to» d_in d_out (fun _ => sampleto) FRO.m
+    type_of% (PROM.FullRO.FullEager.RO_LRO_D «from» «to» (fun _ => sampleto) FRO.m
       (fun _ => sampleto_ll) RO.m D hD hdisj) :=
-  PROM.FullRO.FullEager.RO_LRO_D «from» «to» d_in d_out (fun _ => sampleto) FRO.m
+  PROM.FullRO.FullEager.RO_LRO_D «from» «to» (fun _ => sampleto) FRO.m
     (fun _ => sampleto_ll) RO.m D hD hdisj
 
 -- EC's `module type RF`, renamed: EC names the module `RF` too (exception E3)

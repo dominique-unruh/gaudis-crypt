@@ -126,11 +126,10 @@ noncomputable def FRO_ext (G : FRO_T in_t out_t) : (FRO_holes in_t out_t).Instan
    (FRO_T.sample in_t out_t G).procedure, (FRO_T.queried in_t out_t G).procedure,
    (FRO_T.allKnown in_t out_t G).procedure)
 
-omit [Inhabited d_in_t] [Inhabited d_out_t] in
 /-- **Every `RO_Distinguisher` is representable** over all of `RO`'s procedures
 (`Module.representable_of_firstOrder`): for it, exception E2 is a theorem. -/
 theorem RO_Distinguisher.representable [Inhabited in_t] [Inhabited out_t]
-    (D : RO_Distinguisher in_t out_t d_in_t d_out_t) :
+    {sig : ProcedureSignature} (D : RO_T in_t out_t →ₘ Module.Proc sig) :
     Module.Representable D (RO_ext in_t out_t) :=
   Module.representable_of_firstOrder (M := RO_T in_t out_t)
     (by show (RO_T.typeRep in_t out_t).FirstOrder
@@ -149,13 +148,12 @@ theorem RO_Distinguisher.representable [Inhabited in_t] [Inhabited out_t]
               | succ n => nomatch n)
     (RO_ext in_t out_t) (fun _ => rfl) D
 
-omit [Inhabited d_in_t] [Inhabited d_out_t] in
 /-- An `RO_Distinguisher` is EasyCrypt-like as soon as it has finitely many globals: its
 representability is `RO_Distinguisher.representable`. -/
 theorem RO_Distinguisher.ecModule [Inhabited in_t] [Inhabited out_t]
-    (D : RO_Distinguisher in_t out_t d_in_t d_out_t) (hD : (FVP.fvP D).FinitelySupported) :
+    {sig : ProcedureSignature} (D : RO_T in_t out_t →ₘ Module.Proc sig) (hD : (FVP.fvP D).FinitelySupported) :
     Module.ECModule D (RO_ext in_t out_t) :=
-  ⟨RO_Distinguisher.representable in_t out_t d_in_t d_out_t D, hD⟩
+  ⟨RO_Distinguisher.representable in_t out_t D, hD⟩
 
 omit [Inhabited d_in_t] [Inhabited d_out_t] in
 /-- **Every `FRO_Distinguisher` is representable** over all of `FRO`'s procedures. -/
@@ -468,14 +466,12 @@ theorem RO_FRO_sample :
   · simp [h, hd.mpr h]
   · simp [h, FMap.noflags, FMap.mem_map, FMap.map_set]
 
-variable (d_in_t d_out_t : Type)
-
 /-- `equiv RO_FRO_D (D <: RO_Distinguisher { -RO, -FRO }) : D(RO).distinguish ~
 D(FRO).distinguish : ={arg, glob D} /\ RO.m{1} = noflags FRO.m{2} ==>
 ={res, glob D} /\ RO.m{1} = noflags FRO.m{2}`.  `RO.m` and `FRO.m` are distinct variables, and the
 oracles' arguments countable (exception E8). -/
 theorem RO_FRO_D [Countable in_t] [Countable out_t] [Lens.Disjoint RO_m FRO_m]
-    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    {sig : ProcedureSignature} (D : RO_T in_t out_t →ₘ Module.Proc sig)
     (hD : Module.ECModule D (RO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
     prhlProc
@@ -1540,13 +1536,12 @@ theorem eager_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 
                   | succ n => nomatch n)
     a
 
-omit [Inhabited d_in_t] [Inhabited d_out_t] in
 /-- EC's `eager_D` at an `RO_Distinguisher` (EasyCrypt's subtyping `RO_Distinguisher <:
 FRO_Distinguisher`): `eager_call_module` over `RO`'s procedures, by the same oracle lemmas. -/
 theorem eager_D_RO [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
-    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    {sig : ProcedureSignature} (D : RO_T in_t out_t →ₘ Module.Proc sig)
     (hD : Module.ECModule D (RO_ext in_t out_t))
-    (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) (a : d_in_t) :
+    (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) (a : sig.ParamType) :
     ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
       (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
       (procedureDenotation (Module.app D (FRO.asRO in_t out_t dout FRO_m)).procedure a)
@@ -1896,13 +1891,12 @@ theorem LRO_RRO_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) :
       rw [FMap.dom_restr, FMap.in_dom_with]; simp [h]
     simp [h, FMap.restr_set, FMap.rem_id _ _ h2]
 
-omit [Inhabited d_in_t] [Inhabited d_out_t] in
 /-- `equiv LRO_RRO_D (D <: RO_Distinguisher{-RO, -FRO}) : D(LRO).distinguish ~
 D(RRO).distinguish : ={glob D, arg} /\ RO.m{1} = restr Known FRO.m{2} ==>
 ={res, glob D} /\ RO.m{1} = restr Known FRO.m{2}`.  `RO.m` and `FRO.m` are distinct variables, and
 the oracles' arguments countable (exception E8). -/
 theorem LRO_RRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1) [Countable in_t] [Countable out_t]
-    [Lens.Disjoint RO_m FRO_m] (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    [Lens.Disjoint RO_m FRO_m] {sig : ProcedureSignature} (D : RO_T in_t out_t →ₘ Module.Proc sig)
     (hD : Module.ECModule D (RO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
     prhlProc
@@ -1985,8 +1979,8 @@ end EagerCore
 
 section RO_LRO_D
 
-variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
-  [Inhabited d_in_t] [Inhabited d_out_t] (dout : in_t → SubProbability out_t)
+variable (in_t out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
+  (dout : in_t → SubProbability out_t)
   (FRO_m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
 
 /-- EC's `FullEager.RO_LRO_D`, for `declare module D <: RO_Distinguisher {-RO, -FRO}` and
@@ -1994,10 +1988,14 @@ variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] 
 `equiv[ D(RO).distinguish ~ D(LRO).distinguish : ={glob D, RO.m, arg} ==> ={res, glob D} ]`.
 `RO.m` and `FRO.m` are distinct variables, and the oracles' arguments countable (exception E8).
 EC's proof: two `transitivity`s through `M.main1 = RRO.resample(); D(FRO)` and
-`M.main2 = D(RRO); RRO.resample()`, by `RO_FRO_D`, `eager_D` and `LRO_RRO_D`. -/
+`M.main2 = D(RRO); RRO.resample()`, by `RO_FRO_D`, `eager_D` and `LRO_RRO_D`.
+
+`D`'s procedure may have any signature, not only `RO_Distinguisher`'s `procmod (d_in_t) → d_out_t`:
+EC's `proc distinguish()` with `d_in_t = unit` is `procmod () → …` here, which is not
+`procmod (Unit) → …` (an alias `proc distinguish = D(…).distinguish` has the callee's). -/
 theorem RO_LRO_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (RO_m : Lens (FMap in_t out_t) VariableAssignment) [Lens.Disjoint RO_m FRO_m]
-    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    {sig : ProcedureSignature} (D : RO_T in_t out_t →ₘ Module.Proc sig)
     (hD : Module.ECModule D (RO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
     prhlProc
@@ -2043,12 +2041,12 @@ theorem RO_LRO_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1
         rw [hF]; exact FMap.restr_map_tag_ne _ (by decide)
       rw [ProgramDenotation.bind_apply, hR_pure gm hU, SubProbability.pure_bind]
     rw [e]
-    obtain ⟨μ, hm1, hm2, hsat⟩ := RO_FRO_D _ _ dout RO_m FRO_m _ _ D hD hdisj a₁ a₁ g₁ gm
+    obtain ⟨μ, hm1, hm2, hsat⟩ := RO_FRO_D _ _ dout RO_m FRO_m D hD hdisj a₁ a₁ g₁ gm
       ⟨rfl, hg, by rw [hF, FMap.noflags_map_tag]⟩
     exact ⟨μ, hm1, hm2, fun w hw => ⟨(hsat w hw).1, (hsat w hw).2.1⟩⟩
   -- EC: `transitivity M.main2 (={glob D, FRO.m, arg} ==> …)`, `by proc; eager call (eager_D D)`
   have heq := ProgramDenotation.eagerR_to_eq
-    (eager_D_RO _ _ _ _ dout FRO_m dout_ll D hD hFRO_D a₂)
+    (eager_D_RO _ _ dout FRO_m dout_ll D hD hFRO_D a₂)
   rw [heq] at h1
   -- EC: `proc*; inline M.main2; wp; call{1} RRO_resample_ll. symmetry; call (LRO_RRO_D D); auto`
   have h2 : ProgramDenotation.prhl2
@@ -2057,7 +2055,7 @@ theorem RO_LRO_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1
         fun r => R >>= fun _ => pure r)
       (procedureDenotation (Module.app D (LRO in_t out_t dout RO_m)).procedure a₂)
       (fun u v => u.1 = v.1 ∧ G u.2 = G v.2) := by
-    have hl := (LRO_RRO_D _ _ _ _ dout FRO_m RO_m dout_ll D hD hdisj a₂ a₂).symm
+    have hl := (LRO_RRO_D _ _ dout FRO_m RO_m dout_ll D hD hdisj a₂ a₂).symm
     rw [← ProgramDenotation.bind_pure
       (procedureDenotation (Module.app D (LRO in_t out_t dout RO_m)).procedure a₂)]
     refine ProgramDenotation.prhl2.bind (hl.conseq (fun gm g₂ ⟨hg, hF⟩ =>

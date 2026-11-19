@@ -721,7 +721,7 @@ theorem Real_Ideal (m : VariableAssignment) :
   --       by move=> _; exact/Block.DBlock.dunifin_ll.
   refine Eq.trans (b := Pr[ G3(D, F.RO.asRO).distinguish (()) @ &m : §res ]) ?_ ?_
   · symm
-    byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool F.dout F.FRO.m
+    byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block) block F.dout F.FRO.m
       (fun _ => BitWord.dunifin_ll) F.RO.m (G3 D) (by ec_module) (by fp_disjoint))
   -- EC: apply (eq_trans _ Pr[G4(F.RO ).distinguish() @ &m : res]);1:by byequiv G3_G4.
   refine Eq.trans (b := Pr[ G4(D, F.RO.asRO).distinguish (()) @ &m : §res ]) ?_ ?_
@@ -730,7 +730,7 @@ theorem Real_Ideal (m : VariableAssignment) :
   --     + byequiv (F.FullEager.RO_LRO_D G4 _)=> //.
   --       by move=> _; exact/Block.DBlock.dunifin_ll.
   refine Eq.trans (b := Pr[ G4(D, F.LRO).distinguish (()) @ &m : §res ]) ?_ ?_
-  · byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool F.dout F.FRO.m
+  · byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block) block F.dout F.FRO.m
       (fun _ => BitWord.dunifin_ll) F.RO.m (G4 D) (by ec_module) (by fp_disjoint))
   -- EC: by byequiv G4_Ideal.
   byequiv (G4_Ideal D)

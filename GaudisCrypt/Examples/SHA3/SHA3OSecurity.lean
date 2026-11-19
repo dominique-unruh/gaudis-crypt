@@ -554,9 +554,9 @@ EC checks itself, are found (`ec_module`, `fp_disjoint`). -/
 theorem RO_LRO_D (D : RO_Distinguisher)
     (hD : Module.ECModule D (PROM.FullRO.RO_ext (List Bool × ℤ) Bool) := by ec_module)
     (hdisj : FVP.fvP D ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by fp_disjoint) :
-    type_of% (PROM.FullRO.FullEager.RO_LRO_D (List Bool × ℤ) Bool Unit Bool (fun _ => dbool)
+    type_of% (PROM.FullRO.FullEager.RO_LRO_D (List Bool × ℤ) Bool (fun _ => dbool)
       FRO.m (fun _ => dbool_ll) RO.m D hD hdisj) :=
-  PROM.FullRO.FullEager.RO_LRO_D (List Bool × ℤ) Bool Unit Bool (fun _ => dbool) FRO.m
+  PROM.FullRO.FullEager.RO_LRO_D (List Bool × ℤ) Bool (fun _ => dbool) FRO.m
     (fun _ => dbool_ll) RO.m D hD hdisj
 
 end Eager

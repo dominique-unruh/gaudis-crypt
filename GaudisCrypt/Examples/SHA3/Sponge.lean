@@ -1241,7 +1241,7 @@ theorem LRO_RO : ∀ (D <: ERO.RO_Distinguisher {-ERO.RO.m, -ERO.FRO.m}),
   · sim
   -- EC: by symmetry; call (FullEager.RO_LRO_D D _); auto; rewrite dbool_ll.
   equiv_sym
-  equiv_call (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) Bool Unit Bool ERO.dout ERO.FRO.m
+  equiv_call (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) Bool ERO.dout ERO.FRO.m
     (fun _ => dbool_ll) ERO.RO.m D (by ec_module) (by fp_disjoint))
   ec_auto
 
