@@ -1,7 +1,9 @@
 import GaudisCrypt.Logic.GlobWrites
+import GaudisCrypt.Logic.ECCallUpto
 import GaudisCrypt.Syntax.Syntax
 
-/-! Tests of `fp_writes` (`Logic/GlobWrites.lean`). -/
+/-! Tests of `fp_writes` (`Logic/GlobWrites.lean`), and of `glob_simp`'s guard
+(`Logic/ECCallUpto.lean`). -/
 
 namespace GaudisCrypt.GlobWritesTest
 
@@ -84,5 +86,24 @@ example (σ σ' : VariableAssignment)
     (FVP.fvP M).touched_getter.get σ = (FVP.fvP M).touched_getter.get σ' := by
   glob_tuples
   exact h
+
+/-! ### `glob_simp` and its guard `glob_set_present` -/
+
+global_var gwOther : ℕ
+
+-- a write outside `glob M` removed (the guard only checks: no change to the goal)
+set_option linter.unusedTactic false in
+#guard_msgs in
+example (v : ℕ) (g : VariableAssignment) :
+    (FVP.fvP M).touched_getter.get (gwOther.set v g) = (FVP.fvP M).touched_getter.get g := by
+  glob_set_present
+  glob_simp
+
+-- no write under a getter: the guard fails
+#guard_msgs in
+example (g : VariableAssignment) :
+    (FVP.fvP M).touched_getter.get g = (FVP.fvP M).touched_getter.get g := by
+  fail_if_success glob_set_present
+  rfl
 
 end GaudisCrypt.GlobWritesTest

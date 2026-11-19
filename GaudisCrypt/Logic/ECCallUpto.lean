@@ -589,14 +589,26 @@ theorem touched_getter_get_ite {F : Footprint VariableAssignment} (c : Prop) [De
       if c then F.touched_getter.get a else F.touched_getter.get b :=
   apply_ite _ _ _ _
 
+open Lean Elab Tactic in
+/-- Succeeds when the goal shows a write under a getter, `g.get (x.set v σ)`: the shape
+`touched_set_of_le_compl` rewrites.  `glob_simp`'s guard: the `rw` with the lemma's pattern left
+open, when nothing matches, tries to unify it with every `get` in the goal, and on a large
+invariant that is seconds (1.3G heartbeats a call in `Handle.CF_G1`). -/
+elab "glob_set_present" : tactic => withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  let found := ty.find? fun e =>
+    e.isAppOfArity ``Getter.get 4 && e.appArg!.consumeMData.isAppOf ``Setter.set
+  if found.isNone then throwError "glob_set_present: no write under a getter in the goal"
+
 end GaudisCrypt
 
 /-- EC's implicit `={glob D}` across code writing outside `glob D`: each write `x.set v g` under
 `(FVP.fvP D).touched_getter.get` removed (`touched_set_of_le_compl`, `x` outside `glob D` by
-`fp_disjoint`), as long as one is found; the view taken into conditional states first. -/
+`fp_disjoint`), as long as one is found (`glob_set_present` says whether there is one to look
+for); the view taken into conditional states first. -/
 macro "glob_simp" : tactic => `(tactic| (
   (try simp only [GaudisCrypt.touched_getter_get_ite])
-  repeat (rw [GaudisCrypt.touched_set_of_le_compl ?_]; rotate_left; fp_disjoint)
+  repeat (glob_set_present; rw [GaudisCrypt.touched_set_of_le_compl ?_]; rotate_left; fp_disjoint)
   (try simp only [ite_self])))
 
 namespace GaudisCrypt
