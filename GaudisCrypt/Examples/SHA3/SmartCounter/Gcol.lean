@@ -362,8 +362,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       · stmt_if <;> equiv_auto
         all_goals smt_close [card_rng_set]
       -- EC: if;1:auto.
-      stmt_if
-      · auto_close
+      stmt_if; on_goals 1 => auto_close
       -- EC: - inline Gcol.sample_c;rcondt{2}4.
       --       * auto;inline*;auto;progress.
       --         + by have/#:=fcard_image_leq (fun (p : capacity * flag) => p.`1) (frng FRO.m{hr}).
@@ -545,8 +544,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       refine ⟨⟨size_ge0 _, ‹_›, sub_nonneg.2 (prefix_sizel _ _), by omega, by omega, ‹_›⟩, ?_⟩
       auto_close
     -- EC: if=>//;auto;1:smt ml=0 w=size_ge0.
-    stmt_if
-    · auto_close
+    stmt_if; on_goals 1 => auto_close
     on_goals 1 => (equiv_auto; auto_close)
     equiv_auto
     -- EC: if=>//;2:auto;2:smt(size_ge0 prefix_sizel).

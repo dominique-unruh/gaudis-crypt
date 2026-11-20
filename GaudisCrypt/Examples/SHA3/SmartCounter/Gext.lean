@@ -754,8 +754,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
     case hpre =>
       equiv_auto; auto_progress
     -- EC: if=>//;inline *;1:by auto.
-    stmt_if
-    · auto_close
+    stmt_if; on_goals 1 => auto_close
     all_goals stmt_inline*
     on_goals 1 => equiv_auto
     -- EC: if;1,3:auto;progress.
@@ -1449,8 +1448,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         equiv_auto; auto_progress
         all_goals smt_close [inv_le, size_ge0, prefix_sizel]
       -- EC: if=> //;1:by auto=>/#.
-      stmt_if
-      · auto_close
+      stmt_if; on_goals 1 => auto_close
       on_goals 1 => (equiv_auto; auto_close)
       -- EC: if=> //;2:by auto=>/#.
       stmt_if

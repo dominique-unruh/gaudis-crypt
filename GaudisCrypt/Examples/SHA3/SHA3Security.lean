@@ -675,8 +675,7 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
     same_ro §SRO.RO.m{1} §IRO.mp{2})
   · ec_close
   -- EC: rcondt{2} 1; 1: auto.
-  stmt_rcondt{2} 1
-  · hoare_auto
+  stmt_rcondt{2} 1; on_goals 1 => hoare_auto
   -- EC: case: (x{1} \in SRO.RO.RO.m{1}).
   equiv_case (FMap.dom §SRO.RO.m{1} §x{1})
   -- EC: + rcondf{1} 2; auto.
@@ -1323,8 +1322,7 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
               exact SLCommon.Prefix.invm_set _ _ _ _ ‹¬Perm_m.dom (sa, sc)›
                 (EC.not_of_mem_support_dexcepted ‹a ∈ _›) ‹invm Perm_m mi› _ _
             -- EC: conseq(:_==> invm Perm.m{1} Perm.mi{1}); 1:smt().
-            equiv_conseq (: _ ==> invm §Perm.m{1} §Perm.mi{1})
-            · ec_close
+            equiv_conseq (: _ ==> invm §Perm.m{1} §Perm.mi{1}); on_goals 1 => ec_close
             -- EC: while{1}(invm Perm.m{1} Perm.mi{1})(size xs{1}).
             equiv_while{1} (invm §Perm.m{1} §Perm.mi{1}) ((size §xs{1}).toNat)
             · while_ll_phoare
@@ -1751,8 +1749,7 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
               exact SLCommon.Prefix.invm_set _ _ _ _ ‹¬Perm_m.dom (sa, sc)›
                 (EC.not_of_mem_support_dexcepted ‹a ∈ _›) ‹invm Perm_m mi› _ _
             -- EC: conseq(:_==> invm Perm.m{1} Perm.mi{1}); 1:smt().
-            equiv_conseq (: _ ==> invm §Perm.m{1} §Perm.mi{1})
-            · ec_close
+            equiv_conseq (: _ ==> invm §Perm.m{1} §Perm.mi{1}); on_goals 1 => ec_close
             -- EC: while{1}(invm Perm.m{1} Perm.mi{1})(size xs{1}).
             equiv_while{1} (invm §Perm.m{1} §Perm.mi{1}) ((size §xs{1}).toNat)
             · while_ll_phoare

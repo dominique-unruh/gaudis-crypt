@@ -1125,8 +1125,7 @@ theorem Sponge_is_StdSponge : ∀ (P <: DPRIMITIVE {}),
     stmt_rcondf{1} 2
     · intro σ₂; ec_auto; smt_close [size_ge0]
     -- EC: rcondf{1} 3; 1:by auto.
-    stmt_rcondf{1} 3
-    · intro σ₂; ec_auto
+    stmt_rcondf{1} 3; on_goals 1 => (intro σ₂; ec_auto)
     -- EC: rcondf{2} 1.
     --     + by auto=> /> &hr /needed_blocks_non_pos /#.
     stmt_rcondf{2} 1

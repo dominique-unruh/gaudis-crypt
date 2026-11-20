@@ -1969,21 +1969,16 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     --     (EC's `auto`: nothing to do here)
     stmt_sp
     -- EC: rcondt{1}1;1:auto;1:smt(parse_valid parseK formatK).
-    stmt_rcondt{1} 1
-    · ec_auto
+    stmt_rcondt{1} 1; on_goals 1 => ec_auto
     -- EC: rcondt{2}1;1:auto;1:smt(parse_valid parseK formatK).
-    stmt_rcondt{2} 1
-    · ec_auto
+    stmt_rcondt{2} 1; on_goals 1 => ec_auto
     -- EC: rcondt{2}1;1:auto;1:smt(parse_valid parseK formatK);sp.
-    stmt_rcondt{2} 1
-    · ec_auto
+    stmt_rcondt{2} 1; on_goals 1 => ec_auto
     stmt_sp
     -- EC: rcondf{1}3;1:auto;1:smt(parse_valid parseK formatK);sp.
-    stmt_rcondf{1} 3
-    · ec_auto
+    stmt_rcondf{1} 3; on_goals 1 => ec_auto
     -- EC: rcondf{2}3;1:auto;1:smt(parse_valid parseK formatK);sp.
-    stmt_rcondf{2} 3
-    · ec_auto
+    stmt_rcondf{2} 3; on_goals 1 => ec_auto
     -- EC: rcondf{1}5;2:rcondf{2}5;
     --       1,2:by auto;smt(mem_set nseq0 cats0 parse_valid).
     stmt_rcondf{1} 5
@@ -2369,20 +2364,16 @@ theorem equiv_L3_L4 :
     --     (EC's `auto`: nothing to do here)
     stmt_inline*; stmt_sp
     -- EC: rcondt{1}1; 1:(auto; smt(parse_valid parse_gt0)); sp.
-    stmt_rcondt{1} 1
-    · ec_auto
+    stmt_rcondt{1} 1; on_goals 1 => ec_auto
     --     (EC's `sp`: nothing to do here)
     -- EC: rcondt{1}1; 1:(auto; smt(parse_valid parse_gt0)); sp.
-    stmt_rcondt{1} 1
-    · ec_auto
+    stmt_rcondt{1} 1; on_goals 1 => ec_auto
     stmt_sp
     -- EC: rcondf{1}3; 1:(auto; smt(parse_valid parse_gt0)); sp.
-    stmt_rcondf{1} 3
-    · ec_auto
+    stmt_rcondf{1} 3; on_goals 1 => ec_auto
     --     (EC's `sp`: nothing to do here)
     -- EC: rcondt{2}1; 1:(auto; smt(parse_valid parse_gt0 parseK formatK)); sp; wp.
-    stmt_rcondt{2} 1
-    · ec_auto
+    stmt_rcondt{2} 1; on_goals 1 => ec_auto
     --     (EC's `sp`: nothing to do here)
     stmt_wp
     -- EC: if{2};sp.
@@ -2392,8 +2383,7 @@ theorem equiv_L3_L4 :
       · ec_auto
       --     (EC's `sp`: nothing to do here)
       -- EC: rcondf{1}8; 1:(auto; smt(parse_valid parse_gt0)); sp.
-      stmt_rcondf{1} 8
-      · ec_auto; ec_close
+      stmt_rcondf{1} 8; on_goals 1 => (ec_auto; ec_close)
       --     (EC's `sp`: nothing to do here)
       -- EC: rcondf{1}5; 1:(auto; smt(parse_valid parse_gt0 mem_set nseq0 cats0)); sp.
       stmt_rcondf{1} 5
@@ -2410,24 +2400,20 @@ theorem equiv_L3_L4 :
       sim
       smt_close [format_one, parse_valid, valid]
     -- EC: rcondt{2}1; 1:(auto; smt(parse_valid parse_gt0)); sp; wp.
-    stmt_rcondt{2} 1
-    · ec_auto
+    stmt_rcondt{2} 1; on_goals 1 => ec_auto
     stmt_sp
     --     (EC's `wp`: nothing to do here)
     -- EC: splitwhile{1} 8 : i + 1 < n.
     stmt_splitwhile{1} 8 : §i + 1 < §n
     -- EC: rcondt{1}9;1:auto.
-    stmt_rcondt{1} 9
+    stmt_rcondt{1} 9; on_goals 1 => l3l4_round
     --     - by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.
-    · l3l4_round
     -- EC: rcondf{1}11;1:auto.
     --     - by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.
-    stmt_rcondf{1} 11
-    · l3l4_round
+    stmt_rcondf{1} 11; on_goals 1 => l3l4_round
     -- EC: rcondf{1}11;1:auto.
     --     - by while(i < n);auto;2:smt();sp;if;auto;1:(sp;if;auto);while(i < n);auto.
-    stmt_rcondf{1} 11
-    · l3l4_round
+    stmt_rcondf{1} 11; on_goals 1 => l3l4_round
     -- EC: wp.
     stmt_wp
     -- EC: while((n,p){1} = (n0,p0){2} /\ i{1} + 1 = i{2} /\ valid p{1} /\ 0 < n{1}
@@ -2459,12 +2445,10 @@ theorem equiv_L3_L4 :
     -- EC: sp.
     stmt_sp
     -- EC: rcondt{1}1;1:auto;sp.
-    stmt_rcondt{1} 1
-    · ec_auto; ec_close
+    stmt_rcondt{1} 1; on_goals 1 => (ec_auto; ec_close)
     stmt_sp
     -- EC: rcondt{1}1;1:(auto;smt(parse_valid parseK formatK)).
-    stmt_rcondt{1} 1
-    · ec_auto; smt_close [parse_valid, parseK, formatK, valid]
+    stmt_rcondt{1} 1; on_goals 1 => (ec_auto; smt_close [parse_valid, parseK, formatK, valid])
     -- EC: splitwhile{1} 1 : i1 + 1 < n1.
     stmt_splitwhile{1} 1 : §i1 + 1 < §n1
     -- EC: rcondt{1}2;1:auto.
@@ -2615,8 +2599,7 @@ theorem equiv_L3_L4 :
   -- EC: inline*;auto;sp.
   stmt_inline*; ec_auto; stmt_sp
   -- EC: if;1:auto;1:smt().
-  stmt_if
-  · ec_close
+  stmt_if; on_goals 1 => ec_close
   -- EC: + rcondf{2}1;1:(auto;smt(parse_valid parse_gt0)).
   · stmt_rcondf{2} 1
     · ec_auto; ec_prep; exact parse_gt0 _
@@ -2625,20 +2608,16 @@ theorem equiv_L3_L4 :
     stmt_splitwhile{2} 1 : §i + 1 < §n
     -- EC: rcondt{1}2;1:auto.
     --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-    stmt_rcondt{1} 2
-    · l3l4_i_lt_n
+    stmt_rcondt{1} 2; on_goals 1 => l3l4_i_lt_n
     -- EC: rcondt{2}2;1:auto.
     --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-    stmt_rcondt{2} 2
-    · l3l4_i_lt_n
+    stmt_rcondt{2} 2; on_goals 1 => l3l4_i_lt_n
     -- EC: rcondf{1}7;1:auto.
     --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-    stmt_rcondf{1} 7
-    · l3l4_i_lt_n
+    stmt_rcondf{1} 7; on_goals 1 => l3l4_i_lt_n
     -- EC: rcondf{2}8;1:auto.
     --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-    stmt_rcondf{2} 8
-    · l3l4_i_lt_n
+    stmt_rcondf{2} 8; on_goals 1 => l3l4_i_lt_n
     -- EC: rcondf{1}9;1:auto.
     --     - by while(i+1<=n);auto;
     --       smt(parse_valid parse_gt0 parseK mem_set formatK).
@@ -2689,30 +2668,24 @@ theorem equiv_L3_L4 :
     · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
   -- EC: sp;rcondf{2}1;1:(auto;smt(parse_gt0)).
   --     (EC's `sp`: nothing to do here)
-  stmt_rcondf{2} 1
-  · ec_auto; ec_prep; exact parse_gt0 _
+  stmt_rcondf{2} 1; on_goals 1 => (ec_auto; ec_prep; exact parse_gt0 _)
   -- EC: rcondf{2}1;1:auto;1:smt(parseK formatK).
-  stmt_rcondf{2} 1
-  · ec_auto; ec_prep; rw [formatK]; omega
+  stmt_rcondf{2} 1; on_goals 1 => (ec_auto; ec_prep; rw [formatK]; omega)
   -- EC: splitwhile{1} 1 : i + 1 < n;splitwhile{2} 1 : i + 1 < n.
   stmt_splitwhile{1} 1 : §i + 1 < §n
   stmt_splitwhile{2} 1 : §i + 1 < §n
   -- EC: rcondt{1}2;1:auto.
   --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-  stmt_rcondt{1} 2
-  · l3l4_i_lt_n
+  stmt_rcondt{1} 2; on_goals 1 => l3l4_i_lt_n
   -- EC: rcondt{2}2;1:auto.
   --     - while(i<n);auto;-1:smt(parse_valid parse_gt0).
-  stmt_rcondt{2} 2
-  · l3l4_i_lt_n
+  stmt_rcondt{2} 2; on_goals 1 => l3l4_i_lt_n
   -- EC: rcondf{1}7;1:auto.
   --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-  stmt_rcondf{1} 7
-  · l3l4_i_lt_n
+  stmt_rcondf{1} 7; on_goals 1 => l3l4_i_lt_n
   -- EC: rcondf{2}8;1:auto.
   --     - by while(i<n);auto;smt(parse_valid parse_gt0).
-  stmt_rcondf{2} 8
-  · l3l4_i_lt_n
+  stmt_rcondf{2} 8; on_goals 1 => l3l4_i_lt_n
   -- EC: rcondf{1}9;1:auto.
   --     - by while(i+1<=n);auto;
   --       smt(parse_valid parse_gt0 parseK mem_set formatK).
@@ -2911,8 +2884,7 @@ theorem equiv_L4_ideal :
     · ec_auto; ec_prep; exact parse_gt0 _
     stmt_sp
     -- EC: rcondt{2}1;1:auto.
-    stmt_rcondt{2} 1
-    · ec_auto
+    stmt_rcondt{2} 1; on_goals 1 => ec_auto
     -- EC: while(lres{1} = bs0{2} /\ (i,n,pp){1} = (i0,n0,x0){2}
     --       /\ (x0{2}, n0{2}) = parse (format q{2} k{2}) /\ ! valid x0{2} /\ 0 <= i{1}
     --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});progress.
@@ -2983,8 +2955,7 @@ theorem equiv_L4_ideal :
   on_goals 2 => ec_auto
   ec_auto; stmt_sp
   -- EC: rcondt{1}1;1:auto;if{1};sp.
-  stmt_rcondt{1} 1
-  · ec_auto; ec_close
+  stmt_rcondt{1} 1; on_goals 1 => (ec_auto; ec_close)
   stmt_if{1} <;> stmt_sp
   -- EC: - by rcondf{1}1;2:rcondf{2}1;auto;smt().
   · stmt_rcondf{1} 1
@@ -5469,8 +5440,7 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   -- EC: inline*; if; 1: auto; 1: sim.
   --     (GAP 16: inlining names the two sides' locals differently (`i`/`i0`, `r0`/`r`), and
   --     `sim` does not match them: the loop by its invariant)
-  stmt_inline*; stmt_if
-  · ec_close
+  stmt_inline*; stmt_if; on_goals 1 => ec_close
   · stmt_wp; stmt_sp; stmt_if
     · ec_close
     rotate_left

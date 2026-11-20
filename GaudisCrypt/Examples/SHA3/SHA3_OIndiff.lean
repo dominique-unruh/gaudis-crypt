@@ -514,8 +514,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
           · ec_close
           · stmt_sp; stmt_wp
             -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|3:auto=> />]; sp.
-            stmt_if
-            · ec_close
+            stmt_if; on_goals 1 => ec_close
             -- EC: * if; auto=> />.
             --       conseq(:_==> ={IRO.mp} /\ bs0{1} = bs{2})=> />; sim=> />.
             --       by move=> &1 &2 <- /> <- />.

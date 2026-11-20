@@ -742,32 +742,30 @@ RFList.get ~ RFWhile.get : ={arg, glob RFList} ==> ={res, glob RFWhile}`. -/
 theorem rw_RF_List_While :
     equiv[ RFList.get (x) ~ RFWhile.get (x) : ={x, RFList.m} ==> ={res, RFList.m} ] := by
   -- EC: proc; if; 1, 3: auto; wp.
-  equiv_proc; stmt_if
+  equiv_proc; stmt_if; on_goals 1, 3 => ec_auto
+  stmt_wp
+  -- EC: conseq(:_==> z{1} = l{2})=> />.
+  equiv_conseq (: _ ==> §z{1} = §l{2})
   · ec_close
-  · stmt_wp
-    -- EC: conseq(:_==> z{1} = l{2})=> />.
-    equiv_conseq (: _ ==> §z{1} = §l{2})
-    · ec_close
-    -- EC: transitivity{1} { z <@ Sample.sample(size_out); } (true ==> ={z}) (true ==> z{1} = l{2})
-    --     … transitivity{1} { z <@ LoopSnoc.sample(size_out); } (true ==> ={z})
-    --       (true ==> z{1} = l{2})=>/>; last first.
-    --     (one step: EC's module `Sample` is not ported, `dlist_LoopSnoc`)
-    equiv_trans{1} {
-        z <- call (GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample).procedure (size_out); }
-      (True ==> §z{1} = §z{2}) (True ==> §z{1} = §l{2})
-    · intro σ₁ σ₂ _
-      exact ⟨σ₁, trivial⟩
-    · intro τ₁ τ τ₂ h₁ h₂
-      exact h₁.trans h₂
-    -- EC: by call(Sample_LoopSnoc_eq); auto.
-    · exact dlist_LoopSnoc
-    -- EC: + inline*; auto; sim.
-    --       by while(={l, i} /\ n{1} = size_out); auto; smt(cats1).
-    · stmt_inline*; stmt_wp
-      equiv_while (={i} ∧ §l0{1} = §l{2} ∧ §n{1} = size_out)
-      · ec_auto; ec_close
-      ec_auto
-  · ec_auto
+  -- EC: transitivity{1} { z <@ Sample.sample(size_out); } (true ==> ={z}) (true ==> z{1} = l{2})
+  --     … transitivity{1} { z <@ LoopSnoc.sample(size_out); } (true ==> ={z})
+  --       (true ==> z{1} = l{2})=>/>; last first.
+  --     (one step: EC's module `Sample` is not ported, `dlist_LoopSnoc`)
+  equiv_trans{1} {
+      z <- call (GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample).procedure (size_out); }
+    (True ==> §z{1} = §z{2}) (True ==> §z{1} = §l{2})
+  · intro σ₁ σ₂ _
+    exact ⟨σ₁, trivial⟩
+  · intro τ₁ τ τ₂ h₁ h₂
+    exact h₁.trans h₂
+  -- EC: by call(Sample_LoopSnoc_eq); auto.
+  · exact dlist_LoopSnoc
+  -- EC: + inline*; auto; sim.
+  --       by while(={l, i} /\ n{1} = size_out); auto; smt(cats1).
+  · stmt_inline*; stmt_wp
+    equiv_while (={i} ∧ §l0{1} = §l{2} ∧ §n{1} = size_out)
+    · ec_auto; ec_close
+    ec_auto
 
 -- EC's `op inv` (l. 331) is the first port's
 open GaudisCrypt.SHA3.SHA3OSecurity (inv)
@@ -785,8 +783,7 @@ theorem eq_IRO_RFWhile :
   -- EC: proc; inline*; sp.
   equiv_proc; stmt_inline*; stmt_sp
   -- EC: rcondt{1} 1; 1: by auto.
-  stmt_rcondt{1} 1
-  · hoare_auto
+  stmt_rcondt{1} 1; on_goals 1 => hoare_auto
   -- EC: if{2}; sp; last first.
   stmt_if{2}
   swap
@@ -989,8 +986,7 @@ theorem eq_extend :
   -- EC: proc; inline*; auto; sp.
   equiv_proc; stmt_inline*; stmt_wp; stmt_sp
   -- EC: rcondt{2} 1; 1: auto.
-  stmt_rcondt{2} 1
-  · hoare_auto
+  stmt_rcondt{2} 1; on_goals 1 => hoare_auto
   -- EC: if{1}; sp.
   stmt_if{1}
   · stmt_sp
@@ -1052,8 +1048,7 @@ theorem eq_extend :
     exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
   · stmt_sp
     -- EC: rcondt{1} 1; 1: auto.
-    stmt_rcondt{1} 1
-    · hoare_auto
+    stmt_rcondt{1} 1; on_goals 1 => hoare_auto
     -- EC: splitwhile{1} 1 : i0 < size_out; auto=> /=.
     stmt_splitwhile{1} 1 : §i0 < size_out
     stmt_wp
@@ -1187,8 +1182,7 @@ theorem eq_eager_ideal :
   · intro σ₁ k
     hoare_auto
   -- EC: conseq(:_==> bs{1} = l{2} /\ BIRO.IRO.mp{1} = RO.m{2}); 1: smt().
-  equiv_conseq (: _ ==> §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2})
-  · ec_close
+  equiv_conseq (: _ ==> §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2}); on_goals 1 => ec_close
   -- EC: while(={i, n, x} /\ bs{1} = l{2} /\ BIRO.IRO.mp{1} = RO.m{2}).
   equiv_while (={i, n, x} ∧ §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2})
   -- EC: + sp; if{1}.
@@ -1567,25 +1561,23 @@ theorem eager_ideal (m : VariableAssignment) :
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
         -- EC: if; [1,3:by auto]; sim 1 1.
+        stmt_if; on_goals 1, 3 => ec_auto
+        stmt_wp
+        -- EC: if; [1,3:by auto|2:sim 4 4]; sp.
         stmt_if
         · ec_close
-        · stmt_wp
-          -- EC: if; [1,3:by auto|2:sim 4 4]; sp.
+        · sim 4 4
+          stmt_sp
+          -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
           stmt_if
           · ec_close
-          · sim 4 4
-            stmt_sp
-            -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
-            stmt_if
-            · ec_close
-            -- EC: * inline{1} 1; inline{2} 1; sp; sim 1 1.
-            --       by call eq_eager_ideal; auto=> /> &1 &2 <- /> <- />.
-            · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
-              equiv_call eq_eager_ideal
-              ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+          -- EC: * inline{1} 1; inline{2} 1; sp; sim 1 1.
+          --       by call eq_eager_ideal; auto=> /> &1 &2 <- /> <- />.
+          · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+            equiv_call eq_eager_ideal
+            ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
@@ -1596,15 +1588,13 @@ theorem eager_ideal (m : VariableAssignment) :
     · equiv_proc; stmt_wp
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; [1,3:by auto]; sim 1 1.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1, 3 => ec_auto
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       --     by call eq_eager_ideal; auto.
-      · stmt_wp
-        stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
-        equiv_call eq_eager_ideal
-        ec_auto
-      · ec_auto
+      stmt_wp
+      stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+      equiv_call eq_eager_ideal
+      ec_auto
     --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
     have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
@@ -1654,24 +1644,22 @@ theorem eager_ideal (m : VariableAssignment) :
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
         -- EC: if; [1,3:by auto]; sim 1 1.
+        stmt_if; on_goals 1, 3 => ec_auto
+        stmt_wp
+        -- EC: if; [1,3:by auto]; sim 4 4; sp.
         stmt_if
         · ec_close
-        · stmt_wp
-          -- EC: if; [1,3:by auto]; sim 4 4; sp.
+        · sim 4 4
+          stmt_sp
+          -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
           stmt_if
           · ec_close
-          · sim 4 4
-            stmt_sp
-            -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
-            stmt_if
-            · ec_close
-            -- EC: * by call eq_eager_ideal2; auto=> /> &1 &2 <- /> <- />.
-            · stmt_wp
-              equiv_call eq_eager_ideal2
-              ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+          -- EC: * by call eq_eager_ideal2; auto=> /> &1 &2 <- /> <- />.
+          · stmt_wp
+            equiv_call eq_eager_ideal2
+            ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
@@ -1682,13 +1670,11 @@ theorem eager_ideal (m : VariableAssignment) :
     · equiv_proc; stmt_wp
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; [1,3:by auto]; sim 1 1.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1, 3 => ec_auto
       -- EC: by call eq_eager_ideal2; auto.
-      · stmt_wp
-        equiv_call eq_eager_ideal2
-        ec_auto
-      · ec_auto
+      stmt_wp
+      equiv_call eq_eager_ideal2
+      ec_auto
     --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
     have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
@@ -1756,27 +1742,25 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         · ec_close
         · sim 1 1
           -- EC: if; [1,3:by auto]; sim 4 4.
+          stmt_if; on_goals 1, 3 => ec_auto
+          sim 4 4
+          -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
+          stmt_sp
           stmt_if
           · ec_close
-          · sim 4 4
-            -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
-            stmt_sp
+          · sim 3 3
+            -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
+            --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
             stmt_if
             · ec_close
-            · sim 3 3
-              -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
-              --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
-              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
-              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
-              stmt_if
-              · ec_close
-              --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
-              · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
-              --       by move=> /> &1 &2 <- /> <- />.
-              · ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+            --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
+            · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
+            --       by move=> /> &1 &2 <- /> <- />.
+            · ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by sim.
@@ -2223,12 +2207,10 @@ theorem rw_ideal (m : VariableAssignment) :
     · ec_close
     · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; 1: auto; sim.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1 => ec_close
       · stmt_wp
         -- EC: if; 1: auto; sim.
-        stmt_if
-        · ec_close
+        stmt_if; on_goals 1 => ec_close
         · sim 4 4
           -- EC: sp; if; [2,3:sim]; [1,3:by auto=> /> &1 &2 <- /> <- />].
           stmt_sp
@@ -2854,25 +2836,23 @@ theorem eager_ideal (m : VariableAssignment) :
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
         -- EC: if; [1,3:by auto]; sim 1 1.
+        stmt_if; on_goals 1, 3 => ec_auto
+        stmt_wp
+        -- EC: if; [1,3:by auto|2:sim 4 4]; sp.
         stmt_if
         · ec_close
-        · stmt_wp
-          -- EC: if; [1,3:by auto|2:sim 4 4]; sp.
+        · sim 4 4
+          stmt_sp
+          -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
           stmt_if
           · ec_close
-          · sim 4 4
-            stmt_sp
-            -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
-            stmt_if
-            · ec_close
-            -- EC: * inline{1} 1; inline{2} 1; sp; sim 1 1.
-            --       by call eq_eager_ideal; auto=> /> &1 &2 <- /> <- />.
-            · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
-              equiv_call eq_eager_ideal
-              ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+          -- EC: * inline{1} 1; inline{2} 1; sp; sim 1 1.
+          --       by call eq_eager_ideal; auto=> /> &1 &2 <- /> <- />.
+          · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+            equiv_call eq_eager_ideal
+            ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
@@ -2883,15 +2863,13 @@ theorem eager_ideal (m : VariableAssignment) :
     · equiv_proc; stmt_wp
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; [1,3:by auto]; sim 1 1.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1, 3 => ec_auto
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       --     by call eq_eager_ideal; auto.
-      · stmt_wp
-        stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
-        equiv_call eq_eager_ideal
-        ec_auto
-      · ec_auto
+      stmt_wp
+      stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+      equiv_call eq_eager_ideal
+      ec_auto
     --     (GAP 4: `Dist_of_P2Adv.m` and `glob A` past the initializations' writes, from the two
     --     memories' equation)
     ec_auto; ec_progress
@@ -2959,24 +2937,22 @@ theorem eager_ideal (m : VariableAssignment) :
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
         -- EC: if; [1,3:by auto]; sim 1 1.
+        stmt_if; on_goals 1, 3 => ec_auto
+        stmt_wp
+        -- EC: if; [1,3:by auto]; sim 4 4; sp.
         stmt_if
         · ec_close
-        · stmt_wp
-          -- EC: if; [1,3:by auto]; sim 4 4; sp.
+        · sim 4 4
+          stmt_sp
+          -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
           stmt_if
           · ec_close
-          · sim 4 4
-            stmt_sp
-            -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
-            stmt_if
-            · ec_close
-            -- EC: * by call eq_eager_ideal2; auto=> /> &1 &2 <- /> <- />.
-            · stmt_wp
-              equiv_call eq_eager_ideal2
-              ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+          -- EC: * by call eq_eager_ideal2; auto=> /> &1 &2 <- /> <- />.
+          · stmt_wp
+            equiv_call eq_eager_ideal2
+            ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
@@ -2987,13 +2963,11 @@ theorem eager_ideal (m : VariableAssignment) :
     · equiv_proc; stmt_wp
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; [1,3:by auto]; sim 1 1.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1, 3 => ec_auto
       -- EC: by call eq_eager_ideal2; auto.
-      · stmt_wp
-        equiv_call eq_eager_ideal2
-        ec_auto
-      · ec_auto
+      stmt_wp
+      equiv_call eq_eager_ideal2
+      ec_auto
     --     (GAP 4: `Dist_of_P2Adv.m` and `glob A` past the initializations' writes, from the two
     --     memories' equation)
     ec_auto; ec_progress
@@ -3073,27 +3047,25 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
         · ec_close
         · sim 1 1
           -- EC: if; [1,3:by auto]; sim 4 4.
+          stmt_if; on_goals 1, 3 => ec_auto
+          sim 4 4
+          -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
+          stmt_sp
           stmt_if
           · ec_close
-          · sim 4 4
-            -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
-            stmt_sp
+          · sim 3 3
+            -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
+            --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
             stmt_if
             · ec_close
-            · sim 3 3
-              -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
-              --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
-              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
-              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
-              stmt_if
-              · ec_close
-              --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
-              · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
-              --       by move=> /> &1 &2 <- /> <- />.
-              · ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+            --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
+            · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
+            --       by move=> /> &1 &2 <- /> <- />.
+            · ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by sim.
@@ -3575,12 +3547,10 @@ theorem rw_ideal (m : VariableAssignment) (mess : List Bool) :
     · ec_close
     · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; 1: auto; sim.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1 => ec_close
       · stmt_wp
         -- EC: if; 1: auto; sim.
-        stmt_if
-        · ec_close
+        stmt_if; on_goals 1 => ec_close
         · sim 4 4
           -- EC: sp; if; [2,3:sim]; [1,3:by auto=> /> &1 &2 <- /> <- />].
           stmt_sp
@@ -4119,25 +4089,23 @@ theorem eager_ideal (m : VariableAssignment) :
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
         -- EC: if; [1,3:by auto]; sim 1 1.
+        stmt_if; on_goals 1, 3 => ec_auto
+        stmt_wp
+        -- EC: if; [1,3:by auto|2:sim 4 4]; sp.
         stmt_if
         · ec_close
-        · stmt_wp
-          -- EC: if; [1,3:by auto|2:sim 4 4]; sp.
+        · sim 4 4
+          stmt_sp
+          -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
           stmt_if
           · ec_close
-          · sim 4 4
-            stmt_sp
-            -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
-            stmt_if
-            · ec_close
-            -- EC: * inline{1} 1; inline{2} 1; sp; sim 1 1.
-            --       by call eq_eager_ideal; auto=> /> &1 &2 <- /> <- />.
-            · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
-              equiv_call eq_eager_ideal
-              ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+          -- EC: * inline{1} 1; inline{2} 1; sp; sim 1 1.
+          --       by call eq_eager_ideal; auto=> /> &1 &2 <- /> <- />.
+          · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+            equiv_call eq_eager_ideal
+            ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
@@ -4148,15 +4116,13 @@ theorem eager_ideal (m : VariableAssignment) :
     · equiv_proc; stmt_wp
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; [1,3:by auto]; sim 1 1.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1, 3 => ec_auto
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       --     by call eq_eager_ideal; auto.
-      · stmt_wp
-        stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
-        equiv_call eq_eager_ideal
-        ec_auto
-      · ec_auto
+      stmt_wp
+      stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
+      equiv_call eq_eager_ideal
+      ec_auto
     --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
     all_goals
@@ -4220,24 +4186,22 @@ theorem eager_ideal (m : VariableAssignment) :
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
         -- EC: if; [1,3:by auto]; sim 1 1.
+        stmt_if; on_goals 1, 3 => ec_auto
+        stmt_wp
+        -- EC: if; [1,3:by auto]; sim 4 4; sp.
         stmt_if
         · ec_close
-        · stmt_wp
-          -- EC: if; [1,3:by auto]; sim 4 4; sp.
+        · sim 4 4
+          stmt_sp
+          -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
           stmt_if
           · ec_close
-          · sim 4 4
-            stmt_sp
-            -- EC: if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 1 1|3:sim].
-            stmt_if
-            · ec_close
-            -- EC: * by call eq_eager_ideal2; auto=> /> &1 &2 <- /> <- />.
-            · stmt_wp
-              equiv_call eq_eager_ideal2
-              ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+          -- EC: * by call eq_eager_ideal2; auto=> /> &1 &2 <- /> <- />.
+          · stmt_wp
+            equiv_call eq_eager_ideal2
+            ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
@@ -4248,13 +4212,11 @@ theorem eager_ideal (m : VariableAssignment) :
     · equiv_proc; stmt_wp
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; [1,3:by auto]; sim 1 1.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1, 3 => ec_auto
       -- EC: by call eq_eager_ideal2; auto.
-      · stmt_wp
-        equiv_call eq_eager_ideal2
-        ec_auto
-      · ec_auto
+      stmt_wp
+      equiv_call eq_eager_ideal2
+      ec_auto
     --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
     all_goals
@@ -4324,27 +4286,25 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         · ec_close
         · sim 1 1
           -- EC: if; [1,3:by auto]; sim 4 4.
+          stmt_if; on_goals 1, 3 => ec_auto
+          sim 4 4
+          -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
+          stmt_sp
           stmt_if
           · ec_close
-          · sim 4 4
-            -- EC: sp; if; [1:by auto=> /> &1 &2 <- /> <- />|2:sim 3 3|3:sim].
-            stmt_sp
+          · sim 3 3
+            -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
+            --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
+            stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
             stmt_if
             · ec_close
-            · sim 3 3
-              -- EC: + inline{1} 1; inline{2} 1; sp; sim 1 1.
-              --       inline{1} 1; inline{2} 1; sp; if; auto=> />.
-              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; sim 1 1
-              stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
-              stmt_if
-              · ec_close
-              --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
-              · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
-              --       by move=> /> &1 &2 <- /> <- />.
-              · ec_auto; ec_close
-            -- EC: by move=> /> &1 &2 <- /> <- />.
-            · sim; ec_close
-          · ec_auto
+            --       - by call(rw_RF_List_While); auto=> /> &1 &2 <- /> <- />.
+            · stmt_wp; equiv_call rw_RF_List_While; ec_auto; ec_close
+            --       by move=> /> &1 &2 <- /> <- />.
+            · ec_auto; ec_close
+          -- EC: by move=> /> &1 &2 <- /> <- />.
+          · sim; ec_close
         · ec_auto
       · ec_auto
     -- EC: - by sim.
@@ -4807,12 +4767,10 @@ theorem rw_ideal (m : VariableAssignment) :
     · ec_close
     · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       -- EC: if; 1: auto; sim.
-      stmt_if
-      · ec_close
+      stmt_if; on_goals 1 => ec_close
       · stmt_wp
         -- EC: if; 1: auto; sim.
-        stmt_if
-        · ec_close
+        stmt_if; on_goals 1 => ec_close
         · sim 4 4
           -- EC: sp; if; [2,3:sim]; [1,3:by auto=> /> &1 &2 <- /> <- />].
           stmt_sp

@@ -5,7 +5,8 @@ import GaudisCrypt.Logic.StateEq
 /-!
 # EC's `auto` on the strict `skip`
 
-    ec_auto     -- EC's `auto` on a Hoare triple, a `phoare` judgment or a relational judgment
+    ec_auto     -- EC's `auto` on a Hoare triple, a `phoare` judgment or a relational judgment;
+                -- on a goal about values, `ec_close` (`Logic/ECProgress.lean`)
 
 `wp` over the code from the end (on a relational judgment also `rnd` on the samplings, as
 `equiv_auto`); when the code is used up, `ec_skip` (`Logic/ReadNorm.lean`): the implication in
@@ -38,6 +39,17 @@ end GaudisCrypt.ECAutoStrict
 open Lean Meta Elab Tactic GaudisCrypt ECAuto ECAutoStrict in
 /-- **EC's `auto`, strict**: see the module docstring. -/
 elab "ec_auto" : tactic => do
+  -- a goal about values (under its binders): EC's `auto` there is `ec_close`
+  -- (`Logic/ECProgress.lean`, which builds on this file, so its syntax is named here), on the goal
+  -- as it is (`ec_close` introduces and takes the hypotheses apart itself); EC's one `auto` closes
+  -- goals of both kinds, as in `if; 1,3: auto` (the tests' equivalence, then a judgment)
+  let isJudgment ← withMainContext do
+    forallTelescope (← instantiateMVars (← getMainTarget)) fun _ concl => do
+      let c := concl.cleanupAnnotations
+      return c.isAppOf ``prhlStmt || c.isAppOf ``hoareStmt || c.isAppOf ``phoareStmt
+  unless isJudgment do
+    evalTactic (Syntax.node .none `tacticEc_close #[Syntax.atom .none "ec_close"])
+    return
   -- a side goal `∀ σ₁, hoare[ … ]` (EC's `forall &1`, from a one-sided rule): the memory first
   evalTactic (← `(tactic| intros))
   let ty := (← instantiateMVars (← (← getMainGoal).getType)).cleanupAnnotations

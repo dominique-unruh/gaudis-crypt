@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.ECProgress
 import GaudisCrypt.Syntax.Syntax
+import GaudisCrypt.Logic.ECGoals
 
 /-!
 # Golden tests of the closer on goals about values (`Logic/ECProgress.lean`)
@@ -255,5 +256,34 @@ a✝ : P a
 #guard_msgs in
 example : ∀ a : ℤ, P a → Q a := by
   ec_close
+
+/-! ## `ec_auto` on a goal about values: `ec_close` (EC's `auto` over goals of both kinds) -/
+
+example (a b : ℤ) (h : a = b) : ∀ c : ℤ, c = b → c = a := by
+  ec_auto
+
+-- the goal as it is, not introduced first: `ec_close` takes the hypotheses apart itself
+example : ∀ a b : ℤ, (P a ∧ a = b) ∧ Q b → P b ∧ Q b := by
+  ec_auto
+
+-- not closed: the error of `ec_close`, nothing changed
+/--
+error: ec_close: a goal is left (state the lemmas EC's `smt` is given, or close it by hand)
+P Q : ℤ → Prop
+a : ℤ
+a✝ : P a
+⊢ Q a
+-/
+#guard_msgs in
+example : ∀ a : ℤ, P a → Q a := by
+  ec_auto
+
+-- EC's `1,2: auto` over a value goal and a judgment
+example : (∀ a : ℤ, a = a) ∧ hoare[ P §x ==> P §x ] {
+      var x : ℤ;
+      skip;
+    } := by
+  refine ⟨?_, ?_⟩
+  on_goals 1, 2 => ec_auto
 
 end GaudisCrypt.ECProgressTest

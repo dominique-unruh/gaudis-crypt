@@ -3792,8 +3792,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
             (try exact PFf_Cf_dom_next _ _ _ _ _ _ _ _ _ _ _ _ _ _ ‹_› ‹_› ‹_›) <;>
             (try (glob_tuples; simp_all)))
         -- EC: rcondt{1}1;1:auto;progress.
-        stmt_rcondt{1} 1
-        · hoare_auto
+        stmt_rcondt{1} 1; on_goals 1 => hoare_auto
         -- EC: rcondt{2}1;1:auto;progress.
         stmt_rcondt{2} 1
         -- EC: - have[]HINV[]->>/=[]->>/=[]H_h[]H_path H_F_RO:=H6 H11.
@@ -3949,8 +3948,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
           · equiv_auto; pf_bad_leaf
           · equiv_auto; pf_bad_leaf
     -- EC: rcondf{1}1;1:auto=>/#.
-    stmt_rcondf{1} 1
-    · hoare_auto
+    stmt_rcondf{1} 1; on_goals 1 => hoare_auto
     -- EC: sp;wp.
     stmt_sp; stmt_wp
     -- EC: if{1};2:rcondt{2}1;first last;3:rcondf{2}1;..3:auto.
@@ -4000,8 +3998,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         · simp_all [FMap.domE]
         · simp [FMap.domE, hmh]
       -- EC: rcondt{2}1;1:auto=>/#.
-      stmt_rcondt{2} 1
-      · hoare_auto; auto_prep; omega
+      stmt_rcondt{2} 1; on_goals 1 => (hoare_auto; auto_prep; omega)
       -- EC: rcondt{2}5;auto;progress.
       stmt_rcondt{2} 5
       -- EC: * rewrite(@take_nth witness);1:smt(prefix_ge0);rewrite domE. … (~20 lines:
