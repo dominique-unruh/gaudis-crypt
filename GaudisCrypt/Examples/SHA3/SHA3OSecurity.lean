@@ -37,7 +37,7 @@ Translation:
 * EC's `import OIndif` (the clone of `SHA3_OIndiff`): the sponge's module types
   (`OFUNCTIONALITY`, `ODPRIMITIVE`, …) are the first port's `SHA3_OIndiff.OIndif`; `SH`'s own are
   `SH.OIndif.…`, as EC's `OIndif.OFUNCTIONALITY` after the clone;
-* `FSetSize(F)` aliases `init`: wrapped in a call (exception E5);
+* `FSetSize(F)` aliases `init`: EC's alias (`proc f = c;`, since 2026-11-20);
   `OSponge(P) = FSetSize(CSome(Sponge, P))` is `Module.comp FSetSize (CSome Sponge)`.
 * EC's module types are structural: a sponge-level `OFUNCTIONALITY` is an `ODFUNCTIONALITY`,
   an `OPRIMITIVE` an `ODPRIMITIVE` of `SH.OIndif` too.  Here each such use is a coercion,
@@ -149,10 +149,12 @@ The first port's translation notes (some mention declarations that went with its
   `SORO.axioms`, `SH.axioms`.
 * `FSetSize` and `ExtendOutput` have `proc get = f`, a procedure outside their type: it is
   `FSetSize.get`, the same procedure as `FSetSize.f` (an abbreviation).  Their aliases of a
-  parameter's procedures are wrapped in a call (exception E5), as in the sections' `FInit`,
-  `PInit`, `OF`, `ExtendSample`, `Fill_In` and `Dist`.  `OSponge(P) = FSetSize(CSome(Sponge, P))`
-  is `Module.comp FSetSize (CSome Sponge)`; `OFC2(F) = OFC(ExtendOutputSize(F))` is
-  `Module.comp OFC ExtendOutputSize`, written out where it is called inside a module body.
+  parameter's procedures are EC's (`proc f = c;`, since 2026-11-20), as are `FInit`'s, `PInit`'s,
+  `OF`'s, `ExtendSample`'s and `Fill_In`'s; the sections' `Dist` still wraps its alias in a call
+  (exception E5), its `distinguish` taking `RO_Distinguisher`'s `unit`.
+  `OSponge(P) = FSetSize(CSome(Sponge, P))` is `Module.comp FSetSize (CSome Sponge)`;
+  `OFC2(F) = OFC(ExtendOutputSize(F))` is `Module.comp OFC ExtendOutputSize`, written out where it
+  is called inside a module body.
 * The sections' local modules have variables (`Log.m`, `RFList.m`, `Dist_of_P2Adv.m`): lens
   parameters of the local declarations, with freshness hypotheses (`LocalFresh`, exception E6).
   `Log` has only its variable, so it is that lens alone.  The sections' local declarations go into
@@ -484,13 +486,10 @@ clone import GaudisCrypt.SHA3.Pilot.SecureHash as SH with
 
 /-! ## The file's modules (EC l. 143–175) -/
 
--- EC's `module FSetSize (F : OFUNCTIONALITY) : OIndif.OFUNCTIONALITY`; `proc init = F.init` is
--- wrapped in a call (E5); `proc get = f`, outside the module type, is `FSetSize.get`
+-- EC's `module FSetSize (F : OFUNCTIONALITY) : OIndif.OFUNCTIONALITY`, with its alias
+-- `proc init = F.init`; `proc get = f`, outside the module type, is `FSetSize.get`
 module FSetSize using (F : OFUNCTIONALITY) : SH.OIndif.OFUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F.init ();
-    return ()
-  };
+  proc init = F.init;
   proc f (x : List Bool) : (Option f_out) {
     var y : Option (List Bool), r : Option f_out;
     y <- call F.f (($x, size_out));
@@ -581,44 +580,27 @@ theorem ODPRIMITIVE_fi_mk (f fi) :
 
 namespace Preimage
 
--- EC's local `module FInit (F : OIndif.ODFUNCTIONALITY) : OIndif.OFUNCTIONALITY`; `proc f = F.f`
--- is wrapped in a call (E5)
+-- EC's local `module FInit (F : OIndif.ODFUNCTIONALITY) : OIndif.OFUNCTIONALITY`, with its alias
+-- `proc f = F.f`
 module FInit using (F : SH.OIndif.ODFUNCTIONALITY) : SH.OIndif.OFUNCTIONALITY {
   proc init () : Unit {
     return ()
   };
-  proc f (x : List Bool) : (Option f_out) {
-    var y : Option f_out;
-    y <- call F.f ($x);
-    return $y
-  };
+  proc f = F.f;
 }
 
--- EC's local `module PInit (P : ODPRIMITIVE) : OPRIMITIVE`; its aliases are wrapped in a call (E5)
+-- EC's local `module PInit (P : ODPRIMITIVE) : OPRIMITIVE`, with its aliases
 module PInit using (P : ODPRIMITIVE) : OPRIMITIVE {
   proc init () : Unit {
     return ()
   };
-  proc f (x : GaudisCrypt.SHA3.SHA3Indiff.state) : (Option GaudisCrypt.SHA3.SHA3Indiff.state) {
-    var y : Option GaudisCrypt.SHA3.SHA3Indiff.state;
-    y <- call P.f ($x);
-    return $y
-  };
-  proc fi (x : GaudisCrypt.SHA3.SHA3Indiff.state) : (Option GaudisCrypt.SHA3.SHA3Indiff.state) {
-    var y : Option GaudisCrypt.SHA3.SHA3Indiff.state;
-    y <- call P.fi ($x);
-    return $y
-  };
+  proc f = P.f;
+  proc fi = P.fi;
 }
 
--- EC's local `module OF (F : Oracle) : OIndif.ODFUNCTIONALITY`; `proc f = F.get` is wrapped in a
--- call (E5)
+-- EC's local `module OF (F : Oracle) : OIndif.ODFUNCTIONALITY`, with its alias `proc f = F.get`
 module OF using (F : SORO.Oracle) : SH.OIndif.ODFUNCTIONALITY {
-  proc f (x : List Bool) : (Option f_out) {
-    var y : Option f_out;
-    y <- call F.get ($x);
-    return $y
-  };
+  proc f = F.get;
 }
 
 -- EC's local `module Log = { var m : (bool list * int, bool) fmap }`
@@ -652,19 +634,15 @@ module ExtendOutputSize using (F : SORO.Oracle) : ODFUNCTIONALITY {
 /-- EC's `local module OFC2 (F : Oracle) = OFC(ExtendOutputSize(F))`. -/
 noncomputable def OFC2 : SORO.Oracle →ₘ OFUNCTIONALITY := Module.comp OFC ExtendOutputSize
 
--- EC's local `module ExtendOutput (F : RF)`; `proc f = ExtendOutputSize(F).f` is wrapped in a
--- call (E5), `proc get = f` is `ExtendOutput.get`
+-- EC's local `module ExtendOutput (F : RF)`, with its alias `proc f = ExtendOutputSize(F).f`;
+-- `proc get = f` is `ExtendOutput.get`
 module ExtendOutput using (F : SORO.RF_T) {
   proc init () : Unit {
     Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
     _ <- call F.init ();
     return ()
   };
-  proc f (xk : List Bool × ℤ) : (Option (List Bool)) {
-    var y : Option (List Bool);
-    y <- call ExtendOutputSize(F).f ($xk);
-    return $y
-  };
+  proc f = ExtendOutputSize(F).f;
 }
 
 -- EC's local `module (Dist_of_P1Adv (A : SH.AdvPreimage) : ODISTINGUISHER) (F : ODFUNCTIONALITY)
@@ -984,13 +962,9 @@ theorem eq_IRO_RFWhile :
 -- EC's `op eq_extend_size` (l. 407) is the first port's
 open GaudisCrypt.SHA3.SHA3OSecurity (eq_extend_size)
 
--- EC's local `module ExtendSample (F : OFUNCTIONALITY)`; `proc init = F.init` is wrapped in a
--- call (E5)
+-- EC's local `module ExtendSample (F : OFUNCTIONALITY)`, with its alias `proc init = F.init`
 module ExtendSample using (F : OFUNCTIONALITY) : OFUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F.init ();
-    return ()
-  };
+  proc init = F.init;
   proc f (xk : List Bool × ℤ) : (Option (List Bool)) {
     var x : List Bool, k : ℤ, y : Option (List Bool);
     x, k <- $xk;
@@ -1173,12 +1147,9 @@ theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
   -- EC: by rewrite -to_listK.
   (GaudisCrypt.SHA3.SHA3OSecurity.Params.to_listK l (to_list l)).mp rfl
 
--- EC's local `module Fill_In (F : RO)`; `proc init = F.init` is wrapped in a call (E5)
+-- EC's local `module Fill_In (F : RO)`, with its alias `proc init = F.init`
 module Fill_In using (F : Eager.RO_T) : FUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F.init ();
-    return ()
-  };
+  proc init = F.init;
   proc f (xn : List Bool × ℤ) : (List Bool) {
     var x : List Bool, n : ℤ, l : List Bool, b : Bool, i : ℤ;
     x, n <- $xn;
