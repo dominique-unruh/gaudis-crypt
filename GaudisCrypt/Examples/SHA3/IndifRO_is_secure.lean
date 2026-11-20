@@ -26,8 +26,10 @@ Translation (as the pilot `SecureRO`'s):
   aliases `SRO.Bounder`, `SRO.RO_is_collision_resistant`, `Indiff0.GReal`, … opened;
 * EC's `SRO.RO.RO` is the pilot's `RO` (the pilot's clone of `PROM.FullRO` is flattened into
   `RO`, `RO.LRO`, `FRO`, `RO.m`), so here `SRO.RO`;
-* the procedure aliases of `FInit`, `GetF`, `SInit`, `FM`, `DColl` are wrapped in a call
-  (exception E5; `RO`'s are its procedures themselves); `FInit` and `FM` are declared at `SRO`'s
+* the procedure aliases of `GetF`, `SInit`, `DColl` are EC's (`proc f = c;`, since 2026-11-20);
+  those of `FInit`, `FM` are wrapped in a call (exception E5: SHA3Security's proofs through them
+  are written for the wrappers), `RO`'s are its procedures themselves; `FInit` and `FM` are
+  declared at `SRO`'s
   module type `RO_T` (EC's `RO`), their procedure `f`, which nothing calls, left out (EC types
   them structurally), `FM`'s `rem` before `sample` as the module type has them;
 * EC's `C(P)` is `«C»(P)`: `C(` is Mathlib's notation for continuous maps.
@@ -97,15 +99,8 @@ module FInit using (F : DFUNCTIONALITY) : (PROM.FullRO.RO_T f_in f_out) {
 }
 
 module GetF using (F : RO_T) : FUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F.init ();
-    return ()
-  };
-  proc f (x : f_in) : f_out {
-    var y : f_out;
-    y <- call F.get ($x);
-    return $y
-  };
+  proc init = F.init;
+  proc f = F.get;
 }
 
 module SInit using (F : RO_T, S : SIMULATOR) : (PROM.FullRO.RO_T f_in f_out) {
@@ -114,23 +109,10 @@ module SInit using (F : RO_T, S : SIMULATOR) : (PROM.FullRO.RO_T f_in f_out) {
     _ <- call F.init ();
     return ()
   };
-  proc get (x : f_in) : f_out {
-    var y : f_out;
-    y <- call F.get ($x);
-    return $y
-  };
-  proc set (x : f_in, y : f_out) : Unit {
-    _ <- call F.set ($x, $y);
-    return ()
-  };
-  proc rem (x : f_in) : Unit {
-    _ <- call F.rem ($x);
-    return ()
-  };
-  proc sample (x : f_in) : Unit {
-    _ <- call F.sample ($x);
-    return ()
-  };
+  proc get = F.get;
+  proc set = F.set;
+  proc rem = F.rem;
+  proc sample = F.sample;
 }
 
 module FM using (C : CONSTRUCTION, P : PRIMITIVE) : (PROM.FullRO.RO_T f_in f_out) {
@@ -156,11 +138,7 @@ module FM using (C : CONSTRUCTION, P : PRIMITIVE) : (PROM.FullRO.RO_T f_in f_out
 }
 
 module DColl (A : AdvCollision) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
-  proc distinguish () : Bool {
-    var b : Bool;
-    b <- call Collision(A, FInit(F)).main ();
-    return $b
-  };
+  proc distinguish = Collision(A, FInit(F)).main;
 }
 
 /-! ### The section `Collision` -/

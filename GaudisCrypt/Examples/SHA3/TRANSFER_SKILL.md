@@ -962,7 +962,12 @@ Document each in the docstring when it applies.
   clone-level `F.FullEager.RO_LRO_D` stated once with `ec_module`/`fp_disjoint` defaults (as
   `SecureRO`'s), and EC's script as it stands: `byequiv; equiv_proc; stmt_inline*; stmt_sp;
   stmt_wp; equiv_call (F.FullEager.RO_LRO_D (D2 D)); ec_auto`.  `equiv_call` rewrites the alias to
-  its callee; `ec_auto` sees the two memories equal after the same initializations.
+  its callee; `ec_auto` sees the two memories equal after the same initializations.  A *call* of
+  an alias is a call of the aliased procedure: `stmt_inline*` rewrites it so (and inlines further
+  where that one has a body), and `equiv_proc` on an alias opens the aliased procedure, as EC's
+  `proc` and `inline*` do.  Converting a wrapper to an alias removes the wrapper's inlining level:
+  a script written for the wrapper loses an `inline` and its inlined locals' names shift (EC's
+  names come back: `x{1}` for the port's `x0{1}`).
 * **A wrapper around a declared adversary, passed to a lemma of another section** (`apply
   (Reduction (A_CPA(A)) _ _ &m)`): `module A_CPA (A : Adv) using (H : POracle) : AdvProcs`
   (`A` a Lean parameter: `A_CPA A` is EC's `A_CPA(A)`), `theorem fvP_A_CPA : FVP.fvP (A_CPA A)

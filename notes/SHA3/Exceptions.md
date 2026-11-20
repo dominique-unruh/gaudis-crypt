@@ -133,8 +133,10 @@ only one of its two oracles, used as `LowerDist(Dist) : BlockSponge.DISTINGUISHE
 `distinguish` calls `D(RaiseFun(F), P).distinguish`.  (`SHA3_OIndiff.FSome(F)` (`proc init =
 F.init`), `SecureORO.RF(R)` (`proc init = R.init`, `proc sample = R.sample`) and
 `SecureORO.Bounder(F)` (`proc sample = F.sample`) were wrappers too; since 2026-11-20 they are EC's
-aliases.)  Still wrappers, in `IndifRO_is_secure`:
-`FInit`, `GetF`, `SInit`, `FM` and `DColl`.  In `SHA3Security`: `CSetSize`, `FSetSize`, `DSetSize`.  In `SHA3OSecurity`: `FSetSize`, and the
+aliases, as are `IndifRO_is_secure`'s `GetF`, `SInit`, `DColl`.)  Still wrappers, in
+`IndifRO_is_secure`: `FInit` and `FM` (they go together: its first proof needs the two oracles
+`FM(C,P)`, `FInit(C(P))` the same; SHA3Security's `equiv_ro_iro` and the proof with `x3₁` are
+written for the wrappers' extra inlining level, GAP 3 there).  In `SHA3Security`: `CSetSize`, `FSetSize`, `DSetSize`.  In `SHA3OSecurity`: `FSetSize`, and the
 sections' `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In`, `Dist`.
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
