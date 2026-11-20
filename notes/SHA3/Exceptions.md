@@ -137,9 +137,9 @@ aliases, as are `IndifRO_is_secure`'s `GetF`, `SInit`, `DColl`.)  Still wrappers
 `IndifRO_is_secure`: `FInit` and `FM` (they go together: its first proof needs the two oracles
 `FM(C,P)`, `FInit(C(P))` the same; SHA3Security's `equiv_ro_iro` and the proof with `x3₁` are
 written for the wrappers' extra inlining level, GAP 3 there).  (`SHA3Security`'s `CSetSize`, `FSetSize`, `DSetSize` are EC's aliases since
-2026-11-20.)  In `SHA3OSecurity`: the sections' `Dist` (its
-`FSetSize`, `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In` are EC's aliases since
-2026-11-20).
+2026-11-20.)  (`SHA3OSecurity`'s `FSetSize`, `FInit`,
+`PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In` and the sections' `Dist` are EC's aliases
+since 2026-11-20; `Dist`'s `distinguish` takes `()`, PROM's `RO_LRO_D` any signature.)
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
 same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists

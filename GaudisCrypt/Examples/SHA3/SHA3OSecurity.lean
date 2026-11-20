@@ -109,8 +109,6 @@ Translation:
 * EC's chains `inline{1} 1; inline{2} 1; sp` down to the adversary's call are
   `repeat stmt_inline{1} 0; repeat stmt_inline{2} 0; stmt_sp`; `sim n n` in front of a call or a
   conditional is `stmt_wp` (`sim n n` where a sampling is left);
-* `Dist(F)` is used as an `RO_Distinguisher` (`Eager.RO_LRO_D (Dist A)`): its `distinguish`
-  takes that type's `unit`;
 * EC's `alias{1} 1 mp = BIRO.IRO.mp` names the map before a loop: `equiv_exists* §IRO.mp{1}`;
 * in section `Collision`, an inlined game's locals `m1`, `m2` (`hash1`, `hash2`) are renamed
   `m10`, `m20` (`hash10`, `hash20`) on the side whose other side has variables of those names:
@@ -150,8 +148,8 @@ The first port's translation notes (some mention declarations that went with its
 * `FSetSize` and `ExtendOutput` have `proc get = f`, a procedure outside their type: it is
   `FSetSize.get`, the same procedure as `FSetSize.f` (an abbreviation).  Their aliases of a
   parameter's procedures are EC's (`proc f = c;`, since 2026-11-20), as are `FInit`'s, `PInit`'s,
-  `OF`'s, `ExtendSample`'s and `Fill_In`'s; the sections' `Dist` still wraps its alias in a call
-  (exception E5), its `distinguish` taking `RO_Distinguisher`'s `unit`.
+  `OF`'s, `ExtendSample`'s and `Fill_In`'s, and the sections' `Dist`'s (whose `distinguish` takes
+  EC's `d_in_t = unit` as `()`: PROM's `RO_LRO_D` takes any procedure signature).
   `OSponge(P) = FSetSize(CSome(Sponge, P))` is `Module.comp FSetSize (CSome Sponge)`;
   `OFC2(F) = OFC(ExtendOutputSize(F))` is `Module.comp OFC ExtendOutputSize`, written out where it
   is called inside a module body.
@@ -159,7 +157,6 @@ The first port's translation notes (some mention declarations that went with its
   parameters of the local declarations, with freshness hypotheses (`LocalFresh`, exception E6).
   `Log` has only its variable, so it is that lens alone.  The sections' local declarations go into
   namespaces named after the sections.
-* `Dist(F)` is used as an `RO_Distinguisher` (`RO_LRO_D Dist`): its `distinguish` takes `Unit`.
 * `OIndif(F, OSimulator(F), D)` (from `SHA3_OIndiff`) is written `IdealGame F D`.
 -/
 
@@ -552,7 +549,7 @@ export GaudisCrypt.SHA3.SHA3OSecurity.Eager (RO.m FRO.m RO_T RO_Distinguisher RO
 /-- The clone's `RO_LRO_D` (`PROM.FullRO`'s, at the clone's `dout` and module variables, its
 `dout_ll` `dbool_ll`): a distinguisher cannot tell `RO` from `LRO`.  Its side conditions, which
 EC checks itself, are found (`ec_module`, `fp_disjoint`). -/
-theorem RO_LRO_D (D : RO_Distinguisher)
+theorem RO_LRO_D {sig : ProcedureSignature} (D : RO_T →ₘ Module.Proc sig)
     (hD : Module.ECModule D (PROM.FullRO.RO_ext (List Bool × ℤ) Bool) := by ec_module)
     (hdisj : FVP.fvP D ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by fp_disjoint) :
     type_of% (PROM.FullRO.FullEager.RO_LRO_D (List Bool × ℤ) Bool (fun _ => dbool)
@@ -1388,17 +1385,12 @@ theorem eq_eager_ideal2 :
     -- EC: by auto=> />.
     ec_auto
 
--- EC's local `module Dist (F : RO)`, `proc distinguish = OIndif(…).main`, with the section's `A`
--- a Lean parameter; the alias is wrapped in a call (E5), and `distinguish` takes
--- `RO_Distinguisher`'s `unit` (`RO_LRO_D Dist`)
+-- EC's local `module Dist (F : RO)`, with its alias `proc distinguish = OIndif(…).main`, the
+-- section's `A` a Lean parameter
 set_option linter.gaudisCrypt.using false in
 module Dist (A : SH.AdvPreimage) using (F : Eager.RO_T) {
-  proc distinguish (_x : Unit) : Bool {
-    var b : Bool;
-    b <- call OIndif(FSome(Fill_In(F)), OSimulator(FSome(Fill_In(F))),
-      ODRestr(Dist_of_P1Adv(A))).main ();
-    return $b
-  };
+  proc distinguish = OIndif(FSome(Fill_In(F)), OSimulator(FSome(Fill_In(F))),
+      ODRestr(Dist_of_P1Adv(A))).main;
 }
 
 -- EC's local `module Game (F : RO)`, with the section's `A` a Lean parameter
@@ -1410,7 +1402,7 @@ module Game (A : SH.AdvPreimage) using (F : Eager.RO_T) {
     Counter.c <- 0;
     Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
     _ <- call F.init ();
-    bo <- call Dist(A, F).distinguish (());
+    bo <- call Dist(A, F).distinguish ();
     return $bo
   };
 }
@@ -2546,17 +2538,12 @@ module SORO_P2 (A : SH.AdvSecondPreimage) using (F : SORO.Oracle) {
   };
 }
 
--- EC's local `module Dist (F : RO)`, `proc distinguish = OIndif(…).main`, with the section's `A`
--- a Lean parameter; the alias is wrapped in a call (E5), and `distinguish` takes
--- `RO_Distinguisher`'s `unit` (`RO_LRO_D Dist`)
+-- EC's local `module Dist (F : RO)`, with its alias `proc distinguish = OIndif(…).main`, the
+-- section's `A` a Lean parameter
 set_option linter.gaudisCrypt.using false in
 module Dist (A : SH.AdvSecondPreimage) using (F : Eager.RO_T) {
-  proc distinguish (_x : Unit) : Bool {
-    var b : Bool;
-    b <- call OIndif(FSome(Fill_In(F)), OSimulator(FSome(Fill_In(F))),
-      ODRestr(Dist_of_P2Adv(A))).main ();
-    return $b
-  };
+  proc distinguish = OIndif(FSome(Fill_In(F)), OSimulator(FSome(Fill_In(F))),
+      ODRestr(Dist_of_P2Adv(A))).main;
 }
 
 -- EC's local `module Game (F : RO)`, with the section's `A` a Lean parameter
@@ -2568,7 +2555,7 @@ module Game (A : SH.AdvSecondPreimage) using (F : Eager.RO_T) {
     Counter.c <- 0;
     Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
     _ <- call F.init ();
-    bo <- call Dist(A, F).distinguish (());
+    bo <- call Dist(A, F).distinguish ();
     return $bo
   };
 }
@@ -3988,17 +3975,12 @@ module SORO_Coll (A : SH.AdvCollision) using (F : SORO.Oracle) {
   };
 }
 
--- EC's local `module Dist (F : RO)`, `proc distinguish = OIndif(…).main`, with the section's `A`
--- a Lean parameter; the alias is wrapped in a call (E5), and `distinguish` takes
--- `RO_Distinguisher`'s `unit` (`RO_LRO_D Dist`)
+-- EC's local `module Dist (F : RO)`, with its alias `proc distinguish = OIndif(…).main`, the
+-- section's `A` a Lean parameter
 set_option linter.gaudisCrypt.using false in
 module Dist (A : SH.AdvCollision) using (F : Eager.RO_T) {
-  proc distinguish (_x : Unit) : Bool {
-    var b : Bool;
-    b <- call OIndif(FSome(Fill_In(F)), OSimulator(FSome(Fill_In(F))),
-      ODRestr(Dist_of_CollAdv(A))).main ();
-    return $b
-  };
+  proc distinguish = OIndif(FSome(Fill_In(F)), OSimulator(FSome(Fill_In(F))),
+      ODRestr(Dist_of_CollAdv(A))).main;
 }
 
 -- EC's local `module Game (F : RO)`, with the section's `A` a Lean parameter
@@ -4010,7 +3992,7 @@ module Game (A : SH.AdvCollision) using (F : Eager.RO_T) {
     Counter.c <- 0;
     Log.m <- (FMap.empty : FMap (List Bool × ℤ) Bool);
     _ <- call F.init ();
-    bo <- call Dist(A, F).distinguish (());
+    bo <- call Dist(A, F).distinguish ();
     return $bo
   };
 }
