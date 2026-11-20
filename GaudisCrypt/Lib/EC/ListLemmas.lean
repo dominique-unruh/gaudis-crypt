@@ -66,6 +66,22 @@ theorem cats0 (s : List α) : s ++ [] = s := List.append_nil s
 /-- `lemma nseq0`. -/
 theorem nseq0 (x : α) : nseq 0 x = [] := rfl
 
+/-- `lemma nseq0_le`. -/
+theorem nseq0_le (n : ℤ) (x : α) (h : n ≤ 0) : nseq n x = [] := by
+  simp [nseq, Int.toNat_of_nonpos h]
+
+/-- `lemma nseqSr`. -/
+theorem nseqSr (n : ℤ) (x : α) (h : 0 ≤ n) : nseq (n + 1) x = rcons (nseq n x) x := by
+  simp only [nseq, rcons]
+  rw [show (n + 1).toNat = n.toNat + 1 by omega, List.replicate_succ']
+
+/-- `lemma cats1`. -/
+theorem cats1 (s : List α) (z : α) : s ++ [z] = rcons s z := rfl
+
+/-- `lemma catA`. -/
+theorem catA (s1 s2 s3 : List α) : s1 ++ (s2 ++ s3) = s1 ++ s2 ++ s3 :=
+  (List.append_assoc s1 s2 s3).symm
+
 /-- `lemma take_cat`. -/
 theorem take_cat (n : ℤ) (s₁ s₂ : List α) :
     take n (s₁ ++ s₂) = if n < size s₁ then take n s₁ else s₁ ++ take (n - size s₁) s₂ := by

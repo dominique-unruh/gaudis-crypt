@@ -219,17 +219,14 @@ set_option maxHeartbeats 4000000 in
 namespace Preimage
 
 theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap.rng mi := by
-  intro h
-  funext x
-  apply propext
-  rw [FMap.domE, FMap.rngE]
-  constructor
-  · intro hx
-    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hx
-    exact ⟨v, (h x v).mp hv⟩
-  · rintro ⟨a, ha⟩
-    rw [(h x a).mpr ha]
-    simp
+  -- EC: move=>h; rewrite fun_ext=> x; rewrite domE rngE /= eq_iff; have h2 := h x; split.
+  intro h; funext x; rw [FMap.domE, FMap.rngE, eq_iff_iff]; have h2 := h x; constructor
+  -- EC: + move=> m_x_not_None; exists (oget m.[x]); rewrite -h2; move: m_x_not_None.
+  --       by case: (m.[x]).
+  · intro m_x_not_None; refine ⟨oget (FMap.get m x), (h2 _).1 ?_⟩
+    cases hx : FMap.get m x <;> simp_all [oget]
+  -- EC: by move=> [] a; rewrite -h2 => ->.
+  · rintro ⟨a, ha⟩; rw [(h2 a).2 ha]; simp
 
 theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m :=
   fun h x y => (h y x).symm

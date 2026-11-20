@@ -221,24 +221,13 @@ def «<=» {β : Type} (m1 m2 : FMap (List block) β) : Prop :=
 
 theorem leq_add_nin {β : Type} (m1 m2 : FMap (List block) β) (x : List block) (y : β) :
     «<=» m1 m2 → ¬ FMap.dom m2 x → «<=» m1 (FMap.set m2 x y) := by
-  intro h hn a ha hd
-  rw [FMap.get_setE]
-  split_ifs with hax
-  · subst hax
-    exact absurd ((FMap.domE _ _).mpr (h a ha hd ▸ (FMap.domE _ _).mp hd)) hn
-  · exact h a ha hd
+  -- EC: move=>h_leq H_n_dom a H_a_dom;rewrite get_setE/=;smt(domE).
+  intro h_leq H_n_dom a ha H_a_dom; rw [FMap.get_setE]; smt_close [FMap.domE, «<=»]
 
 theorem leq_add_in {β : Type} [Inhabited β] (m1 m2 : FMap (List block) β) (x : List block) :
     «<=» m1 m2 → FMap.dom m2 x → «<=» (FMap.set m1 x (oget (FMap.get m2 x))) m2 := by
-  intro h hx a ha hd
-  rw [FMap.get_setE]
-  split_ifs with hax
-  · subst hax
-    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hx)
-    simp [hv, oget]
-  · rcases (FMap.mem_set _ _ _ _).mp hd with hd | hd
-    · exact h a ha hd
-    · exact absurd hd hax
+  -- EC: move=>h_leq H_n_dom a H_a_dom;rewrite get_setE/=;smt(domE get_setE).
+  intro h_leq H_n_dom a ha H_a_dom; rw [FMap.get_setE]; smt_close [FMap.domE, FMap.get_setE, «<=», FMap.get_some]
 
 theorem leq_nin_dom {β : Type} (m1 m2 : FMap (List block) β) (x : List block) :
     «<=» m1 m2 → x ≠ [] → ¬ FMap.dom m2 x → ¬ FMap.dom m1 x := by
@@ -252,29 +241,42 @@ theorem prefix_leq1 (l : List block) (m : FMap (List block) block) (i : ℤ) :
       «prefix» (format l (i + 1 + 1))
         (get_max_prefix (format l (i + 1 + 1)) (elems (FMap.fdom m))) ≤
         size (format l (i + 1 + 1)) := by
-  intro hi hd
-  have hf : format l (i + 1 + 1) = format l (i + 1) ++ [b0] := by
-    simp only [format, nseq, List.append_assoc]
-    rw [show (i + 1 + 1 - 1).toNat = (i + 1 - 1).toNat + 1 by omega, List.replicate_succ']
-  rw [hf]
-  have hm := (mem_elems_fdom m (format l (i + 1))).mpr hd
-  have h1 := get_max_prefix_max (format l (i + 1) ++ [b0]) _ _ hm
-  have h2 : «prefix» (format l (i + 1) ++ [b0]) (format l (i + 1)) = size (format l (i + 1)) := by
-    rw [prefixC]
-    have := prefix_cat (format l (i + 1)) [] [b0]
-    rw [List.append_nil, prefix0s] at this
-    omega
-  exact ⟨h2 ▸ h1, prefix_sizel _ _⟩
+  -- EC: rewrite -mem_fdom memE;move=>hi0 H_dom.
+  intro hi0 H_dom; rw [← mem_elems_fdom] at H_dom
+  -- EC: have->:(format l (i + 1 + 1)) = format l (i + 1) ++ [b0].
+  --     + by rewrite/format//=nseqSr//-cats1 catA.
+  rw [show format l (i + 1 + 1) = format l (i + 1) ++ [b0] by
+    rw [format, format, show i + 1 + 1 - 1 = i + 1 - 1 + 1 by ring, nseqSr _ _ (by omega),
+      ← cats1, catA]]
+  -- EC: have:=prefix_leq_prefix_cat_size (format l (i + 1))[b0](elems (fdom m)).
+  have := prefix_leq_prefix_cat_size (format l (i + 1)) [b0] (elems (FMap.fdom m))
+  -- EC: rewrite (prefix_get_max_prefix_eq_size _ _ H_dom)//=.
+  rw [prefix_get_max_prefix_eq_size _ _ H_dom] at this
+  -- EC: rewrite (size_cat _ [b0])/=;pose x:= format _ _.
+  rw [size_cat]; set x := format l (i + 1)
+  -- EC: have:=get_max_prefix_max (x ++ [b0]) _ _ H_dom.
+  have := get_max_prefix_max (x ++ [b0]) _ _ H_dom
+  -- EC: have->:prefix (x ++ [b0]) (format l (i + 1)) = size x
+  --       by rewrite prefixC-{1}(cats0 (format l (i+1)))/x prefix_cat//=.
+  have h : «prefix» (x ++ [b0]) x = size x := by
+    rw [prefixC]; conv_lhs => arg 1; rw [← cats0 x]
+    rw [prefix_cat]; simp [«prefix»]
+  -- EC: smt(prefix_sizel size_cat prefix_ge0 ).
+  have := prefix_sizel (x ++ [b0]) (get_max_prefix (x ++ [b0]) (elems (FMap.fdom m)))
+  rw [size_cat] at this
+  omega
 
 theorem prefix_le1 (l : List block) (m : FMap (List block) block) (i : ℤ) :
     0 ≤ i → FMap.dom m (format l (i + 1)) →
     size (format l (i + 1 + 1)) - «prefix» (format l (i + 1 + 1))
       (get_max_prefix (format l (i + 1 + 1)) (elems (FMap.fdom m))) ≤ 1 := by
-  intro hi hd
-  have h := prefix_leq1 l m i hi hd
-  have hf : size (format l (i + 1 + 1)) = size (format l (i + 1)) + 1 := by
-    simp only [format, nseq, size, List.length_append, List.length_replicate]
-    omega
+  -- EC: move=> Hi0 H_liS_in_m.
+  intro Hi0 H_liS_in_m
+  -- EC: have:= prefix_leq1 _ _ _ Hi0 H_liS_in_m.
+  have := prefix_leq1 _ _ _ Hi0 H_liS_in_m
+  -- EC: rewrite /format /= nseqSr //-cats1 catA (size_cat(l ++ nseq i b0) [b0]) /=.
+  --     smt(size_ge0).
+  simp only [format, size, List.length_append, nseq, List.length_replicate] at this ⊢
   omega
 
 theorem leq_add2 {β : Type} (m1 m2 : FMap (List block) β) (x : List block) (y : β) :
@@ -637,50 +639,47 @@ theorem INV_Real_addm_mi (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List
     (x y : state) :
     INV_Real c1 c2 m mi p → ¬ FMap.dom m x → ¬ FMap.rng m y →
     INV_Real c1 c2 (FMap.set m x y) (FMap.set mi y x) p := by
-  rintro ⟨hc, ⟨h0, hmp⟩, hinv⟩ hx hy
-  refine ⟨hc, ⟨h0, ?_⟩, invm_set m mi x y hx hy hinv⟩
-  intro l hl i hi
-  obtain ⟨b, c, hb, hm⟩ := hmp l hl i hi
-  refine ⟨b, c, hb, ?_⟩
-  rw [FMap.get_setE, if_neg]
-  · exact hm
-  · intro heq
-    apply hx
+  -- EC: case=> H_c1c2 H_m_p H_invm H_x_dom H_y_rng;split=>//=.
+  rintro ⟨H_c1c2, H_m_p, H_invm⟩ H_x_dom H_y_rng; refine ⟨H_c1c2, ?_, ?_⟩
+  -- EC: + split;case:H_m_p=>//=;
+  --       smt(get_setE domE oget_some take_oversize size_take take_take).
+  · obtain ⟨h0, hmp⟩ := H_m_p
+    refine ⟨h0, ?_⟩
+    intro l hl i hi
+    obtain ⟨b, c, hb, hm⟩ := hmp l hl i hi
+    refine ⟨b, c, hb, ?_⟩
+    rw [FMap.get_setE, if_neg]; · exact hm
+    intro heq; apply H_x_dom
     rw [FMap.domE, ← heq, hm]
     by_cases hs : i + 1 < size l
     · obtain ⟨b', c', hb', -⟩ := hmp l hl (i + 1) ⟨by omega, hs⟩
       rw [hb']; simp
-    · have : take (i + 1) l = l := List.take_of_length_le (by simp only [size] at hs; omega)
-      rw [this, ← FMap.domE]; exact hl
+    · rw [take_oversize _ _ (by omega), ← FMap.domE]; exact hl
+  -- EC: exact/invm_set.
+  · exact invm_set m mi x y H_x_dom H_y_rng H_invm
 
 theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
   ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
 theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap.rng mi := by
-  intro h
-  funext x
-  apply propext
-  rw [FMap.domE, FMap.rngE]
-  constructor
-  · intro hx
-    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hx
-    exact ⟨v, (h x v).mp hv⟩
-  · rintro ⟨a, ha⟩
-    rw [(h x a).mpr ha]
-    simp
+  -- EC: move=>h; rewrite fun_ext=> x; rewrite domE rngE /= eq_iff; have h2 := h x; split.
+  intro h; funext x; rw [FMap.domE, FMap.rngE, eq_iff_iff]; have h2 := h x; constructor
+  -- EC: + move=> m_x_not_None; exists (oget m.[x]); rewrite -h2; move: m_x_not_None.
+  --       by case: (m.[x]).
+  · intro m_x_not_None; refine ⟨oget (FMap.get m x), (h2 _).1 ?_⟩
+    cases hx : FMap.get m x <;> simp_all [oget]
+  -- EC: by move=> [] a; rewrite -h2 => ->.
+  · rintro ⟨a, ha⟩; rw [(h2 a).2 ha]; simp
 
 theorem all_prefixes_of_INV_real (c1 c2 : ℤ) (m mi : FMap state state)
     (p : FMap (List block) state) : INV_Real c1 c2 m mi p → all_prefixes p := by
-  rintro ⟨-, ⟨h0, hmp⟩, -⟩ bs hbs i
-  by_cases hi0 : i ≤ 0
-  · have : take i bs = [] := by simp [take, show i.toNat = 0 by omega]
-    rw [this, FMap.domE, h0]; simp
-  by_cases his : size bs ≤ i
-  · have : take i bs = bs := List.take_of_length_le (by simp only [size] at his; omega)
-    rw [this]; exact hbs
-  · obtain ⟨b, c, hb, -⟩ := hmp bs hbs i ⟨by omega, by omega⟩
-    rw [FMap.domE, hb]; simp
+  -- EC: move=>[]_[]Hp0 Hmp1 _ l H_dom i.
+  rintro ⟨-, ⟨Hp0, Hmp1⟩, -⟩ l H_dom i
+  -- EC: smt(take_le0 take_oversize size_take take_take take_size nth_take domE).
+  smt_close [take_le0, take_oversize, size_take, take_take, take_size, nth_take, FMap.domE]
 
+/-- EC's `local lemma lemma_3`.  Deviation: the prefixes of `rcons bl b` by cases on the
+position; EC's script is a chain of `smt` calls (`size_take`, `take_cat`, `nth_cat`, `get_setE`). -/
 theorem lemma_3 (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (bl : List block) (b sa : block) (sc : capacity) :
     INV_Real c1 c2 m mi p → FMap.dom m (sa +^ b, sc) → ¬ FMap.dom p (rcons bl b) →
@@ -745,16 +744,33 @@ theorem lemma2' (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) s
   have := lemma_3 c1 c2 m mi p (format bl (i - 1)) b0 sa sc inv0 (by rw [hx0]; exact hdm) hnp hpbl
   rwa [hx0] at this
 
+omit [SLCommon.Params] [BlockSponge.Params] [Params] in
+/-- EC's `local lemma take_nseq (a : 'a) i j : take j (nseq i a) = if j <= i then nseq j a else
+nseq i a`.  Deviation: EC goes through `eq_from_nth`; here `List.take_replicate`. -/
+theorem take_nseq {α : Type} (a : α) (i j : ℤ) :
+    take j (nseq i a) = if j ≤ i then nseq j a else nseq i a := by
+  simp only [take, nseq, List.take_replicate]
+  split_ifs with h <;> congr 1 <;> omega
+
 theorem take_format (bl : List block) (n i : ℤ) :
     0 < n → 0 ≤ i ∧ i < size bl + n →
     take i (format bl n) = if i ≤ size bl then take i bl else format bl (i - size bl + 1) := by
-  rintro hn ⟨hi0, his⟩
-  simp only [format, take, nseq, size, List.take_append, List.take_replicate] at his ⊢
-  split_ifs with h
-  · rw [show i.toNat - bl.length = 0 by omega]; simp
-  · rw [List.take_of_length_le (by omega)]
-    congr 2; omega
+  -- EC: move=>Hn0[]Hi0 Hisize;rewrite take_cat take_nseq.
+  rintro Hn0 ⟨Hi0, Hisize⟩; unfold format; rw [take_cat, take_nseq]
+  -- EC: case(i < size bl)=>//=[/#|H_isize'].
+  by_cases H_isize' : i < size bl
+  · rw [if_pos H_isize', if_pos H_isize'.le]
+  rw [if_neg H_isize']
+  -- EC: have->/=:i - size bl <= n - 1 by smt().
+  rw [if_pos (show i - size bl ≤ n - 1 by omega)]
+  -- EC: case(i = size bl)=>[->>|H_isize'']//=;1:by rewrite nseq0 take_size cats0.
+  by_cases H_isize'' : i = size bl
+  · rw [H_isize'', sub_self, nseq0, if_pos le_rfl, take_size, cats0]
+  -- EC: smt().
+  rw [if_neg (by omega)]; congr 2; omega
 
+/-- EC's `local lemma lemma4`.  Deviation: through `format bl (i + 1) = format bl i ++ [b0]`;
+EC goes through `take_format`, `nth_cat`, `nth_nseq` with an `smt` at each step. -/
 theorem lemma4 (c c' : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
     INV_Real c c' m mi p → 0 < i → FMap.get p (format bl i) = some (sa, sc) →
