@@ -127,6 +127,8 @@ def inlineAll (g : MVarId) (side? : Option Nat) : MetaM MVarId := do
         s.restore
         k := k + 1
     let g' ← try ECProc.accessorNorm g catch _ => pure g
+    -- a call of a procedure alias is a call of the aliased procedure (EC's `inline*` sees it so)
+    let g' ← try ECProc.aliasNorm g' catch _ => pure g'
     if g' == g then break
     g := g'
   return g
@@ -685,7 +687,8 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         let ok ← tryCatchRuntimeEx
           (withCurrHeartbeats <|
             withTheReader Core.Context (fun c => { c with maxHeartbeats := 50000 * 1000 }) do
-              let rest ← runOn h (← `(tactic| first | (simp; rfl) | rfl))
+              -- (`simp` may close it alone: two aliases of the same procedure)
+              let rest ← runOn h (← `(tactic| first | (simp <;> rfl) | rfl))
               pure rest.isEmpty)
           (fun _ => pure false)
         unless ok do s.restore; throwError "sim: the callees differ"

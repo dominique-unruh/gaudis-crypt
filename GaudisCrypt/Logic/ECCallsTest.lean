@@ -258,6 +258,31 @@ example (R : ℤ → ℤ → Prop) :
   trace_state
   all_goals sorry
 
+-- `inline*` and a call of a procedure alias: the call is one of the aliased procedure (EC's alias
+-- is that procedure), so `FwT(O).get` reads `O.get` and the two sides are the same code
+/--
+trace: O : Orc
+⊢ equiv[ ={x, glob O} ==> ={r, glob O} ] {
+      var x : ℤ, r : ℤ;
+      r <- call O.get.procedure (§x);
+      r <- call O.get.procedure (§r);
+} ~ {
+      var x : ℤ, r : ℤ;
+      r <- call O.get.procedure (§x);
+      r <- call O.get.procedure (§r);
+}
+-/
+#guard_msgs in
+example (O : Orc) :
+    equiv[ Twice(FwT(O)).main ~ Twice(O).main : ={arg, glob O} ==> ={res, glob O} ] := by
+  equiv_proc; stmt_inline*
+  trace_state
+  sim
+
+-- … and a concrete aliased procedure is then inlined as well
+example : equiv[ Twice(FwT(Inc)).main ~ Twice(Inc).main : ={arg, cCount} ==> ={res, cCount} ] := by
+  equiv_proc; stmt_inline*; sim
+
 -- `call (_ : ={x})` on the same callee on both sides, no footprint stated for it: the one read
 -- off its code (`fp_le`), and EC's frame (what the callee does not write is kept)
 /--

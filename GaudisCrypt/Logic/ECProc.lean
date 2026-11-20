@@ -259,6 +259,43 @@ def accessorNorm (g : MVarId) : MetaM MVarId := g.withContext do
   if r.expr == ty then return g
   applySimpResultToTarget g ty r
 
+/-- A call of a procedure alias (`proc f = c;` of a `module`, `@[gaudiModuleAlias]`) is a call of
+the aliased procedure, as in EC (an alias *is* that procedure): every callee `M.procedure` whose
+evaluation by the module steps (`Flatten.moduleStep?`) passes through an alias is rewritten to what
+that step gives (`FM(C, P).get` ↦ `C(P).f`).  Callees whose evaluation meets no alias are left as
+they are, and so is a goal that mentions no alias. -/
+def aliasNorm (g : MVarId) : MetaM MVarId := g.withContext do
+  let env ← getEnv
+  let ty ← instantiateMVars (← g.getType)
+  let isAlias (c : Name) := gaudiModuleAliasAttr.hasTag env c
+  -- a `module` with an alias among its procedures
+  let hasAlias (c : Name) : Bool := Id.run do
+    let some v := (env.find? c).bind (·.value?) | return false
+    return v.getUsedConstants.any fun d => d.getPrefix == c && isAlias d
+  unless ty.getUsedConstants.any fun c => isAlias c || hasAlias c do return g
+  -- the module steps from `M` up to and including the one through an alias, if there is one
+  let resolve (M : Lean.Expr) : MetaM (Option Simp.Result) := do
+    let mut cur := M
+    let mut acc : Simp.Result := { expr := M }
+    for _ in [0:16] do
+      let viaAlias := match (Flatten.moduleAppHead cur).getAppFn.constName? with
+        | some c => isAlias c
+        | none => false
+      let some r ← withTransparency .default (Flatten.moduleStep? cur (views := true))
+        | return none
+      acc ← acc.mkEqTrans r
+      cur := r.expr
+      if viaAlias then return some acc
+    return none
+  let pre : Simp.Simproc := fun e => do
+    unless e.isAppOfArity ``Module.Proc.procedure 2 do return .continue
+    let some r ← resolve e.appArg! | return .continue
+    return .visit (← Flatten.liftResultAt e 1 r)
+  let ctx ← Simp.mkContext (config := { zeta := false, iota := false, proj := false })
+  let (r, _) ← Simp.main ty ctx (methods := { pre })
+  if r.expr == ty then return g
+  applySimpResultToTarget g ty r
+
 end ECProc
 
 open Lean Elab Tactic in
