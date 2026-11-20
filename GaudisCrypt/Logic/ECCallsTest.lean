@@ -258,6 +258,16 @@ example (R : ℤ → ℤ → Prop) :
   trace_state
   all_goals sorry
 
+-- `call H` where the program calls the alias as `H` names it (EC's `proc; call (RO_LRO_D Dist _)`,
+-- no `inline*` before): the judgment as written fits
+#guard_msgs(drop warning) in
+example (R : ℤ → ℤ → Prop) :
+    equiv[ Twice(FwT(Inc)).main ~ Twice(FwT(Inc2)).main : ={arg, cCount} ==> R §res{1} §res{2} ] := by
+  equiv_proc
+  equiv_call FwT_Inc_Inc2
+  equiv_call FwT_Inc_Inc2
+  all_goals sorry
+
 -- `inline*` and a call of a procedure alias: the call is one of the aliased procedure (EC's alias
 -- is that procedure), so `FwT(O).get` reads `O.get` and the two sides are the same code
 /--

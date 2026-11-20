@@ -587,22 +587,31 @@ def equivCallFrameless (h? : Option Term) : TacticM Unit := withMainContext do
       | some h => do
           let hE ← elabTerm h none
           Term.synthesizeSyntheticMVarsNoPostponing
-          let hE ← unfoldAliasesIn (← instantiateMVars hE)
-          let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call
-          let (ms, _, concl) ← forallMetaTelescope (← inferType c)
-          let isJ (m : Lean.Expr) : TacticM Bool := do
-            return (← instantiateMVars (← inferType m)).isAppOf ``prhlProc
-          let some hm ← ms.findM? isJ
-            | throwError "equiv_call: `prhlStmt_seq_call` has no procedure-judgment argument"
-          unless ← isDefEq hm hE do
-            throwError "equiv_call: not a procedure judgment:{indentExpr (← inferType hE)}"
-          unless ← isDefEq concl ty do
-            throwError "equiv_call: the judgment{indentExpr (← inferType hE)}\ndoes not fit the \
-              last statements{indentExpr ty}"
-          g.assign (← instantiateMVars (mkAppN c ms))
-          let gPre := ms.back!.mvarId!
-          gPre.setKind .syntheticOpaque
-          pure gPre
+          let hE ← instantiateMVars hE
+          -- the judgment as written; if it does not fit, with its aliases rewritten to their
+          -- callees (the program calls the callee: after `inline*`, say)
+          let attempt (hE : Lean.Expr) : TacticM (Option MVarId) := do
+            let s ← saveState
+            let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call
+            let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+            let isJ (m : Lean.Expr) : TacticM Bool := do
+              return (← instantiateMVars (← inferType m)).isAppOf ``prhlProc
+            let some hm ← ms.findM? isJ
+              | throwError "equiv_call: `prhlStmt_seq_call` has no procedure-judgment argument"
+            unless ← isDefEq hm hE do
+              throwError "equiv_call: not a procedure judgment:{indentExpr (← inferType hE)}"
+            unless ← isDefEq concl ty do s.restore; return none
+            g.assign (← instantiateMVars (mkAppN c ms))
+            let gPre := ms.back!.mvarId!
+            gPre.setKind .syntheticOpaque
+            return some gPre
+          if let some gPre ← attempt hE then pure gPre
+          else
+            let hE' ← unfoldAliasesIn hE
+            let some gPre ← (if hE' == hE then pure none else attempt hE')
+              | throwError "equiv_call: the judgment{indentExpr (← inferType hE)}\ndoes not fit \
+                  the last statements{indentExpr ty}"
+            pure gPre
     replaceMainGoal ((← Judgment.simpArg gPre 3 relSimpDecls []) :: extra)
 
 /-- `equiv_call h`: the last statements of both sides are calls `x₁ <- call p₁ (e₁)`,

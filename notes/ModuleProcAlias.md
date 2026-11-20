@@ -79,9 +79,12 @@ field, so a module may mix aliases and ordinary procedures.
 ## `equiv_call` with a judgment about an alias
 
 EC's `call (RO_LRO_D (D2(D)))` names the alias, while the program (after `inline*`) calls the
-callee.  `equiv_call h` now rewrites the aliases in `h`'s type first (`PRHLWp.unfoldAliasesIn`:
-the aliases' `X.f.apply_simp`, and for a module made of aliases only its `X.apply_simp` and the
-accessors' `mk_simp`).  Golden test in `Logic/ECCallsTest.lean` (`Fw`, `FwT`).
+callee.  `equiv_call h` tries `h` as written (the program calls the alias as `h` names it: EC's
+`proc; call (RO_LRO_D Dist _)`), and if that does not fit, with the aliases in `h`'s type
+rewritten (`PRHLWp.unfoldAliasesIn`: the aliases' `X.f.apply_simp`, and for a module made of
+aliases only its `X.apply_simp` and the accessors' `mk_simp`).  A *call* of an alias is a call of
+the aliased procedure: `stmt_inline*` rewrites it so (`ECProc.aliasNorm`), and `sim` compares two
+aliases of the same procedure as equal.  Golden tests in `Logic/ECCallsTest.lean`.
 
 ## Checked on the real case (scratch, not committed)
 

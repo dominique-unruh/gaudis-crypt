@@ -133,21 +133,32 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
         Term.synthesizeSyntheticMVarsNoPostponing
         let hJ ← instantiateMVars hJ
         unless (← whnfR (← inferType hJ)).isAppOf ``prhlProc do return (none, none)
-        let hJ ← unfoldAliasesIn hJ
         let B := ty.getArg! 3
         let (_, gls) ← ECSim.varsOf #[B]
         let Rs ← ECConseqFrame.regionsOf #[B]
         let fr₁ ← frameFor M₁ gls Rs
         let fr₂ ← frameFor M₂ gls Rs
         let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call_frame
-        let (ms, _, concl) ← forallMetaTelescope (← inferType c)
         let names := (← inferType c).getForallBinderNames
         let idx (n : Name) : MetaM Nat := do
           let some i := names.findIdx? (· == n) | throwError "equiv_call: no argument `{n}`"
           return i
-        unless ← isDefEq ms[← idx `M₁]! M₁ do return (none, none)
-        unless ← isDefEq ms[← idx `M₂]! M₂ do return (none, none)
-        unless ← isDefEq ms[← idx `h]! hJ do return (none, none)
+        -- the judgment as written; if it does not fit the callees, with its aliases rewritten to
+        -- their callees (the program calls the callee: after `inline*`, say)
+        let attempt (hJ : Lean.Expr) : MetaM (Option (Array Lean.Expr × Lean.Expr)) := do
+          let s ← saveState
+          let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+          if (← isDefEq ms[← idx `M₁]! M₁) && (← isDefEq ms[← idx `M₂]! M₂) &&
+              (← isDefEq ms[← idx `h]! hJ) then
+            return some (ms, concl)
+          s.restore
+          return none
+        let r? ← match ← attempt hJ with
+          | some r => pure (some r)
+          | none => do
+            let hJ' ← unfoldAliasesIn hJ
+            if hJ' == hJ then pure none else attempt hJ'
+        let some (ms, concl) := r? | return (none, none)
         unless ← isDefEq ms[← idx `hFr₁]! fr₁ do throwError "the left callee's frame does not fit"
         unless ← isDefEq ms[← idx `hFr₂]! fr₂ do throwError "the right callee's frame does not fit"
         unless ← isDefEq concl ty do
