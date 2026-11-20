@@ -967,7 +967,12 @@ Document each in the docstring when it applies.
   where that one has a body), and `equiv_proc` on an alias opens the aliased procedure, as EC's
   `proc` and `inline*` do.  Converting a wrapper to an alias removes the wrapper's inlining level:
   a script written for the wrapper loses an `inline` and its inlined locals' names shift (EC's
-  names come back: `x{1}` for the port's `x0{1}`).
+  names come back: `x{1}` for the port's `x0{1}`).  Rename by the program, not by guess:
+  `trace_state` after the inlining shows each side's `var` list, and an inlined callee's locals are
+  the ones its `reset_vars {…}` resets.  A loop invariant must name the *caller's* variable; one
+  that names the callee's copy (reset and reassigned at the top of the body) fails in the closers
+  with "a state is still used after the reads are generalized" (`Gconcl_list.equal1`,
+  `SHA3Security.equiv_ro_iro`).
 * **A wrapper around a declared adversary, passed to a lemma of another section** (`apply
   (Reduction (A_CPA(A)) _ _ &m)`): `module A_CPA (A : Adv) using (H : POracle) : AdvProcs`
   (`A` a Lean parameter: `A_CPA A` is EC's `A_CPA(A)`), `theorem fvP_A_CPA : FVP.fvP (A_CPA A)
