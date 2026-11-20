@@ -26,10 +26,8 @@ Translation (as the pilot `SecureRO`'s):
   aliases `SRO.Bounder`, `SRO.RO_is_collision_resistant`, `Indiff0.GReal`, … opened;
 * EC's `SRO.RO.RO` is the pilot's `RO` (the pilot's clone of `PROM.FullRO` is flattened into
   `RO`, `RO.LRO`, `FRO`, `RO.m`), so here `SRO.RO`;
-* the procedure aliases of `GetF`, `SInit`, `DColl` are EC's (`proc f = c;`, since 2026-11-20);
-  those of `FInit`, `FM` are wrapped in a call (exception E5: SHA3Security's proofs through them
-  are written for the wrappers), `RO`'s are its procedures themselves; `FInit` and `FM` are
-  declared at `SRO`'s
+* the procedure aliases of `FInit`, `GetF`, `SInit`, `FM`, `DColl` are EC's (`proc f = c;`, since
+  2026-11-20; `RO`'s are its procedures themselves); `FInit` and `FM` are declared at `SRO`'s
   module type `RO_T` (EC's `RO`), their procedure `f`, which nothing calls, left out (EC types
   them structurally), `FM`'s `rem` before `sample` as the module type has them;
 * EC's `C(P)` is `«C»(P)`: `C(` is Mathlib's notation for continuous maps.
@@ -82,11 +80,7 @@ module FInit using (F : DFUNCTIONALITY) : (PROM.FullRO.RO_T f_in f_out) {
   proc init () : Unit {
     return ()
   };
-  proc get (x : f_in) : f_out {
-    var y : f_out;
-    y <- call F.f ($x);
-    return $y
-  };
+  proc get = F.f;
   proc set (a : f_in, b : f_out) : Unit {
     return ()
   };
@@ -121,11 +115,7 @@ module FM using (C : CONSTRUCTION, P : PRIMITIVE) : (PROM.FullRO.RO_T f_in f_out
     _ <- call «C»(P).init ();
     return ()
   };
-  proc get (x : f_in) : f_out {
-    var y : f_out;
-    y <- call «C»(P).f ($x);
-    return $y
-  };
+  proc get = «C»(P).f;
   proc set (a : f_in, b : f_out) : Unit {
     return ()
   };
@@ -170,7 +160,9 @@ theorem coll_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignm
       have : Pr[ GIdeal(RO, S, DColl(A)).main () @ &m : §res ]
           ≤ ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
         calc _ = Pr[ Collision(A, SRO.RO).main () @ &m : §res ] := by
-              byequiv; equiv_proc; stmt_inline*; sim
+              byequiv; equiv_proc; stmt_inline*
+              --     (EC's `sim 3 1`, on the inlined code: `sim` after the adversary's call)
+              sim 10 7
               equiv_call (_ : ={glob A, Bounder.bounder, Counter.c, SRO.RO.m})
               · equiv_proc; stmt_inline*; sim
               · stmt_wp
@@ -225,7 +217,9 @@ theorem preimage_resistant_if_indifferentiable [Countable f_in] (m : VariableAss
       have : Pr[ GIdeal(RO, S, DPre(A)).main () @ &m : §res ]
           ≤ ((limit + 1 : ℤ) : ℝ) * mu1 sampleto hash := by
         calc _ = Pr[ Preimage(A, SRO.RO).main (hash) @ &m : §res ] := by
-              byequiv; equiv_proc; stmt_inline*; sim
+              byequiv; equiv_proc; stmt_inline*
+              --     (EC's `sim 3 1`, on the inlined code: `sim` after the adversary's call)
+              sim 14 9
               equiv_call (_ : ={glob A, Bounder.bounder, Counter.c, SRO.RO.m})
               · equiv_proc; stmt_inline*; sim
               · stmt_wp
@@ -284,7 +278,9 @@ theorem second_preimage_resistant_if_indifferentiable [Countable f_in] [Countabl
       have : Pr[ GIdeal(RO, S, D2Pre(A)).main () @ &m : §res ]
           ≤ ((limit + 1 : ℤ) : ℝ) * mu1 sampleto default := by
         calc _ = Pr[ SecondPreimage(A, SRO.RO).main (mess) @ &m : §res ] := by
-              byequiv; equiv_proc; stmt_inline*; sim
+              byequiv; equiv_proc; stmt_inline*
+              --     (EC's `sim 3 1`, on the inlined code: `sim` after the adversary's call)
+              sim 12 7
               equiv_call (_ : ={glob A, Bounder.bounder, Counter.c, SRO.RO.m})
               · equiv_proc; stmt_inline*; sim
               · stmt_wp

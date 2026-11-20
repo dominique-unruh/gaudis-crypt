@@ -133,10 +133,9 @@ only one of its two oracles, used as `LowerDist(Dist) : BlockSponge.DISTINGUISHE
 `distinguish` calls `D(RaiseFun(F), P).distinguish`.  (`SHA3_OIndiff.FSome(F)` (`proc init =
 F.init`), `SecureORO.RF(R)` (`proc init = R.init`, `proc sample = R.sample`) and
 `SecureORO.Bounder(F)` (`proc sample = F.sample`) were wrappers too; since 2026-11-20 they are EC's
-aliases, as are `IndifRO_is_secure`'s `GetF`, `SInit`, `DColl`.)  Still wrappers, in
-`IndifRO_is_secure`: `FInit` and `FM` (they go together: its first proof needs the two oracles
-`FM(C,P)`, `FInit(C(P))` the same; SHA3Security's `equiv_ro_iro` and the proof with `x3₁` are
-written for the wrappers' extra inlining level, GAP 3 there).  (`SHA3Security`'s `CSetSize`, `FSetSize`, `DSetSize` are EC's aliases since
+aliases, as are `IndifRO_is_secure`'s `FInit`, `GetF`, `SInit`, `FM`, `DColl`: SHA3Security's
+proofs through `FInit` lost the wrapper's inlining level, their inlined locals renamed, and EC's
+`sim 3 1` in `IndifRO_is_secure` is `sim n₁ n₂` on our inlined code.)  (`SHA3Security`'s `CSetSize`, `FSetSize`, `DSetSize` are EC's aliases since
 2026-11-20.)  (`SHA3OSecurity`'s `FSetSize`, `FInit`,
 `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In` and the sections' `Dist` are EC's aliases
 since 2026-11-20; `Dist`'s `distinguish` takes `()`, PROM's `RO_LRO_D` any signature.)

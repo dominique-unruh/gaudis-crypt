@@ -48,8 +48,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 1 (closed 2026-11-17): `inline*` opens `Perm.f` behind the first port's views.
 * GAP 2: the closers split `={sa, sc}` at `x <- (sa, sc)` into components; the pair's equation is
   put back by hand before the leaf is closed (as in `SHA3_OIndiff.lean`).
-* GAP 3: `FInit(F).get` is `F.f` in EC (an alias); here a call (E5), inlined first.  EC's path
-  `inline FC(Sponge(Perm)).f` does not elaborate over the first port's views: by index.  EC's
+* GAP 3: EC's path `inline FC(Sponge(Perm)).f` does not elaborate over the first port's views:
+  by index.  (`FInit(F).get` is `F.f`, EC's alias, since 2026-11-20; before, a call inlined
+  first, exception E5.)  EC's
   lists of procedures to inline in front of an adversary's call are `repeat stmt_inline{i} 0`
   (the calls before the abstract one, by call site).
 * GAP 4: the exit goal of a one-sided `while` does not frame a variable of the other side that
@@ -560,9 +561,9 @@ theorem equiv_sponge_perm (c' : ℤ) (m : List Bool) :
       ={res, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1} ∧
         §Cntr.c{2} = c' + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0 ] := by
   -- EC: proc; inline FC(Sponge(Perm)).f; sp.
-  --     (GAP 3: `FInit`'s alias is a call, inlined on both sides; `FC(…).f` by index)
+  --     (GAP 3: `FC(…).f` by index)
   equiv_proc
-  stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0
+  stmt_inline{2} 0
   stmt_sp
   -- EC: rcondt{2} 1; auto; sp.
   stmt_rcondt{2} 1
@@ -670,14 +671,14 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
   stmt_sp; stmt_wp 2 1
   -- EC: conseq(:_==> oget SRO.RO.RO.m{1}.[x{1}] = oget (of_list bs0{2}) /\
   --       same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); 1:by auto.
-  equiv_conseq (: _ ==> oget (FMap.get §SRO.RO.m{1} §x0{1}) = oget (of_list §bs0{2}) ∧
+  equiv_conseq (: _ ==> oget (FMap.get §SRO.RO.m{1} §x{1}) = oget (of_list §bs0{2}) ∧
     same_ro §SRO.RO.m{1} §IRO.mp{2})
   · ec_close
   -- EC: rcondt{2} 1; 1: auto.
   stmt_rcondt{2} 1
   · hoare_auto
   -- EC: case: (x{1} \in SRO.RO.RO.m{1}).
-  equiv_case (FMap.dom §SRO.RO.m{1} §x0{1})
+  equiv_case (FMap.dom §SRO.RO.m{1} §x{1})
   -- EC: + rcondf{1} 2; auto.
   · stmt_rcondf{1} 2
     · hoare_auto
@@ -691,9 +692,9 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
     --     (GAP 4: the exit goal does not frame `x{1}`, read only by the invariant: the conjunct
     --     `x0{2} = x{1}` is added)
     equiv_while{2} (§bs0{2} =
-          List.map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) (range 0 §i{2}) ∧
-        §n0{2} = size_out ∧ FMap.dom §SRO.RO.m{1} §x2{2} ∧ 0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧
-        same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §IRO.mp{2} = mp ∧ §x2{2} = §x0{1})
+          List.map (fun j => oget (FMap.get §IRO.mp{2} (§x1{2}, j))) (range 0 §i{2}) ∧
+        §n0{2} = size_out ∧ FMap.dom §SRO.RO.m{1} §x1{2} ∧ 0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧
+        same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §IRO.mp{2} = mp ∧ §x1{2} = §x{1})
       ((size_out - §i{2}).toNat)
     · while_ll_phoare
       intro σ₁
@@ -747,11 +748,11 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
     equiv_conseq (: _ ==> same_ro §SRO.RO.m{1} mp ∧ §i{2} = size_out ∧
       (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
       (∀ l j, FMap.dom mp (l, j) → FMap.get §IRO.mp{2} (l, j) = FMap.get mp (l, j)) ∧
-      (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x2{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
-      (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x2{2}, j)) ∧
+      (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x1{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
+      (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x1{2}, j)) ∧
       take §i{2} (to_list §(localVarLens "r" f_out){1}) = §bs0{2} ∧
       take §i{2} (to_list §(localVarLens "r" f_out){1}) =
-        List.map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) (range 0 §i{2}))
+        List.map (fun j => oget (FMap.get §IRO.mp{2} (§x1{2}, j))) (range 0 §i{2}))
     · ec_progress
       -- EC: + by rewrite get_set_sameE /= oget_some; have[]//=h h1:=to_listK …; smt(…spec_dout).
       · have ht : take size_out (to_list r₁) = to_list r₁ :=
@@ -792,16 +793,16 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
       (§allGlobals{1} = §allGlobals{2} ==>
         §allGlobals{1} = §allGlobals{2} ∧
           §(localVarLens "r" f_out){1} = §(localVarLens "r" f_out){2})
-      (§x0{1} = §x2{2} ∧ §i{2} = 0 ∧ §n0{2} = size_out ∧ mp = §IRO.mp{2} ∧
-          same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ ¬ FMap.dom §SRO.RO.m{1} §x0{1} ∧ §bs0{2} = [] ==>
+      (§x{1} = §x1{2} ∧ §i{2} = 0 ∧ §n0{2} = size_out ∧ mp = §IRO.mp{2} ∧
+          same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ ¬ FMap.dom §SRO.RO.m{1} §x{1} ∧ §bs0{2} = [] ==>
         same_ro §SRO.RO.m{1} mp ∧ §i{2} = size_out ∧
         (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
         (∀ l j, FMap.dom mp (l, j) → FMap.get §IRO.mp{2} (l, j) = FMap.get mp (l, j)) ∧
-        (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x2{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
-        (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x2{2}, j)) ∧
+        (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x1{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
+        (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x1{2}, j)) ∧
         take §i{2} (to_list §(localVarLens "r" f_out){1}) = §bs0{2} ∧
         take §i{2} (to_list §(localVarLens "r" f_out){1}) =
-          List.map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) (range 0 §i{2}))
+          List.map (fun j => oget (FMap.get §IRO.mp{2} (§x1{2}, j))) (range 0 §i{2}))
     · intro σ₁ σ₂ h
       refine ⟨σ₁, rfl, ?_⟩
       ec_close
@@ -813,13 +814,13 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
     · stmt_inline*; stmt_sp; stmt_wp
       -- EC: conseq(:_==> i{2} = size_out /\ size l0{1} = i{2} /\ … ); progress.
       equiv_conseq (: _ ==> §i{2} = size_out ∧ size §l0{1} = §i{2} ∧ same_ro §SRO.RO.m{1} mp ∧
-        ¬ FMap.dom §SRO.RO.m{1} §x2{2} ∧
+        ¬ FMap.dom §SRO.RO.m{1} §x1{2} ∧
         (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
         (∀ l j, FMap.dom mp (l, j) → FMap.get §IRO.mp{2} (l, j) = FMap.get mp (l, j)) ∧
-        (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x2{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
-        (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x2{2}, j)) ∧
+        (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x1{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
+        (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x1{2}, j)) ∧
         §l0{1} = §bs0{2} ∧
-        §bs0{2} = List.map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) (range 0 §i{2}))
+        §bs0{2} = List.map (fun j => oget (FMap.get §IRO.mp{2} (§x1{2}, j))) (range 0 §i{2}))
       --     + smt(take_oversize).
       --     + smt(take_oversize).
       --     (EC's first `conseq` after `Sample` is folded in: `to_list (oget (of_list l)) = l`
@@ -832,13 +833,13 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
       --       n{1} = n0{2} /\ … ).
       equiv_while (0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ size §l0{1} = §i{2} ∧ §n0{2} = size_out ∧
         §i0{1} = §i{2} ∧ §n{1} = §n0{2} ∧ same_ro §SRO.RO.m{1} mp ∧
-        ¬ FMap.dom §SRO.RO.m{1} §x2{2} ∧
+        ¬ FMap.dom §SRO.RO.m{1} §x1{2} ∧
         (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
         (∀ l j, FMap.dom mp (l, j) → FMap.get §IRO.mp{2} (l, j) = FMap.get mp (l, j)) ∧
-        (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x2{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
-        (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x2{2}, j)) ∧
+        (∀ l j, FMap.dom §IRO.mp{2} (l, j) → FMap.dom mp (l, j) ∨ l = §x1{2} ∧ 0 ≤ j ∧ j < §i{2}) ∧
+        (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x1{2}, j)) ∧
         §l0{1} = §bs0{2} ∧
-        §bs0{2} = List.map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) (range 0 §i{2}))
+        §bs0{2} = List.map (fun j => oget (FMap.get §IRO.mp{2} (§x1{2}, j))) (range 0 §i{2}))
       -- EC: + sp; wp=> //=.
       --       rcondt{2} 1; 1:auto; progress.
       · stmt_sp; stmt_wp
@@ -851,7 +852,7 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
           --       rewrite size_ge0 H9/=; apply absurd =>/= h.
           --       by have //=:= H5 _ _ h.
           hoare_skip
-          rintro i n0 x2 IRO_mp bs0 x3 n1
+          rintro i n0 x1 IRO_mp bs0 x2 n1
             ⟨⟨⟨h0, -, -, rfl, -, -, hs, hnd, -, -, h5, -, -, -⟩, -, hlt⟩, hx⟩
           have e := Prod.mk.inj hx
           rw [e.1, e.2]
@@ -870,7 +871,7 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
         -- EC: - by rewrite mem_set; left; rewrite H3.
         · rw [FMap.mem_set]; left; exact ‹∀ l j, mp.dom (l, j) → mp₂.dom (l, j)› _ _ ‹_›
         -- EC: - rewrite get_setE (H4 _ _ H11). have/#: !(l1, j) = (x0{2}, size bs0{2}). …
-        · have hne : (l, j) ≠ (x3₂, size bs0₂) := by
+        · have hne : (l, j) ≠ (x2₂, size bs0₂) := by
             rintro e
             obtain ⟨rfl, rfl⟩ := Prod.mk.inj e
             exact ‹¬m₁.dom _› ((‹same_ro m₁ mp›).2.1 _
@@ -888,14 +889,14 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
         · rw [FMap.mem_set]
           by_cases hj : j = size bs0₂
           · right; rw [hj]
-          · left; exact ‹∀ j, 0 ≤ j ∧ j < size bs0₂ → mp₂.dom (x3₂, j)› j ⟨‹0 ≤ j›, by omega⟩
+          · left; exact ‹∀ j, 0 ≤ j ∧ j < size bs0₂ → mp₂.dom (x2₂, j)› j ⟨‹0 ≤ j›, by omega⟩
         -- EC: - by rewrite cats1 get_set_sameE oget_some.
         · rw [FMap.get_set_sameE]; rfl
         -- EC: - rewrite get_set_sameE oget_some H7 rangeSr. … by rewrite get_set_neqE //=; smt().
         · rw [FMap.get_set_sameE, rangeSr 0 _ ‹0 ≤ size bs0₂›]
           simp only [rcons, List.map_append, List.map_cons, List.map_nil, FMap.get_set_sameE]
           congr 1
-          refine Eq.trans (b := List.map (fun j => oget (mp₂.get (x3₂, j))) (range 0 (size bs0₂)))
+          refine Eq.trans (b := List.map (fun j => oget (mp₂.get (x2₂, j))) (range 0 (size bs0₂)))
             ‹_› (List.map_congr_left fun j hj => ?_)
           have hj' := (mem_range 0 _ j).mp hj
           rw [FMap.get_set_neqE _ _ _ _ (fun e => by obtain ⟨-, e⟩ := Prod.mk.inj e; omega)]
@@ -1276,19 +1277,19 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
           --     (EC's `sim` through the two loops is the `while` rule on each)
           · stmt_sp; stmt_wp
             equiv_while (={i, sa, sc, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
-            --     (GAP 2: the pair `x3` back from its components)
+            --     (GAP 2: the pair `x2` back from its components)
             · stmt_sp; stmt_if
               · ec_close
               · stmt_sp; stmt_if
                 · ec_progress
-                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
                   simp [e]
                 · ec_auto; ec_prep
-                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
                   subst e
                   exact fun a _ => ⟨rfl, rfl, rfl, rfl⟩
                 · ec_auto; ec_prep
-                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
                   subst e
                   exact ⟨rfl, rfl⟩
               · ec_auto; ec_close
@@ -1704,19 +1705,19 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
           --     (EC's `sim` through the two loops is the `while` rule on each)
           · stmt_sp; stmt_wp
             equiv_while (={i, sa, sc, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
-            --     (GAP 2: the pair `x3` back from its components)
+            --     (GAP 2: the pair `x2` back from its components)
             · stmt_sp; stmt_if
               · ec_close
               · stmt_sp; stmt_if
                 · ec_progress
-                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
                   simp [e]
                 · ec_auto; ec_prep
-                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
                   subst e
                   exact fun a _ => ⟨rfl, rfl, rfl, rfl⟩
                 · ec_auto; ec_prep
-                  have e : x3₁ = x4₂ := Prod.ext ‹x3₁.1 = x4₂.1› ‹x3₁.2 = x4₂.2›
+                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
                   subst e
                   exact ⟨rfl, rfl⟩
               · ec_auto; ec_close
