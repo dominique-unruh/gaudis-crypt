@@ -356,6 +356,21 @@ Mappings for ssreflect idioms:
   `exists x` → `refine ⟨x, ?_⟩`; `pose x := e` → `set x := e`; `congr` → `congr 1`;
   `do !t` → `repeat t`; `ring` → `ring`; `smt ml=0 w=…` → as `smt`.
 * `rewrite domE Pmi_xaxc` → `simp [FMap.domE, Pmi_xaxc]`; `smt(domE)` → `smt_close [FMap.domE]`.
+* Plain lemmas over an invariant (Handle's `lemma1`–`lemma3`, ported 2026-11-20):
+  `have /hs_of_INV [] … := HINV` → `obtain ⟨…⟩ := hs_of_INV _ … _ HINV` (one `_` per argument, as
+  EC's own `m_p_of_INV _ _ … inv0`); `by case: HINV` (a component of the invariant) →
+  `cases HINV; assumption`, also inside a term (`(by cases HINV; assumption)`); `split` on the
+  invariant → `constructor`, one bullet per EC bullet, in EC's order.
+* `[#] <<*>` on `some (a, b) = some (c, d)` → `obtain ⟨rfl, rfl⟩ := by simpa using h`.  A `rfl`
+  pattern eliminates the *right-hand* variable when both sides are variables: on
+  `(xa', hx') = (xa, hx)` it removes `xa`, `hx` and the later steps no longer find them.  Where
+  EC keeps the left names: `obtain ⟨h1, h2⟩ := Prod.mk.inj h; subst xa' hx'` (`subst x` removes
+  `x`).
+* `omega` does not see through `abbrev handle := ℤ` ("No usable constraints"): use `linarith`,
+  and `ne_of_lt`/`.ne` for `≠`.  In `rw [FMap.get_set_neqE _ _ _ _ (by tac)]` the keys are still
+  metavariables when `tac` runs: name them, `FMap.get_set_neqE _ x y _ (by tac)`.
+* `rewrite xorwA xorwK xorwC xorw0` → the same `rw`, with EC's names from `Lib/EC/BitWordRing`
+  (import it, `open GaudisCrypt.EC.BitWord (xorwA xorwK xorwC xorw0)`).
 * `smt (@Block.DBlock …)` for losslessness → the `@[simp]` facts `bdistr_expected_one` etc.
   (state them once per file/library, `is_lossless_iff_expected`).
 * EC's `smt()` on real arithmetic → `smt_close` (linear, since 2026-11-16), else

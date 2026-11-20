@@ -21,6 +21,7 @@ import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Logic.ECAutoStrict
 import GaudisCrypt.Logic.FrameTactics
 import GaudisCrypt.Logic.LoopTransform
+import GaudisCrypt.Lib.EC.BitWordRing
 
 /-!
 # `Handle.eca`'s `CF_G1` in EC's form — the tactic experiment
@@ -66,6 +67,7 @@ namespace GaudisCrypt.SHA3.Handle
 
 open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.FSet GaudisCrypt.EC.PROM GaudisCrypt.SHA3.Common
 open GaudisCrypt.SHA3.SLCommon GaudisCrypt.SHA3.SLCommon.Prefix GaudisCrypt.SHA3.ConcreteF
+open GaudisCrypt.EC.BitWord (xorwA xorwK xorwC xorw0)
 
 export GaudisCrypt.SHA3.SLCommon (state PRIMITIVE)
 
@@ -896,6 +898,7 @@ theorem path_split (hs : handles) (ch : handle) (m : smap) (mh : hsmap) (xc : ca
 
 /-! ## Preservation of the invariant -/
 
+/-- EC's `lemma lemma1`, in EC's script. -/
 theorem lemma1 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (x1 : block)
     (x2 : capacity) (y1 : block) (y2 : capacity) (prefixes : FMap (List block) state)
@@ -908,158 +911,251 @@ theorem lemma1 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsm
       (FMap.set Gm (x1, x2) (y1, y2)) (FMap.set Gmi (y1, y2) (x1, x2))
       (FMap.set mh (x1, ch) (y1, ch + 1)) (FMap.set mhi (y1, ch + 1) (x1, ch))
       ro pi prefixes queries := by
-  intro HINV hx2y2 Pm_x Gm_x hx2 hy2
-  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
-  obtain ⟨hun, hs0, hlt⟩ := id Hhs
-  obtain ⟨Imm1, Imm2⟩ := id Hmmh
-  obtain ⟨Imi1, Imi2⟩ := id Hmimhi
-  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
-  have hch0 : 0 < ch := hlt _ 0 hs0
-  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
-  have hs_Sch : FMap.get hs (ch + 1) = none := Sch_notdomE_hs hs ch Hhs
-  have mh_ch : ∀ a, FMap.get mh (a, ch) = none := fun a => ch_notdomE2_mh hs Pm mh a ch Hmmh Hhs
-  have hsne : ∀ h cf, FMap.get hs h = some cf →
-      FMap.get (FMap.set (FMap.set hs ch (x2, Known)) (ch + 1) (y2, Known)) h = some cf := by
-    intro h cf hh
-    have := hlt _ _ hh
-    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch + 1 by linarith),
-      FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
-  have notrng : ∀ hc, FMap.get hs hc = none → ∀ a h a', FMap.get mh (a, h) ≠ some (a', hc) := by
-    intro hc hn a h a' hm
-    obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
-    rw [hn] at h2
-    cases h2
-  have nopath : ∀ hc, FMap.get hs hc = none → ∀ p v, build_hpath mh p ≠ some (v, hc) := by
-    intro hc hn p v hp
-    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, rfl⟩ | ⟨p', b, v', h', -, -, hm⟩
-    · rw [hs0] at hn
-      cases hn
-    · exact notrng hc hn _ _ _ hm
-  have mhup : ∀ p v h, build_hpath mh p = some (v, h) →
-      build_hpath (FMap.set mh (x1, ch) (y1, ch + 1)) p = some (v, h) :=
-    fun p v h hp => build_hpath_up mh x1 ch y1 (ch + 1) p v h hp (mh_ch x1)
-  have mhdown : ∀ p v h, build_hpath (FMap.set mh (x1, ch) (y1, ch + 1)) p = some (v, h) →
-      build_hpath mh p = some (v, h) :=
-    fun p v h hp => build_hpath_down mh x1 ch y1 (ch + 1) p v h (nopath ch hs_ch) hp
-  have Hmp' : ∀ (x y : state), FMap.get Pm x = none → m_p (FMap.set Pm x y) prefixes queries := by
-    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
-    intro x y hx
-    refine ⟨c1, c2, ?_, c4, c5⟩
-    intro l hl i hi
-    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
-    refine ⟨sa, sc, h1, ?_⟩
-    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
-      by_cases hi' : i + 1 < size l
-      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
-        rw [h1']
-        simp
-      · have : take (i + 1) l = l := by
-          simp only [take, size] at *
-          apply List.take_of_length_le
-          omega
-        rw [this]
-        exact (FMap.domE _ _).1 hl
-    rw [FMap.get_setE, if_neg]
-    · exact h2
-    · intro he
-      rw [he, hx] at h2
-      exact hne h2.symm
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, Hmp' _ _ Pm_x⟩
-  · rw [show ch + 2 = ch + 1 + 1 by ring]
-    refine hs_addh _ _ _ _ (hs_addh hs ch x2 Known Hhs hx2) ?_
-    intro f h
-    rw [FMap.get_setE]
-    split_ifs
-    · simp [hx2y2]
-    · exact hy2 f h
-  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
-    cases hg : FMap.get Gmi (y1, y2) with
-    | none => rfl
-    | some xc =>
-      have hp := Hincli (y1, y2) (by rw [hg]; simp)
-      rw [hg] at hp
-      obtain ⟨_, fx, _, _, h1, _, _⟩ := Imi1 _ _ _ _ hp
-      exact absurd h1 (hy2 _ _)
-  · exact inv_addm _ _ _ _ Hinvmh (mh_ch x1) (Sch_notdomE2_mh hs Pmi mhi y1 ch Hmimhi Hhs)
-  · refine m_mh_addh_addm (FMap.set hs ch (x2, Known)) Pm mh ch x1 x2 (ch + 1) y1 y2 Known Known
-      (m_mh_addh hs ch Pm mh x2 Known Hhs Hmmh) (hs_addh hs ch x2 Known Hhs hx2).1
-      (FMap.get_set_sameE _ _ _) ?_
-    rw [FMap.get_set_neqE _ _ _ _ (show ch + 1 ≠ ch by simp)]
-    exact hs_Sch
-  · refine mi_mhi_addh_addmi (FMap.set hs ch (x2, Known)) Pmi mhi ch x1 x2 (ch + 1) y1 y2
-      Known Known (m_mh_addh hs ch Pmi mhi x2 Known Hhs Hmimhi) ?_ (FMap.get_set_sameE _ _ _) ?_
-    · intro f h
-      rw [FMap.get_setE]
-      split_ifs
-      · simp [hx2y2]
-      · exact hy2 f h
-    · rw [FMap.get_set_neqE _ _ _ _ (show ch + 1 ≠ ch by simp)]
-      exact hs_Sch
-  · exact incl_addm _ _ _ _ Hincl
-  · exact incl_addm _ _ _ _ Hincli
-  · refine ⟨?_, ?_, ?_⟩
-    · intro xa hx ya hy hm
-      rw [FMap.get_setE] at hm
-      split_ifs at hm with hk
-      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
-        obtain ⟨hk1, hk2⟩ := hk
-        obtain ⟨hm1, hm2⟩ := hm
-        subst xa hx ya hy
-        refine ⟨x2, Known, y2, Known, ?_, FMap.get_set_sameE _ _ _, ?_⟩
-        · rw [FMap.get_set_neqE _ _ _ _ (show ch ≠ ch + 1 by simp), FMap.get_set_sameE]
-        · simp
-      · obtain ⟨xc, fx, yc, fy, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
-        refine ⟨xc, fx, yc, fy, hsne _ _ h1, hsne _ _ h2, ?_⟩
-        cases fy with
-        | Known =>
-          simp only [if_true] at h3 ⊢
-          refine ⟨?_, h3.2⟩
-          rw [FMap.get_set_neqE]
-          · exact h3.1
-          · intro he
-            rw [he, Gm_x] at h3
-            cases h3.1
-        | Unknown =>
-          simp only [reduceCtorEq, if_false] at h3 ⊢
-          obtain ⟨p, v, h4, h5⟩ := h3
-          exact ⟨p, v, h4, mhup _ _ _ h5⟩
-    · intro p bn b
-      rw [Imh2]
+  -- EC: move=> HINV x2_neq_y2 Pm_x Gm_x x2_notrngE1_hs y2_notrngE1_hs; split.
+  intro HINV x2_neq_y2 Pm_x Gm_x x2_notrngE1_hs y2_notrngE1_hs
+  constructor
+  -- EC: + rewrite (@addzA ch 1 1); apply/hs_addh.
+  · rw [show ch + 2 = ch + 1 + 1 by ring]; apply hs_addh
+    -- EC: + by move: HINV=> /hs_of_INV/hs_addh=> ->.
+    · exact hs_addh _ _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) x2_notrngE1_hs
+    -- EC: by move=> f h; rewrite get_setE; case: (h = ch)=> [/#|_]; exact/y2_notrngE1_hs.
+    · intro f h; rw [FMap.get_setE]; split_ifs; · simp [x2_neq_y2]
+      exact y2_notrngE1_hs f h
+  -- EC: + apply/inv_addm=> //; 1:by case: HINV.
+  · refine inv_addm _ _ _ _ (by cases HINV; assumption) Gm_x ?_
+    -- EC: case: {-1}(Gmi.[(y1,y2)]) (eq_refl Gmi.[(y1,y2)])=> [//|[xa xc]].
+    rcases h : FMap.get Gmi (y1, y2) with _ | ⟨xa, xc⟩; · rfl
+    -- EC: + have /incli_of_INV @/incl + ^h - <- := HINV; 1: by rewrite h.
+    have hi := incli_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (y1, y2) (by simp [h])
+    rw [h] at hi
+    -- EC: have /mi_mhi_of_INV [] H _ /H {H} [hx fx hy fy] [#] := HINV.
+    obtain ⟨H, -⟩ := mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨hx, fx, hy, fy, hs_hx, -, -⟩ := H _ _ _ _ hi
+    -- EC: by rewrite y2_notrngE1_hs.
+    exact absurd hs_hx (y2_notrngE1_hs _ _)
+  -- EC: + apply/inv_addm; 1:by case: HINV.
+  · apply inv_addm; · cases HINV; assumption
+    -- EC: + have ^ /m_mh_of_INV Hm_mh /hs_of_INV Hhs := HINV.
+    --       by apply/(ch_notdomE2_mh _ _ Hm_mh Hhs).
+    · exact ch_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: have ^ /mi_mhi_of_INV Hmi_mhi /hs_of_INV Hhs := HINV.
+    --     by apply/(Sch_notdomE2_mh _ _ Hmi_mhi Hhs).
+    exact Sch_notdomE2_mh _ _ _ _ _ (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+      (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + apply/(@m_mh_addh_addm hs.[ch <- (x2,Known)] Pm mh ch x1 x2 (ch + 1) y1 y2 Known).
+  · apply m_mh_addh_addm (FMap.set hs ch (x2, Known)) Pm mh ch x1 x2 (ch + 1) y1 y2 Known
+    -- EC: + by move: HINV=> ^/hs_of_INV Hhs /m_mh_of_INV; exact/(m_mh_addh Hhs).
+    · exact m_mh_addh _ _ _ _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: + by move: HINV => /hs_of_INV /hs_addh /(_ x2 Known _) // [].
+    · exact (hs_addh _ _ x2 Known (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) x2_notrngE1_hs).1
+    -- EC: + by rewrite get_setE.
+    · simp
+    -- EC: by rewrite get_setE gtr_eqF 1:/# /=; apply/Sch_notdomE_hs; case: HINV.
+    · rw [FMap.get_set_neqE _ ch (ch + 1) _ (by simp)]
+      exact Sch_notdomE_hs _ _ (by cases HINV; assumption)
+  -- EC: + apply/(@mi_mhi_addh_addmi hs.[ch <- (x2,Known)] Pmi mhi ch x1 x2 (ch + 1) y1 y2
+  --       Known Known).
+  · apply mi_mhi_addh_addmi (FMap.set hs ch (x2, Known)) Pmi mhi ch x1 x2 (ch + 1) y1 y2
+      Known Known
+    -- EC: + by move: HINV=> ^/hs_of_INV Hhs /mi_mhi_of_INV; exact/(m_mh_addh Hhs).
+    · exact m_mh_addh _ _ _ _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: + move=> f h; rewrite get_setE; case: (h = ch)=> [_ //=|_ //=];
+    --       first by rewrite x2_neq_y2.
+    --     by rewrite y2_notrngE1_hs.
+    · intro f h; rw [FMap.get_setE]; split_ifs; · simp [x2_neq_y2]
+      exact y2_notrngE1_hs f h
+    -- EC: + by rewrite get_setE.
+    · simp
+    -- EC: by rewrite get_setE gtr_eqF 1:/# /=; apply/Sch_notdomE_hs; case: HINV.
+    · rw [FMap.get_set_neqE _ ch (ch + 1) _ (by simp)]
+      exact Sch_notdomE_hs _ _ (by cases HINV; assumption)
+  -- EC: + by apply/incl_addm; case: HINV.
+  · exact incl_addm _ _ _ _ (by cases HINV; assumption)
+  -- EC: + by apply/incl_addm; case: HINV.
+  · exact incl_addm _ _ _ _ (by cases HINV; assumption)
+  -- EC: + split.
+  · constructor
+    -- EC: + move=> xa hx ya hy; rewrite get_setE; case: ((xa,hx) = (x1,ch))=> [|].
+    · intro xa hx ya hy; rw [FMap.get_setE]; split_ifs with hk
+      -- EC: + by move=> [#] <*> [#] <*>; exists x2 Known y2 Known; rewrite !get_setE /#.
+      · intro he; obtain ⟨h1, h2⟩ := Prod.mk.inj hk
+        obtain ⟨h3, h4⟩ := Prod.mk.inj (Option.some.inj he); subst xa hx ya hy
+        exact ⟨x2, Known, y2, Known, by simp [FMap.get_setE], by simp, by simp⟩
+      -- EC: move=> xahx_neq_x1ch; have ^ /hs_of_INV Hhs /mh_of_INV [] Hmh _ _ /Hmh {Hmh} := HINV.
+      intro hm
+      have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨Hmh, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: move=> [xc fx yc fy] [#] hs_hx hs_hy Hite.
+      obtain ⟨xc, fx, yc, fy, hs_hx, hs_hy, Hite⟩ := Hmh _ _ _ _ hm
+      -- EC: exists xc fx yc fy; do 2?split; first 2 by smt (dom_hs_neq_ch dom_hs_neq_Sch get_setE).
+      refine ⟨xc, fx, yc, fy, ?_, ?_, ?_⟩
+      on_goals 1, 2 => smt_close [dom_hs_neq_ch, dom_hs_neq_Sch, FMap.get_setE]
+      -- EC: case: fy Hite hs_hy=> /= [[p v] [Hro Hpath] hs_hy|[#] Gm_xaxc <*> hs_hy] /=;
+      --       last first.
+      cases fy with
+      | Known =>
+        obtain ⟨Gm_xaxc, rfl⟩ := by simpa using Hite
+        -- EC: + by rewrite get_setE; case: ((xa,xc) = (x1,x2))=> [/#|].
+        rw [if_pos rfl, FMap.get_setE]; split_ifs with he
+        · rw [he, Gm_x] at Gm_xaxc; cases Gm_xaxc
+        exact ⟨Gm_xaxc, rfl⟩
+      | Unknown =>
+        obtain ⟨p, v, Hro, Hpath⟩ := by simpa using Hite
+        -- EC: exists p v; rewrite Hro /=; apply/build_hpath_up=> //.
+        rw [if_neg (by decide)]
+        refine ⟨p, v, Hro, build_hpath_up _ _ _ _ _ _ _ _ Hpath ?_⟩
+        -- EC: have /m_mh_of_INV /notin_hs_notdomE2_mh H:= HINV.
+        --     exact/H/ch_notdomE_hs/Hhs.
+        exact notin_hs_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+          (ch_notdomE_hs _ _ Hhs)
+    -- EC: + move=> p xa b; have /mh_of_INV [] _ -> _ := HINV.
+    · intro p xa b
+      obtain ⟨-, Hro, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      rw [Hro]
+      -- EC: apply/exists_iff=> v /=; apply/exists_iff=> hx /=; apply/exists_iff=> hy /=.
+      refine exists_congr fun v => exists_congr fun hx => exists_congr fun hy => ?_
+      -- EC: have mh_x1ch: mh.[(x1,ch)] = None.
+      --     + by apply/(notin_hs_notdomE2_mh hs Pm)/ch_notdomE_hs; case: HINV.
+      have mh_x1ch : FMap.get mh (x1, ch) = none :=
+        notin_hs_notdomE2_mh hs Pm _ _ _ (by cases HINV; assumption)
+          (ch_notdomE_hs _ _ (by cases HINV; assumption))
+      -- EC: have ch_notrngE2_mh: forall a h a', mh.[(a,h)] <> Some (a',ch).
+      --     + move=> a h a'; rewrite -negP; have /m_mh_of_INV [] _ Hmh_m /Hmh_m {Hmh_m} := HINV.
+      --       by move=> [xc fx yc fy] [#] _; rewrite ch_notdomE_hs; case: HINV.
+      have ch_notrngE2_mh : ∀ a h a', FMap.get mh (a, h) ≠ some (a', ch) := by
+        intro a h a' hm
+        obtain ⟨-, Hmh_m⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := Hmh_m _ _ _ _ hm
+        rw [ch_notdomE_hs _ _ (by cases HINV; assumption)] at hs_ch; cases hs_ch
+      -- EC: split=> -[#].
       constructor
-      · rintro ⟨v, hx, hy, h1, h2⟩
-        refine ⟨v, hx, hy, mhup _ _ _ h1, ?_⟩
-        rw [FMap.get_set_neqE]
-        · exact h2
-        · intro he
-          rw [he, mh_ch] at h2
-          cases h2
-      · rintro ⟨v, hx, hy, h1, h2⟩
-        have h1' := mhdown _ _ _ h1
-        refine ⟨v, hx, hy, h1', ?_⟩
-        rw [FMap.get_set_neqE] at h2
-        · exact h2
-        · intro he
-          simp only [Prod.mk.injEq] at he
-          exact nopath ch hs_ch p v (he.2 ▸ h1')
-    · intro p v p' v' hx h1 h2
-      exact Imh3 p v p' v' hx (mhdown _ _ _ h1) (mhdown _ _ _ h2)
-  · obtain ⟨Ipi⟩ := Hpi
-    refine ⟨fun c p v => ?_⟩
+      -- EC: + move=> Hpath mh_vxahx; rewrite get_setE; case: ((v +^ xa,hx) = (x1,ch))=> [/#|_].
+      · rintro ⟨Hpath, mh_vxahx⟩
+        rw [FMap.get_setE]; split_ifs with he
+        · rw [he, mh_x1ch] at mh_vxahx; cases mh_vxahx
+        -- EC: by rewrite mh_vxahx //=; apply/build_hpath_up=> //=; rewrite mh_x1ch.
+        exact ⟨build_hpath_up _ _ _ _ _ _ _ _ Hpath mh_x1ch, mh_vxahx⟩
+      -- EC: have H /H {H}:= build_hpath_down mh x1 ch y1 (ch + 1) p v hx _.
+      rintro ⟨Hpath', mh_vxahx'⟩
+      have Hpath := build_hpath_down mh x1 ch y1 (ch + 1) p v hx ?_ Hpath'
+      -- EC: move=> ^ /build_hpathP + -> /=; rewrite get_setE.
+      --     by case=> [<*>|/#]; move: HINV=> /hs_of_INV [] _ + H - /H {H} /#.
+      · refine ⟨Hpath, ?_⟩
+        rw [FMap.get_setE] at mh_vxahx'; split_ifs at mh_vxahx' with he; rotate_right
+        · exact mh_vxahx'
+        rcases (build_hpathP _ _ _ _).1 Hpath with ⟨-, -, rfl⟩ | ⟨p', b', v', h', -, -, hm⟩
+        · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+          have := Hlt _ _ h0; have := (Prod.mk.inj he).2; linarith
+        · exact absurd ((Prod.mk.inj he).2 ▸ hm) (ch_notrngE2_mh _ _ _)
+      -- EC: + move=> p0 v0; rewrite -negP=> /build_hpathP [<*>|].
+      intro p0 v0 hp
+      rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+      -- EC: + by have /hs_of_INV [] _ + H - /H {H} := HINV.
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0; linarith
+      -- EC: by move=> p' b' v' h' <*>; rewrite ch_notrngE2_mh.
+      · exact ch_notrngE2_mh _ _ _ hm
+    -- EC: move=> p v p' v' hx.
+    intro p v p' v' hx
+    -- EC: have: (forall p v, build_hpath mh p <> Some (v,ch)).
+    have nopath : ∀ p0 v0, build_hpath mh p0 ≠ some (v0, ch) := by
+      -- EC: + move=> p0 v0; rewrite -negP=> /build_hpathP [<*>|].
+      intro p0 v0 hp
+      rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p'0, b'0, v'0, h'0, -, -, hm⟩
+      -- EC: + by have /hs_of_INV [] _ + H - /H {H} := HINV.
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0; linarith
+      -- EC: move=> p'0 b'0 v'0 h'0 <*> _; have /m_mh_of_INV [] _ H /H {H} := HINV.
+      --     by move=> [xc fx yc fy] [#] _; have /hs_of_INV [] _ _ H /H {H}:= HINV.
+      · obtain ⟨-, H⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := H _ _ _ _ hm
+        obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ hs_ch; linarith
+    -- EC: move=> ^ + /build_hpath_down H /H {H} - /build_hpath_down H + /H {H}.
+    --     by have /mh_of_INV [] _ _ /(_ p v p' v' hx) := HINV.
+    intro h1 h2
+    obtain ⟨-, -, Huniq⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    exact Huniq p v p' v' hx (build_hpath_down _ _ _ _ _ _ _ _ nopath h1)
+      (build_hpath_down _ _ _ _ _ _ _ _ nopath h2)
+  -- EC: split=> c p v; have ^/hs_of_INV [] _ _ dom_hs /pi_of_INV [] -> := HINV.
+  · refine ⟨fun c p v => ?_⟩
+    obtain ⟨-, -, dom_hs⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
     rw [Ipi]
+    -- EC: apply/exists_iff=> h /=; split=> [#].
+    refine exists_congr fun h => ?_
     constructor
-    · rintro ⟨h, h1, h2⟩
-      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
-    · rintro ⟨h, h1, h2⟩
-      have h1' := mhdown _ _ _ h1
-      refine ⟨h, h1', ?_⟩
-      have hne1 : h ≠ ch + 1 := by
-        intro he
-        exact nopath (ch + 1) hs_Sch p v (he ▸ h1')
-      have hne2 : h ≠ ch := by
-        intro he
-        exact nopath ch hs_ch p v (he ▸ h1')
-      rwa [FMap.get_set_neqE _ _ _ _ hne1, FMap.get_set_neqE _ _ _ _ hne2] at h2
+    -- EC: + move=> /(build_hpath_up mh x1 ch y1 (ch + 1) p v h) /(_ _).
+    --       + by apply/(notin_hs_notdomE2_mh hs Pm)/ch_notdomE_hs; case: HINV.
+    --       by move=> -> /= ^ /dom_hs; rewrite !get_setE /#.
+    · rintro ⟨Hpath, hs_h⟩
+      refine ⟨build_hpath_up mh x1 ch y1 (ch + 1) p v h Hpath
+        (notin_hs_notdomE2_mh hs Pm _ _ _ (by cases HINV; assumption)
+          (ch_notdomE_hs _ _ (by cases HINV; assumption))), ?_⟩
+      have := dom_hs _ _ hs_h
+      rw [FMap.get_set_neqE _ (ch + 1) h _ (ne_of_lt (by linarith)),
+        FMap.get_set_neqE _ ch h _ this.ne, hs_h]
+    -- EC: have ch_notrngE2_mh: forall a h a', mh.[(a,h)] <> Some (a',ch). (…)
+    --     have Sch_notrngE2_mh: forall a h a', mh.[(a,h)] <> Some (a',ch + 1). (…)
+    rintro ⟨Hpath', hs_h⟩
+    have ch_notrngE2_mh : ∀ a h a', FMap.get mh (a, h) ≠ some (a', ch) := by
+      intro a h' a' hm
+      obtain ⟨-, Hmh_m⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := Hmh_m _ _ _ _ hm
+      rw [ch_notdomE_hs _ _ (by cases HINV; assumption)] at hs_ch; cases hs_ch
+    have Sch_notrngE2_mh : ∀ a h a', FMap.get mh (a, h) ≠ some (a', ch + 1) := by
+      intro a h' a' hm
+      obtain ⟨-, Hmh_m⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨xc, fx, yc, fy, -, hs_Sch, -⟩ := Hmh_m _ _ _ _ hm
+      rw [Sch_notdomE_hs _ _ (by cases HINV; assumption)] at hs_Sch; cases hs_Sch
+    -- EC: have H /H {H}:= build_hpath_down mh x1 ch y1 (ch + 1) p v h _.
+    have Hpath := build_hpath_down mh x1 ch y1 (ch + 1) p v h ?_ Hpath'
+    -- EC: + move=> ^ /build_hpathP + -> /=; rewrite !get_setE.
+    --       by case=> [<*>|/#]; move: HINV=> /hs_of_INV [] _ + H - /H {H} /#.
+    · refine ⟨Hpath, ?_⟩
+      rcases (build_hpathP _ _ _ _).1 Hpath with ⟨-, -, rfl⟩ | ⟨p', b', v', h', -, -, hm⟩
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0
+        rwa [FMap.get_set_neqE _ (ch + 1) 0 _ (ne_of_lt (by linarith)),
+          FMap.get_set_neqE _ ch 0 _ this.ne] at hs_h
+      · rwa [FMap.get_set_neqE _ _ _ _ (fun e => Sch_notrngE2_mh _ _ _ (e ▸ hm)),
+          FMap.get_set_neqE _ _ _ _ (fun e => ch_notrngE2_mh _ _ _ (e ▸ hm))] at hs_h
+    -- EC: + move=> p0 v0; rewrite -negP=> /build_hpathP [<*>|].
+    --       + by have /hs_of_INV [] _ + H - /H {H} := HINV.
+    --       by move=> p' b' v' h' <*>; rewrite ch_notrngE2_mh.
+    intro p0 v0 hp
+    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+    · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have := Hlt _ _ h0; linarith
+    · exact ch_notrngE2_mh _ _ _ hm
+  -- EC: split=>[].
+  · constructor
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [] ->//.
+    · obtain ⟨c1, -, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c1
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [] //.
+    · obtain ⟨-, c2, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c2
+    -- EC: + move=>l hmem i hi.
+    · intro l hmem i hi
+      -- EC: have[]_ _ h2 h3:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      obtain ⟨-, -, h2, h3, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: have[]sa sc[]:=h2 l hmem i hi.
+      obtain ⟨sa, sc, h4, h5⟩ := h2 l hmem i hi
+      -- EC: have h1:=all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      have h1 := all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: smt(domE get_setE).
+      refine ⟨sa, sc, h4, ?_⟩
+      rw [FMap.get_setE, if_neg]; · exact h5
+      intro he; rw [he, Pm_x] at h5
+      exact (FMap.domE _ _).1 (h1 l hmem (i + 1)) h5.symm
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, c4, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c4
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, -, c5⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c5
 
+/-- EC's `lemma lemma1'`, in EC's script. -/
 theorem lemma1' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
     (prefixes : FMap (List block) state) (queries : FMap (List block) block) (x1 : block)
@@ -1072,157 +1168,251 @@ theorem lemma1' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hs
       (FMap.set Gm (y1, y2) (x1, x2)) (FMap.set Gmi (x1, x2) (y1, y2))
       (FMap.set mh (y1, ch + 1) (x1, ch)) (FMap.set mhi (x1, ch) (y1, ch + 1))
       ro pi prefixes queries := by
-  intro HINV hh hx2y2 Pmi_x Gmi_x hx2 hy2
-  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
-  obtain ⟨hun, hs0, hlt⟩ := id Hhs
-  obtain ⟨Imm1, Imm2⟩ := id Hmmh
-  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
-  have Pm_y : FMap.get Pm (y1, y2) = none := by
-    rw [FMap.domE] at hh
-    simpa using hh
-  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
-  have hs_Sch : FMap.get hs (ch + 1) = none := Sch_notdomE_hs hs ch Hhs
-  have mh_Sch : ∀ a, FMap.get mh (a, ch + 1) = none :=
-    fun a => Sch_notdomE2_mh hs Pm mh a ch Hmmh Hhs
-  have hsne : ∀ h cf, FMap.get hs h = some cf →
-      FMap.get (FMap.set (FMap.set hs ch (x2, Known)) (ch + 1) (y2, Known)) h = some cf := by
-    intro h cf hh
-    have := hlt _ _ hh
-    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch + 1 by linarith),
-      FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
-  have notrng : ∀ hc, FMap.get hs hc = none → ∀ a h a', FMap.get mh (a, h) ≠ some (a', hc) := by
-    intro hc hn a h a' hm
-    obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
-    rw [hn] at h2
-    cases h2
-  have nopath : ∀ hc, FMap.get hs hc = none → ∀ p v, build_hpath mh p ≠ some (v, hc) := by
-    intro hc hn p v hp
-    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, rfl⟩ | ⟨p', b, v', h', -, -, hm⟩
-    · rw [hs0] at hn
-      cases hn
-    · exact notrng hc hn _ _ _ hm
-  have mhup : ∀ p v h, build_hpath mh p = some (v, h) →
-      build_hpath (FMap.set mh (y1, ch + 1) (x1, ch)) p = some (v, h) :=
-    fun p v h hp => build_hpath_up mh y1 (ch + 1) x1 ch p v h hp (mh_Sch y1)
-  have mhdown : ∀ p v h, build_hpath (FMap.set mh (y1, ch + 1) (x1, ch)) p = some (v, h) →
-      build_hpath mh p = some (v, h) :=
-    fun p v h hp => build_hpath_down mh y1 (ch + 1) x1 ch p v h (nopath _ hs_Sch) hp
-  have Hmp' : ∀ (x y : state), FMap.get Pm x = none → m_p (FMap.set Pm x y) prefixes queries := by
-    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
-    intro x y hx
-    refine ⟨c1, c2, ?_, c4, c5⟩
-    intro l hl i hi
-    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
-    refine ⟨sa, sc, h1, ?_⟩
-    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
-      by_cases hi' : i + 1 < size l
-      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
-        rw [h1']
-        simp
-      · have : take (i + 1) l = l := by
-          simp only [take, size] at *
-          apply List.take_of_length_le
-          omega
-        rw [this]
-        exact (FMap.domE _ _).1 hl
-    rw [FMap.get_setE, if_neg]
-    · exact h2
-    · intro he
-      rw [he, hx] at h2
-      exact hne h2.symm
-  have hy2' : ∀ f h, FMap.get (FMap.set hs ch (x2, Known)) h ≠ some (y2, f) := by
-    intro f h
-    rw [FMap.get_setE]
-    split_ifs
-    · simp [hx2y2]
-    · exact hy2 f h
-  have hsSch' : FMap.get (FMap.set hs ch (x2, Known)) (ch + 1) = none := by
-    rw [FMap.get_set_neqE _ _ _ _ (show ch + 1 ≠ ch by simp)]
-    exact hs_Sch
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, Hmp' _ _ Pm_y⟩
-  · rw [show ch + 2 = ch + 1 + 1 by ring]
-    exact hs_addh _ _ _ _ (hs_addh hs ch x2 Known Hhs hx2) hy2'
-  · refine inv_addm _ _ _ _ HinvG ?_ Gmi_x
-    cases hg : FMap.get Gm (y1, y2) with
-    | none => rfl
-    | some xc =>
-      have hp := Hincl (y1, y2) (by rw [hg]; simp)
-      rw [hg, Pm_y] at hp
-      cases hp
-  · exact inv_addm _ _ _ _ Hinvmh (mh_Sch y1) (ch_notdomE2_mh hs Pmi mhi x1 ch Hmimhi Hhs)
-  · exact mi_mhi_addh_addmi (FMap.set hs ch (x2, Known)) Pm mh ch x1 x2 (ch + 1) y1 y2
-      Known Known (m_mh_addh hs ch Pm mh x2 Known Hhs Hmmh) hy2' (FMap.get_set_sameE _ _ _)
-      hsSch'
-  · exact m_mh_addh_addm (FMap.set hs ch (x2, Known)) Pmi mhi ch x1 x2 (ch + 1) y1 y2 Known
-      Known (m_mh_addh hs ch Pmi mhi x2 Known Hhs Hmimhi) (hs_addh hs ch x2 Known Hhs hx2).1
-      (FMap.get_set_sameE _ _ _) hsSch'
-  · exact incl_addm _ _ _ _ Hincl
-  · exact incl_addm _ _ _ _ Hincli
-  · refine ⟨?_, ?_, ?_⟩
-    · intro ya hy xa hx hm
-      rw [FMap.get_setE] at hm
-      split_ifs at hm with hk
-      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
-        obtain ⟨hk1, hk2⟩ := hk
-        obtain ⟨hm1, hm2⟩ := hm
-        subst ya hy xa hx
-        refine ⟨y2, Known, x2, Known, FMap.get_set_sameE _ _ _, ?_, ?_⟩
-        · rw [FMap.get_set_neqE _ _ _ _ (show ch ≠ ch + 1 by simp), FMap.get_set_sameE]
-        · simp
-      · obtain ⟨yc, fy, xc, fx, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
-        refine ⟨yc, fy, xc, fx, hsne _ _ h1, hsne _ _ h2, ?_⟩
-        cases fx with
-        | Known =>
-          simp only [if_true] at h3 ⊢
-          refine ⟨?_, h3.2⟩
-          rw [FMap.get_set_neqE]
-          · exact h3.1
-          · intro he
-            rw [he] at h3
-            have := Hincl _ (by rw [h3.1]; simp)
-            rw [h3.1, Pm_y] at this
-            cases this
-        | Unknown =>
-          simp only [reduceCtorEq, if_false] at h3 ⊢
-          obtain ⟨p, v, h4, h5⟩ := h3
-          exact ⟨p, v, h4, mhup _ _ _ h5⟩
-    · intro p bn b
-      rw [Imh2]
+  -- EC: move=> HINV hh x2_neq_y2 Pm_x Gm_x xc_notrngE1_hs yc_notrngE1_hs; split.
+  intro HINV hh x2_neq_y2 Pm_x Gm_x xc_notrngE1_hs yc_notrngE1_hs
+  constructor
+  -- EC: + rewrite (@addzA ch 1 1); apply/hs_addh.
+  · rw [show ch + 2 = ch + 1 + 1 by ring]; apply hs_addh
+    -- EC: + by move: HINV=> /hs_of_INV/hs_addh=> ->.
+    · exact hs_addh _ _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) xc_notrngE1_hs
+    -- EC: by move=> f h; rewrite get_setE; case: (h = ch)=> [/#|_]; exact/yc_notrngE1_hs.
+    · intro f h; rw [FMap.get_setE]; split_ifs; · simp [x2_neq_y2]
+      exact yc_notrngE1_hs f h
+  -- EC: + apply/inv_addm=> //; 1:by case: HINV.
+  · refine inv_addm _ _ _ _ (by cases HINV; assumption) ?_ Gm_x
+    -- EC: case: {-1}(Gm.[(y1,y2)]) (eq_refl Gm.[(y1,y2)])=> [//|[xa xc]].
+    rcases h : FMap.get Gm (y1, y2) with _ | ⟨xa, xc⟩; · rfl
+    -- EC: + have /incl_of_INV + ^h - <- := HINV; 1: by rewrite h.
+    have hi := incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (y1, y2) (by simp [h])
+    rw [h] at hi
+    -- EC: have /m_mh_of_INV [] H _ /H {H} [hx fx hy fy] [#] := HINV.
+    obtain ⟨H, -⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨hx, fx, hy, fy, hs_hx, -, -⟩ := H _ _ _ _ hi
+    -- EC: by rewrite yc_notrngE1_hs.
+    exact absurd hs_hx (yc_notrngE1_hs _ _)
+  -- EC: + apply/inv_addm; 1:by case: HINV.
+  · apply inv_addm; · cases HINV; assumption
+    -- EC: + have ^ /m_mh_of_INV Hm_mh /hs_of_INV Hhs := HINV.
+    --       by apply/(Sch_notdomE2_mh _ _ Hm_mh Hhs).
+    · exact Sch_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: have ^ /mi_mhi_of_INV Hmi_mhi /hs_of_INV Hhs := HINV.
+    --     by apply/(ch_notdomE2_mh _ _ Hmi_mhi Hhs).
+    exact ch_notdomE2_mh _ _ _ _ _ (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+      (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + apply/(@mi_mhi_addh_addmi hs.[ch <- (x2,Known)] Pm mh ch x1 x2 (ch + 1) y1 y2
+  --       Known Known).
+  · apply mi_mhi_addh_addmi (FMap.set hs ch (x2, Known)) Pm mh ch x1 x2 (ch + 1) y1 y2 Known Known
+    -- EC: + by move: HINV=> ^/hs_of_INV Hhs /m_mh_of_INV; exact/(m_mh_addh Hhs).
+    · exact m_mh_addh _ _ _ _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: + by move=> f h; rewrite get_setE; case: (h = ch)=> [<*> /#|]; rewrite yc_notrngE1_hs.
+    · intro f h; rw [FMap.get_setE]; split_ifs; · simp [x2_neq_y2]
+      exact yc_notrngE1_hs f h
+    -- EC: + by rewrite get_setE.
+    · simp
+    -- EC: by rewrite get_setE gtr_eqF 1:/# /=; apply/Sch_notdomE_hs; case: HINV.
+    · rw [FMap.get_set_neqE _ ch (ch + 1) _ (by simp)]
+      exact Sch_notdomE_hs _ _ (by cases HINV; assumption)
+  -- EC: + apply/(@m_mh_addh_addm hs.[ch <- (x2,Known)] Pmi mhi ch x1 x2 (ch + 1) y1 y2 Known).
+  · apply m_mh_addh_addm (FMap.set hs ch (x2, Known)) Pmi mhi ch x1 x2 (ch + 1) y1 y2 Known
+    -- EC: + by move: HINV=> ^/hs_of_INV Hhs /mi_mhi_of_INV; exact/(m_mh_addh Hhs).
+    · exact m_mh_addh _ _ _ _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: + by have /hs_of_INV /hs_addh /(_ x2 Known _) // []:= HINV.
+    · exact (hs_addh _ _ x2 Known (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) xc_notrngE1_hs).1
+    -- EC: + by rewrite get_setE.
+    · simp
+    -- EC: by rewrite get_setE gtr_eqF 1:/# /=; apply/Sch_notdomE_hs; case: HINV.
+    · rw [FMap.get_set_neqE _ ch (ch + 1) _ (by simp)]
+      exact Sch_notdomE_hs _ _ (by cases HINV; assumption)
+  -- EC: + by apply/incl_addm; case: HINV.
+  · exact incl_addm _ _ _ _ (by cases HINV; assumption)
+  -- EC: + by apply/incl_addm; case: HINV.
+  · exact incl_addm _ _ _ _ (by cases HINV; assumption)
+  -- EC: + split.
+  · constructor
+    -- EC: + move=> ya hy xa hx; rewrite get_setE; case: ((ya,hy) = (y1,ch + 1))=> [|].
+    · intro ya hy xa hx; rw [FMap.get_setE]; split_ifs with hk
+      -- EC: + by move=> [#] <*> [#] <*>; exists y2 Known x2 Known; rewrite !get_setE /#.
+      · intro he; obtain ⟨h1, h2⟩ := Prod.mk.inj hk
+        obtain ⟨h3, h4⟩ := Prod.mk.inj (Option.some.inj he); subst ya hy xa hx
+        exact ⟨y2, Known, x2, Known, by simp, by simp [FMap.get_setE], by simp⟩
+      -- EC: move=> yahy_neq_y1Sch; have ^ /hs_of_INV Hhs /mh_of_INV [] Hmh _ _ /Hmh {Hmh} := HINV.
+      intro hm
+      have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨Hmh, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: move=> [yc fy xc fx] [#] hs_hy hs_hx Hite.
+      obtain ⟨yc, fy, xc, fx, hs_hy, hs_hx, Hite⟩ := Hmh _ _ _ _ hm
+      -- EC: exists yc fy xc fx; do 2?split; first 2 by smt (dom_hs_neq_ch dom_hs_neq_Sch get_setE).
+      refine ⟨yc, fy, xc, fx, ?_, ?_, ?_⟩
+      on_goals 1, 2 => smt_close [dom_hs_neq_ch, dom_hs_neq_Sch, FMap.get_setE]
+      -- EC: case: fx Hite hs_hx=> /= [[p v] [Hro Hpath] hs_hx|[#] Gm_yayc <*> hs_hx] /=;
+      --       last first.
+      cases fx with
+      | Known =>
+        obtain ⟨Gm_yayc, rfl⟩ := by simpa using Hite
+        -- EC: + by rewrite get_setE; case: ((ya,yc) = (y1,y2))=> [/#|].
+        rw [if_pos rfl, FMap.get_setE]; split_ifs with he
+        · rw [he] at Gm_yayc
+          have := incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (y1, y2) (by simp [Gm_yayc])
+          exact absurd ((FMap.domE _ _).2 (by simp [this, Gm_yayc])) hh
+        exact ⟨Gm_yayc, rfl⟩
+      | Unknown =>
+        obtain ⟨p, v, Hro, Hpath⟩ := by simpa using Hite
+        -- EC: exists p v; rewrite Hro /=; apply/build_hpath_up=> //.
+        rw [if_neg (by decide)]
+        refine ⟨p, v, Hro, build_hpath_up _ _ _ _ _ _ _ _ Hpath ?_⟩
+        -- EC: have /m_mh_of_INV /notin_hs_notdomE2_mh H:= HINV.
+        --     exact/H/Sch_notdomE_hs/Hhs.
+        exact notin_hs_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+          (Sch_notdomE_hs _ _ Hhs)
+    -- EC: + move=> p ya b; have /mh_of_INV [] _ -> _ := HINV.
+    · intro p ya b
+      obtain ⟨-, Hro, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      rw [Hro]
+      -- EC: apply/exists_iff=> v /=; apply/exists_iff=> hx /=; apply/exists_iff=> hy /=.
+      refine exists_congr fun v => exists_congr fun hx => exists_congr fun hy => ?_
+      -- EC: have mh_y1Sch: mh.[(y1,ch + 1)] = None.
+      --     + by apply/(notin_hs_notdomE2_mh hs Pm)/Sch_notdomE_hs; case: HINV.
+      have mh_y1Sch : FMap.get mh (y1, ch + 1) = none :=
+        notin_hs_notdomE2_mh hs Pm _ _ _ (by cases HINV; assumption)
+          (Sch_notdomE_hs _ _ (by cases HINV; assumption))
+      -- EC: have Sch_notrngE2_mh: forall a h a', mh.[(a,h)] <> Some (a',ch + 1).
+      --     + move=> a h a'; rewrite -negP; have /m_mh_of_INV [] _ Hmh_m /Hmh_m {Hmh_m} := HINV.
+      --       by move=> [yc fy xc fx] [#] _; rewrite Sch_notdomE_hs; case: HINV.
+      have Sch_notrngE2_mh : ∀ a h a', FMap.get mh (a, h) ≠ some (a', ch + 1) := by
+        intro a h a' hm
+        obtain ⟨-, Hmh_m⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨yc, fy, xc, fx, -, hs_Sch, -⟩ := Hmh_m _ _ _ _ hm
+        rw [Sch_notdomE_hs _ _ (by cases HINV; assumption)] at hs_Sch; cases hs_Sch
+      -- EC: split=> -[#].
       constructor
-      · rintro ⟨v, hx, hy, h1, h2⟩
-        refine ⟨v, hx, hy, mhup _ _ _ h1, ?_⟩
-        rw [FMap.get_set_neqE]
-        · exact h2
-        · intro he
-          rw [he, mh_Sch] at h2
-          cases h2
-      · rintro ⟨v, hx, hy, h1, h2⟩
-        have h1' := mhdown _ _ _ h1
-        refine ⟨v, hx, hy, h1', ?_⟩
-        rw [FMap.get_set_neqE] at h2
-        · exact h2
-        · intro he
-          simp only [Prod.mk.injEq] at he
-          exact nopath _ hs_Sch p v (he.2 ▸ h1')
-    · intro p v p' v' hx h1 h2
-      exact Imh3 p v p' v' hx (mhdown _ _ _ h1) (mhdown _ _ _ h2)
-  · obtain ⟨Ipi⟩ := Hpi
-    refine ⟨fun c p v => ?_⟩
+      -- EC: + move=> Hpath mh_vxahx; rewrite get_setE; case: ((v +^ ya,hx) = (y1,ch + 1))=> [/#|_].
+      · rintro ⟨Hpath, mh_vxahx⟩
+        rw [FMap.get_setE]; split_ifs with he
+        · rw [he, mh_y1Sch] at mh_vxahx; cases mh_vxahx
+        -- EC: by rewrite mh_vxahx //=; apply/build_hpath_up=> //=; rewrite mh_y1ch.
+        exact ⟨build_hpath_up _ _ _ _ _ _ _ _ Hpath mh_y1Sch, mh_vxahx⟩
+      -- EC: have H /H {H}:= build_hpath_down mh y1 (ch + 1) x1 ch p v hx _.
+      rintro ⟨Hpath', mh_vxahx'⟩
+      have Hpath := build_hpath_down mh y1 (ch + 1) x1 ch p v hx ?_ Hpath'
+      -- EC: move=> ^ /build_hpathP + -> /=; rewrite get_setE.
+      --     by case=> [<*>|/#]; move: HINV=> /hs_of_INV [] _ + H - /H {H} /#.
+      · refine ⟨Hpath, ?_⟩
+        rw [FMap.get_setE] at mh_vxahx'; split_ifs at mh_vxahx' with he; rotate_right
+        · exact mh_vxahx'
+        rcases (build_hpathP _ _ _ _).1 Hpath with ⟨-, -, rfl⟩ | ⟨p', b', v', h', -, -, hm⟩
+        · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+          have := Hlt _ _ h0; have := (Prod.mk.inj he).2; linarith
+        · exact absurd ((Prod.mk.inj he).2 ▸ hm) (Sch_notrngE2_mh _ _ _)
+      -- EC: + move=> p0 v0; rewrite -negP=> /build_hpathP [<*>|].
+      intro p0 v0 hp
+      rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+      -- EC: + by have /hs_of_INV [] _ + H - /H {H} /# := HINV.
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0; linarith
+      -- EC: by move=> p' b' v' h' <*>; rewrite Sch_notrngE2_mh.
+      · exact Sch_notrngE2_mh _ _ _ hm
+    -- EC: move=> p v p' v' hx.
+    intro p v p' v' hx
+    -- EC: have: (forall p v, build_hpath mh p <> Some (v,ch + 1)).
+    have nopath : ∀ p0 v0, build_hpath mh p0 ≠ some (v0, ch + 1) := by
+      -- EC: + move=> p0 v0; rewrite -negP=> /build_hpathP [<*>|].
+      intro p0 v0 hp
+      rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p'0, b'0, v'0, h'0, -, -, hm⟩
+      -- EC: + by have /hs_of_INV [] _ + H - /H {H} /# := HINV.
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0; linarith
+      -- EC: move=> p'0 b'0 v'0 h'0 <*> _; have /m_mh_of_INV [] _ H /H {H} := HINV.
+      --     by move=> [xc fx yc fy] [#] _; have /hs_of_INV [] _ _ H /H {H} /#:= HINV.
+      · obtain ⟨-, H⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨xc, fx, yc, fy, -, hs_Sch, -⟩ := H _ _ _ _ hm
+        obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ hs_Sch; linarith
+    -- EC: move=> ^ + /build_hpath_down H /H {H} - /build_hpath_down H + /H {H}.
+    --     by have /mh_of_INV [] _ _ /(_ p v p' v' hx) := HINV.
+    intro h1 h2
+    obtain ⟨-, -, Huniq⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    exact Huniq p v p' v' hx (build_hpath_down _ _ _ _ _ _ _ _ nopath h1)
+      (build_hpath_down _ _ _ _ _ _ _ _ nopath h2)
+  -- EC: split=> c p v; have ^/hs_of_INV [] _ _ dom_hs /pi_of_INV [] -> := HINV.
+  · refine ⟨fun c p v => ?_⟩
+    obtain ⟨-, -, dom_hs⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
     rw [Ipi]
+    -- EC: apply/exists_iff=> h /=; split=> [#].
+    refine exists_congr fun h => ?_
     constructor
-    · rintro ⟨h, h1, h2⟩
-      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
-    · rintro ⟨h, h1, h2⟩
-      have h1' := mhdown _ _ _ h1
-      refine ⟨h, h1', ?_⟩
-      have hne1 : h ≠ ch + 1 := by
-        intro he
-        exact nopath (ch + 1) hs_Sch p v (he ▸ h1')
-      have hne2 : h ≠ ch := by
-        intro he
-        exact nopath ch hs_ch p v (he ▸ h1')
-      rwa [FMap.get_set_neqE _ _ _ _ hne1, FMap.get_set_neqE _ _ _ _ hne2] at h2
+    -- EC: + move=> /(build_hpath_up mh y1 (ch + 1) x1 ch p v h) /(_ _).
+    --       + by apply/(notin_hs_notdomE2_mh hs Pm)/Sch_notdomE_hs; case: HINV.
+    --       by move=> -> /= ^ /dom_hs; rewrite !get_setE /#.
+    · rintro ⟨Hpath, hs_h⟩
+      refine ⟨build_hpath_up mh y1 (ch + 1) x1 ch p v h Hpath
+        (notin_hs_notdomE2_mh hs Pm _ _ _ (by cases HINV; assumption)
+          (Sch_notdomE_hs _ _ (by cases HINV; assumption))), ?_⟩
+      have := dom_hs _ _ hs_h
+      rw [FMap.get_set_neqE _ (ch + 1) h _ (ne_of_lt (by linarith)),
+        FMap.get_set_neqE _ ch h _ this.ne, hs_h]
+    -- EC: have ch_notrngE2_mh: forall a h a', mh.[(a,h)] <> Some (a',ch). (…)
+    --     have Sch_notrngE2_mh: forall a h a', mh.[(a,h)] <> Some (a',ch + 1). (…)
+    rintro ⟨Hpath', hs_h⟩
+    have ch_notrngE2_mh : ∀ a h a', FMap.get mh (a, h) ≠ some (a', ch) := by
+      intro a h' a' hm
+      obtain ⟨-, Hmh_m⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := Hmh_m _ _ _ _ hm
+      rw [ch_notdomE_hs _ _ (by cases HINV; assumption)] at hs_ch; cases hs_ch
+    have Sch_notrngE2_mh : ∀ a h a', FMap.get mh (a, h) ≠ some (a', ch + 1) := by
+      intro a h' a' hm
+      obtain ⟨-, Hmh_m⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨xc, fx, yc, fy, -, hs_Sch, -⟩ := Hmh_m _ _ _ _ hm
+      rw [Sch_notdomE_hs _ _ (by cases HINV; assumption)] at hs_Sch; cases hs_Sch
+    -- EC: have H /H {H}:= build_hpath_down mh y1 (ch + 1) x1 ch p v h _.
+    have Hpath := build_hpath_down mh y1 (ch + 1) x1 ch p v h ?_ Hpath'
+    -- EC: + move=> ^ /build_hpathP + -> /=; rewrite !get_setE.
+    --       by case=> [<*>|/#]; move: HINV=> /hs_of_INV [] _ + H - /H {H} /#.
+    · refine ⟨Hpath, ?_⟩
+      rcases (build_hpathP _ _ _ _).1 Hpath with ⟨-, -, rfl⟩ | ⟨p', b', v', h', -, -, hm⟩
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0
+        rwa [FMap.get_set_neqE _ (ch + 1) 0 _ (ne_of_lt (by linarith)),
+          FMap.get_set_neqE _ ch 0 _ this.ne] at hs_h
+      · rwa [FMap.get_set_neqE _ _ _ _ (fun e => Sch_notrngE2_mh _ _ _ (e ▸ hm)),
+          FMap.get_set_neqE _ _ _ _ (fun e => ch_notrngE2_mh _ _ _ (e ▸ hm))] at hs_h
+    -- EC: + move=> p0 v0; rewrite -negP=> /build_hpathP [<*>|].
+    --       + by have /hs_of_INV [] _ + H - /H {H} /# := HINV.
+    --       by move=> p' b' v' h' <*>; rewrite Sch_notrngE2_mh.
+    intro p0 v0 hp
+    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+    · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have := Hlt _ _ h0; linarith
+    · exact Sch_notrngE2_mh _ _ _ hm
+  -- EC: split=>[].
+  · constructor
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [] ->//.
+    · obtain ⟨c1, -, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c1
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [].
+    · obtain ⟨-, c2, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c2
+    -- EC: + move=>l hmem i hi.
+    · intro l hmem i hi
+      -- EC: have[]_ _ h2 h3:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      obtain ⟨-, -, h2, h3, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: have[]sa sc[]:=h2 l hmem i hi.
+      obtain ⟨sa, sc, h4, h5⟩ := h2 l hmem i hi
+      -- EC: have h1:=all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      have h1 := all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: smt(domE get_setE).
+      refine ⟨sa, sc, h4, ?_⟩
+      rw [FMap.get_setE, if_neg]; · exact h5
+      intro he; rw [he] at h5
+      have := (FMap.domE _ _).1 (h1 l hmem (i + 1)); rw [← h5] at this
+      exact hh ((FMap.domE _ _).2 this)
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, c4, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c4
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, -, c5⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c5
 
+/-- EC's `lemma lemma2`, in EC's script. -/
 theorem lemma2 (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
     (prefixes : FMap (List block) state) (queries : FMap (List block) block) (x1 : block)
@@ -1235,135 +1425,212 @@ theorem lemma2 (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1m
       (FMap.set G1m (x1, x2) (y1, y2)) (FMap.set G1mi (y1, y2) (x1, x2))
       (FMap.set G1mh (x1, hx) (y1, ch)) (FMap.set G1mhi (y1, ch) (x1, hx))
       ro pi prefixes queries := by
-  intro HINV Pm_x Gm_x pi_x2 hs_hx hy2
-  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
-  obtain ⟨hun, hs0, hlt⟩ := id Hhs
-  obtain ⟨Imm1, Imm2⟩ := id Hmmh
-  obtain ⟨Imi1, Imi2⟩ := id Hmimhi
-  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
-  obtain ⟨Ipi⟩ := Hpi
-  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
-  have mh_x : FMap.get G1mh (x1, hx) = none :=
-    notin_m_notin_mh hs PFm G1mh x1 x2 hx Known Hmmh Pm_x hs_hx
-  have hsne : ∀ h cf, FMap.get hs h = some cf →
-      FMap.get (FMap.set hs ch (y2, Known)) h = some cf := by
-    intro h cf hh
-    have := hlt _ _ hh
-    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
-  have nopath_ch : ∀ p v, build_hpath G1mh p ≠ some (v, ch) := by
-    intro p v hp
-    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, he⟩ | ⟨p', b, v', h', -, -, hm⟩
-    · rw [he, hs0] at hs_ch
-      cases hs_ch
-    · obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
-      rw [hs_ch] at h2
-      cases h2
-  have nopath_hx : ∀ p v, build_hpath G1mh p ≠ some (v, hx) := by
-    intro p v hp
-    have := (Ipi x2 p v).2 ⟨hx, hp, hs_hx⟩
-    rw [pi_x2] at this
-    cases this
-  have mhup : ∀ p v h, build_hpath G1mh p = some (v, h) →
-      build_hpath (FMap.set G1mh (x1, hx) (y1, ch)) p = some (v, h) :=
-    fun p v h hp => build_hpath_up G1mh x1 hx y1 ch p v h hp mh_x
-  have mhdown : ∀ p v h, build_hpath (FMap.set G1mh (x1, hx) (y1, ch)) p = some (v, h) →
-      build_hpath G1mh p = some (v, h) :=
-    fun p v h hp => build_hpath_down G1mh x1 hx y1 ch p v h nopath_hx hp
-  have Hmp' : ∀ (x y : state), FMap.get PFm x = none →
-      m_p (FMap.set PFm x y) prefixes queries := by
-    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
-    intro x y hx
-    refine ⟨c1, c2, ?_, c4, c5⟩
-    intro l hl i hi
-    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
-    refine ⟨sa, sc, h1, ?_⟩
-    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
-      by_cases hi' : i + 1 < size l
-      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
-        rw [h1']
-        simp
-      · have : take (i + 1) l = l := by
-          simp only [take, size] at *
-          apply List.take_of_length_le
-          omega
-        rw [this]
-        exact (FMap.domE _ _).1 hl
-    rw [FMap.get_setE, if_neg]
-    · exact h2
-    · intro he
-      rw [he, hx] at h2
-      exact hne h2.symm
-  refine ⟨hs_addh hs ch y2 Known Hhs hy2, ?_, ?_, ?_, ?_, incl_addm _ _ _ _ Hincl,
-    incl_addm _ _ _ _ Hincli, ?_, ?_, Hmp' _ _ Pm_x⟩
-  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
-    cases hg : FMap.get G1mi (y1, y2) with
-    | none => rfl
-    | some xc =>
-      have hp := Hincli (y1, y2) (by rw [hg]; simp)
-      rw [hg] at hp
-      obtain ⟨_, fx, _, _, h1, _, _⟩ := Imi1 _ _ _ _ hp
-      exact absurd h1 (hy2 _ _)
-  · exact inv_addm _ _ _ _ Hinvmh mh_x (ch_notdomE2_mh hs PFmi G1mhi y1 ch Hmimhi Hhs)
-  · exact m_mh_addh_addm hs PFm G1mh hx x1 x2 ch y1 y2 Known Known Hmmh hun hs_hx hs_ch
-  · exact mi_mhi_addh_addmi hs PFmi G1mhi hx x1 x2 ch y1 y2 Known Known Hmimhi hy2 hs_hx hs_ch
-  · refine ⟨?_, ?_, ?_⟩
-    · intro xa hx' ya hy hm
-      rw [FMap.get_setE] at hm
-      split_ifs at hm with hk
-      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
-        obtain ⟨hk1, hk2⟩ := hk
-        obtain ⟨hm1, hm2⟩ := hm
-        subst xa hx' ya hy
-        refine ⟨x2, Known, y2, Known, hsne _ _ hs_hx, FMap.get_set_sameE _ _ _, ?_⟩
-        simp
-      · obtain ⟨xc, fx, yc, fy, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
-        refine ⟨xc, fx, yc, fy, hsne _ _ h1, hsne _ _ h2, ?_⟩
-        cases fy with
-        | Known =>
-          simp only [if_true] at h3 ⊢
-          refine ⟨?_, h3.2⟩
-          rw [FMap.get_set_neqE]
-          · exact h3.1
-          · intro he
-            rw [he, Gm_x] at h3
-            cases h3.1
-        | Unknown =>
-          simp only [reduceCtorEq, if_false] at h3 ⊢
-          obtain ⟨p, v, h4, h5⟩ := h3
-          exact ⟨p, v, h4, mhup _ _ _ h5⟩
-    · intro p bn b
-      rw [Imh2]
-      constructor
-      · rintro ⟨v, hi, hf, h1, h2⟩
-        refine ⟨v, hi, hf, mhup _ _ _ h1, ?_⟩
-        rw [FMap.get_set_neqE]
-        · exact h2
-        · intro he
-          rw [he, mh_x] at h2
-          cases h2
-      · rintro ⟨v, hi, hf, h1, h2⟩
-        have h1' := mhdown _ _ _ h1
-        refine ⟨v, hi, hf, h1', ?_⟩
-        rw [FMap.get_set_neqE] at h2
-        · exact h2
-        · intro he
-          simp only [Prod.mk.injEq] at he
-          exact nopath_hx p v (he.2 ▸ h1')
-    · intro p v p' v' h0 h1 h2
-      exact Imh3 p v p' v' h0 (mhdown _ _ _ h1) (mhdown _ _ _ h2)
+  -- EC: move=> HINV PFm_x1x2 G1m_x1x2 pi_x2 hs_hx y2_notrngE1_hs.
+  intro HINV PFm_x1x2 G1m_x1x2 pi_x2 hs_hx y2_notrngE1_hs
+  -- EC: split.
+  constructor
+  -- EC: + by apply/hs_addh=> //=; case: HINV.
+  · exact hs_addh _ _ _ _ (by cases HINV; assumption) y2_notrngE1_hs
+  -- EC: + apply/inv_addm=> //; 1:by case: HINV.
+  · refine inv_addm _ _ _ _ (by cases HINV; assumption) G1m_x1x2 ?_
+    -- EC: case: {-1}(G1mi.[(y1,y2)]) (eq_refl G1mi.[(y1,y2)])=> [//|[xa xc]].
+    rcases h : FMap.get G1mi (y1, y2) with _ | ⟨xa, xc⟩; · rfl
+    -- EC: + have /incli_of_INV @/incl + ^h - <- := HINV; 1: by rewrite h.
+    have hi := incli_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (y1, y2) (by simp [h])
+    rw [h] at hi
+    -- EC: have /mi_mhi_of_INV [] H _ /H {H} [hx' fx' hy' fy'] [#] := HINV.
+    obtain ⟨H, -⟩ := mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨hx', fx', hy', fy', hs_hx', -, -⟩ := H _ _ _ _ hi
+    -- EC: by rewrite y2_notrngE1_hs.
+    exact absurd hs_hx' (y2_notrngE1_hs _ _)
+  -- EC: + apply/inv_addm; 1:by case: HINV.
+  · apply inv_addm; · cases HINV; assumption
+    -- EC: + have ^ /m_mh_of_INV Hm_mh /hs_of_INV Hhs := HINV.
+    --       by apply/(notin_m_notin_mh _ _ _ _ Hm_mh PFm_x1x2 hs_hx).
+    · exact notin_m_notin_mh _ _ _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        PFm_x1x2 hs_hx
+    -- EC: have ^ /mi_mhi_of_INV Hmi_mhi /hs_of_INV Hhs := HINV.
+    --     by apply/(ch_notdomE2_mh _ _ Hmi_mhi Hhs).
+    exact ch_notdomE2_mh _ _ _ _ _ (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+      (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + have ^ /hs_of_INV ^ Hhs [] Hhuniq _ _ /m_mh_of_INV := HINV.
+  --       move=> /m_mh_addh_addm /(_ hx x1 x2 ch y1 y2 Known Known Hhuniq hs_hx _) //.
+  --       exact/ch_notdomE_hs.
+  · have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; obtain ⟨Hhuniq, -, -⟩ := id Hhs
+    exact m_mh_addh_addm _ _ _ hx x1 x2 ch y1 y2 Known Known
+      (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) Hhuniq hs_hx (ch_notdomE_hs _ _ Hhs)
+  -- EC: + have ^ /hs_of_INV ^ Hhs [] Hhuniq _ _ /mi_mhi_of_INV := HINV.
+  --       move=> /mi_mhi_addh_addmi /(_ hx x1 x2 ch y1 y2 Known Known _ hs_hx _) //.
+  --       exact/ch_notdomE_hs.
+  · have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    exact mi_mhi_addh_addmi _ _ _ hx x1 x2 ch y1 y2 Known Known
+      (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) y2_notrngE1_hs hs_hx (ch_notdomE_hs _ _ Hhs)
+  -- EC: + by have /incl_of_INV/incl_addm ->:= HINV.
+  · exact incl_addm _ _ _ _ (incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + by have /incli_of_INV/incl_addm ->:= HINV.
+  · exact incl_addm _ _ _ _ (incli_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + split.
+  · constructor
+    -- EC: + move=> xa' hx' ya' hy'; rewrite get_setE;
+    --       case: ((xa',hx') = (x1,hx))=> [[#] <*>> [#] <<*> /=|].
+    · intro xa' hx' ya' hy'; rw [FMap.get_setE]; split_ifs with hk
+      · intro he; obtain ⟨h1, h2⟩ := Prod.mk.inj hk
+        obtain ⟨h3, h4⟩ := Prod.mk.inj (Option.some.inj he); subst xa' hx' ya' hy'
+        -- EC: + exists x2 Known y2 Known=> //=; rewrite !get_setE /=.
+        --       by have /hs_of_INV [] _ _ dom_hs /#:= HINV.
+        obtain ⟨-, -, dom_hs⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        exact ⟨x2, Known, y2, Known,
+          by rw [FMap.get_set_neqE _ ch hx _ (dom_hs _ _ hs_hx).ne]; exact hs_hx,
+          by simp, by simp⟩
+      -- EC: move=> xahx'_neq_x1hx; have /mh_of_INV [] Hmh _ _ /Hmh {Hmh} := HINV.
+      intro hm
+      obtain ⟨Hmh, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: move=> [xc fx yc] [] /= [#] hs_hx' hs_hy'=> [[p v] [Hro Hpath]|<*> Gm_xa'xc].
+      obtain ⟨xc, fx, yc, fy, hs_hx', hs_hy', Hite⟩ := Hmh _ _ _ _ hm
+      cases fy with
+      | Unknown =>
+        obtain ⟨p, v, Hro, Hpath⟩ := by simpa using Hite
+        -- EC: + exists xc fx yc Unknown=> /=; rewrite !get_setE hs_hx' hs_hy'.
+        --       rewrite (dom_hs_neq_ch hs xc fx _ hs_hx') /=; 1:by case: HINV.
+        --       rewrite (dom_hs_neq_ch hs yc Unknown _ hs_hy')/= ; 1:by case: HINV.
+        refine ⟨xc, fx, yc, Unknown,
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hx')],
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hy')], ?_⟩
+        -- EC: exists p v; rewrite Hro /=;
+        --       apply/build_hpath_up/(notin_m_notin_mh _ _ _ _ _ PFm_x1x2 hs_hx).
+        --     + done.
+        --     by case: HINV.
+        rw [if_neg (by decide)]
+        exact ⟨p, v, Hro, build_hpath_up _ _ _ _ _ _ _ _ Hpath
+          (notin_m_notin_mh _ _ _ _ _ _ _ (by cases HINV; assumption) PFm_x1x2 hs_hx)⟩
+      | Known =>
+        obtain ⟨Gm_xa'xc, rfl⟩ := by simpa using Hite
+        -- EC: exists xc Known yc Known=> //=; rewrite !get_setE;
+        --       case: ((xa',xc) = (x1,x2))=> [/#|].
+        -- EC: rewrite Gm_xa'xc /= (dom_hs_neq_ch hs xc Known _ hs_hx') /=; 1:by case: HINV.
+        --     by rewrite (dom_hs_neq_ch hs yc Known _ hs_hy')/= ; 1:by case: HINV.
+        refine ⟨xc, Known, yc, Known,
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hx')],
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hy')], ?_⟩
+        rw [if_pos rfl, FMap.get_setE]; split_ifs with he
+        · rw [he, G1m_x1x2] at Gm_xa'xc; cases Gm_xa'xc
+        exact ⟨Gm_xa'xc, rfl⟩
+    -- EC: + move=> p xa b; have /mh_of_INV [] _ -> _ := HINV; split.
+    · intro p xa b
+      obtain ⟨-, Hro, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      rw [Hro]; constructor
+      -- EC: + move=> [v hi hf] [#] Hpath mh_vxahi; exists v hi hf.
+      · rintro ⟨v, hi, hf, Hpath, mh_vxahi⟩
+        refine ⟨v, hi, hf, ?_⟩
+        -- EC: rewrite get_setE; case: ((v +^ xa,hi) = (x1,hx))=> [[#] <*>|_].
+        rw [FMap.get_setE]; split_ifs with he
+        -- EC: + move: mh_vxahi; have /m_mh_of_INV [] _ H /H {H}:= HINV.
+        --       by move=> [xc fx yc fy] [#]; rewrite hs_hx=> [#] <*>; rewrite PFm_x1x2.
+        · rw [he] at mh_vxahi
+          obtain ⟨-, H⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+          obtain ⟨xc, fx, yc, fy, hs_hx', -, hP⟩ := H _ _ _ _ mh_vxahi
+          rw [hs_hx] at hs_hx'; obtain ⟨rfl, rfl⟩ := by simpa using hs_hx'
+          rw [PFm_x1x2] at hP; cases hP
+        -- EC: rewrite mh_vxahi /=; apply/build_hpath_up=> //.
+        --     by apply/(notin_m_notin_mh _ _ _ _ _ PFm_x1x2 hs_hx); case: HINV.
+        exact ⟨build_hpath_up _ _ _ _ _ _ _ _ Hpath
+          (notin_m_notin_mh _ _ _ _ _ _ _ (by cases HINV; assumption) PFm_x1x2 hs_hx), mh_vxahi⟩
+      -- EC: move=> [v hi hf] [#].
+      rintro ⟨v, hi, hf, Hpath', Hextend⟩
+      -- EC: have no_path_to_hx: forall p0 v0, build_hpath G1mh p0 <> Some (v0,hx).
+      --     + have /pi_of_INV [] /(_ x2):= HINV; rewrite pi_x2 /=.
+      --       by move=> + p0 v0 - /(_ p0 v0) /negb_exists /(_ hx) /=; rewrite hs_hx.
+      have no_path_to_hx : ∀ p0 v0, build_hpath G1mh p0 ≠ some (v0, hx) := by
+        intro p0 v0 hp
+        obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := (Ipi x2 p0 v0).2 ⟨hx, hp, hs_hx⟩; rw [pi_x2] at this; cases this
+      -- EC: have H /H {H} := build_hpath_down G1mh x1 hx y1 ch p v hi no_path_to_hx.
+      have Hpath := build_hpath_down G1mh x1 hx y1 ch p v hi no_path_to_hx Hpath'
+      -- EC: rewrite get_setE. case: ((v +^ xa,hi) = (x1,hx))=> [[#] <*>|_ Hpath Hextend].
+      rw [FMap.get_setE] at Hextend; split_ifs at Hextend with he
+      -- EC: + by rewrite no_path_to_hx.
+      · exact absurd ((Prod.mk.inj he).2 ▸ Hpath) (no_path_to_hx _ _)
+      -- EC: by exists v hi hf.
+      exact ⟨v, hi, hf, Hpath, Hextend⟩
+    -- EC: move=> p v p' v' h0.
+    intro p v p' v' h0
+    -- EC: have: forall p0 v0, build_hpath G1mh p0 <> Some (v0,hx).
+    --     + have /pi_of_INV [] /(_ x2):= HINV; rewrite pi_x2 /=.
+    --       by move=> + p0 v0 - /(_ p0 v0) /negb_exists /(_ hx) /=; rewrite hs_hx.
+    have no_path_to_hx : ∀ p0 v0, build_hpath G1mh p0 ≠ some (v0, hx) := by
+      intro p0 v0 hp
+      obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have := (Ipi x2 p0 v0).2 ⟨hx, hp, hs_hx⟩; rw [pi_x2] at this; cases this
+    -- EC: move=> ^ + /build_hpath_down H /H {H} - /build_hpath_down H + /H {H}.
+    --     by have /mh_of_INV [] _ _ /(_ p v p' v' h0):= HINV.
+    intro h1 h2
+    obtain ⟨-, -, Huniq⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    exact Huniq p v p' v' h0 (build_hpath_down _ _ _ _ _ _ _ _ no_path_to_hx h1)
+      (build_hpath_down _ _ _ _ _ _ _ _ no_path_to_hx h2)
+  -- EC: split=> c p v; have /pi_of_INV [] -> := HINV.
   · refine ⟨fun c p v => ?_⟩
+    obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
     rw [Ipi]
+    -- EC: apply/exists_iff=> h /=; split=> [#].
+    refine exists_congr fun h => ?_
     constructor
-    · rintro ⟨h, h1, h2⟩
-      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
-    · rintro ⟨h, h1, h2⟩
-      have h1' := mhdown _ _ _ h1
-      refine ⟨h, h1', ?_⟩
-      have hne : h ≠ ch := by
-        intro he
-        exact nopath_ch p v (he ▸ h1')
-      rwa [FMap.get_set_neqE _ _ _ _ hne] at h2
+    -- EC: + move=> /build_hpath_up /(_ x1 hx y1 ch _).
+    --       + by apply/(notin_m_notin_mh hs PFm x2 Known); case:HINV.
+    --       move=> -> /=; rewrite get_setE.
+    --       by have /hs_of_INV [] _ _ dom_hs ^ + /dom_hs /#:= HINV.
+    · rintro ⟨Hpath, hs_h⟩
+      refine ⟨build_hpath_up _ x1 hx y1 ch _ _ _ Hpath
+        (notin_m_notin_mh _ _ _ _ _ _ _ (by cases HINV; assumption) PFm_x1x2 hs_hx), ?_⟩
+      obtain ⟨-, -, dom_hs⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      rw [FMap.get_set_neqE _ ch h _ (dom_hs _ _ hs_h).ne, hs_h]
+    -- EC: have no_path_to_hx: forall p0 v0, build_hpath G1mh p0 <> Some (v0,hx). (…)
+    have no_path_to_hx : ∀ p0 v0, build_hpath G1mh p0 ≠ some (v0, hx) := by
+      intro p0 v0 hp
+      have := (Ipi x2 p0 v0).2 ⟨hx, hp, hs_hx⟩; rw [pi_x2] at this; cases this
+    -- EC: have H /H {H} := build_hpath_down G1mh x1 hx y1 ch p v h no_path_to_hx.
+    rintro ⟨Hpath', hs_h⟩
+    have Hpath := build_hpath_down G1mh x1 hx y1 ch p v h no_path_to_hx Hpath'
+    -- EC: move=> ^ Hpath -> /=; rewrite get_setE; case: (h = ch)=> [<*> /= [#] <*>|//=].
+    refine ⟨Hpath, ?_⟩
+    rw [FMap.get_setE] at hs_h; split_ifs at hs_h with hch; rotate_right; · exact hs_h
+    subst h
+    -- EC: move: Hpath=> /build_hpathP [<*>|].
+    rcases (build_hpathP _ _ _ _).1 Hpath with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+    -- EC: + by have /hs_of_INV [] _ + H - /H {H}:= HINV.
+    · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have := Hlt _ _ h0; linarith
+    -- EC: + move=> p' b' v' h' <*> _; have /m_mh_of_INV [] _ H /H {H}:= HINV.
+    --       by move=> [xc fx yc fy] [#] _; have /hs_of_INV [] _ _ H /H {H}:= HINV.
+    · obtain ⟨-, H⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := H _ _ _ _ hm
+      obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have := Hlt _ _ hs_ch; linarith
+  -- EC: split=>[].
+  · constructor
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [] ->//.
+    · obtain ⟨c1, -, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c1
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [].
+    · obtain ⟨-, c2, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c2
+    -- EC: + move=>l hmem i hi.
+    · intro l hmem i hi
+      -- EC: have[]_ _ h2 _:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _  _ HINV.
+      obtain ⟨-, -, h2, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: have[]sa sc[]:=h2 l hmem i hi.
+      obtain ⟨sa, sc, h4, h5⟩ := h2 l hmem i hi
+      -- EC: have h1:=all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      have h1 := all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: smt(domE get_setE).
+      refine ⟨sa, sc, h4, ?_⟩
+      rw [FMap.get_setE, if_neg]; · exact h5
+      intro he; rw [he, PFm_x1x2] at h5
+      exact (FMap.domE _ _).1 (h1 l hmem (i + 1)) h5.symm
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, c4, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c4
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, -, c5⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c5
 
+/-- EC's `lemma lemma2'`, in EC's script. -/
 theorem lemma2' (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
     (prefixes : FMap (List block) state) (queries : FMap (List block) block) (x1 : block)
@@ -1376,134 +1643,230 @@ theorem lemma2' (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1
       (FMap.set G1m (y1, y2) (x1, x2)) (FMap.set G1mi (x1, x2) (y1, y2))
       (FMap.set G1mh (y1, ch) (x1, hx)) (FMap.set G1mhi (x1, hx) (y1, ch))
       ro pi prefixes queries := by
-  intro HINV hh Pmi_x Gmi_x hs_hx hy2
-  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
-  obtain ⟨hun, hs0, hlt⟩ := id Hhs
-  obtain ⟨Imm1, Imm2⟩ := id Hmmh
-  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
-  obtain ⟨Ipi⟩ := Hpi
-  have Pm_y : FMap.get PFm (y1, y2) = none := by
-    rw [FMap.domE] at hh
-    simpa using hh
-  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
-  have mh_ch : ∀ a, FMap.get G1mh (a, ch) = none :=
-    fun a => ch_notdomE2_mh hs PFm G1mh a ch Hmmh Hhs
-  have hsne : ∀ h cf, FMap.get hs h = some cf →
-      FMap.get (FMap.set hs ch (y2, Known)) h = some cf := by
-    intro h cf hh
-    have := hlt _ _ hh
-    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
-  have nopath_ch : ∀ p v, build_hpath G1mh p ≠ some (v, ch) := by
-    intro p v hp
-    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, he⟩ | ⟨p', b, v', h', -, -, hm⟩
-    · rw [he, hs0] at hs_ch
-      cases hs_ch
-    · obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
-      rw [hs_ch] at h2
-      cases h2
-  have mhup : ∀ p v h, build_hpath G1mh p = some (v, h) →
-      build_hpath (FMap.set G1mh (y1, ch) (x1, hx)) p = some (v, h) :=
-    fun p v h hp => build_hpath_up G1mh y1 ch x1 hx p v h hp (mh_ch y1)
-  have mhdown : ∀ p v h, build_hpath (FMap.set G1mh (y1, ch) (x1, hx)) p = some (v, h) →
-      build_hpath G1mh p = some (v, h) :=
-    fun p v h hp => build_hpath_down G1mh y1 ch x1 hx p v h nopath_ch hp
-  have Hmp' : ∀ (x y : state), FMap.get PFm x = none →
-      m_p (FMap.set PFm x y) prefixes queries := by
-    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
-    intro x y hx
-    refine ⟨c1, c2, ?_, c4, c5⟩
-    intro l hl i hi
-    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
-    refine ⟨sa, sc, h1, ?_⟩
-    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
-      by_cases hi' : i + 1 < size l
-      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
-        rw [h1']
-        simp
-      · have : take (i + 1) l = l := by
-          simp only [take, size] at *
-          apply List.take_of_length_le
-          omega
-        rw [this]
-        exact (FMap.domE _ _).1 hl
-    rw [FMap.get_setE, if_neg]
-    · exact h2
-    · intro he
-      rw [he, hx] at h2
-      exact hne h2.symm
-  refine ⟨hs_addh hs ch y2 Known Hhs hy2, ?_, ?_, ?_, ?_, incl_addm _ _ _ _ Hincl,
-    incl_addm _ _ _ _ Hincli, ?_, ?_, Hmp' _ _ Pm_y⟩
-  · refine inv_addm _ _ _ _ HinvG ?_ Gmi_x
-    cases hg : FMap.get G1m (y1, y2) with
-    | none => rfl
-    | some xc =>
-      have hp := Hincl (y1, y2) (by rw [hg]; simp)
-      rw [hg, Pm_y] at hp
-      cases hp
-  · exact inv_addm _ _ _ _ Hinvmh (mh_ch y1)
-      (notin_m_notin_mh hs PFmi G1mhi x1 x2 hx Known Hmimhi Pmi_x hs_hx)
-  · exact mi_mhi_addh_addmi hs PFm G1mh hx x1 x2 ch y1 y2 Known Known Hmmh hy2 hs_hx hs_ch
-  · exact m_mh_addh_addm hs PFmi G1mhi hx x1 x2 ch y1 y2 Known Known Hmimhi hun hs_hx hs_ch
-  · refine ⟨?_, ?_, ?_⟩
-    · intro ya hy xa hx' hm
-      rw [FMap.get_setE] at hm
-      split_ifs at hm with hk
-      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
-        obtain ⟨hk1, hk2⟩ := hk
-        obtain ⟨hm1, hm2⟩ := hm
-        subst ya hy xa hx'
-        refine ⟨y2, Known, x2, Known, FMap.get_set_sameE _ _ _, hsne _ _ hs_hx, ?_⟩
-        simp
-      · obtain ⟨yc, fy, xc, fx, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
-        refine ⟨yc, fy, xc, fx, hsne _ _ h1, hsne _ _ h2, ?_⟩
-        cases fx with
-        | Known =>
-          simp only [if_true] at h3 ⊢
-          refine ⟨?_, h3.2⟩
-          rw [FMap.get_set_neqE]
-          · exact h3.1
-          · intro he
-            rw [he] at h3
-            have := Hincl _ (by rw [h3.1]; simp)
-            rw [h3.1, Pm_y] at this
-            cases this
-        | Unknown =>
-          simp only [reduceCtorEq, if_false] at h3 ⊢
-          obtain ⟨p, v, h4, h5⟩ := h3
-          exact ⟨p, v, h4, mhup _ _ _ h5⟩
-    · intro p bn b
-      rw [Imh2]
+  -- EC: move=> HINV hh PFmi_x1x2 G1mi_x1x2 hs_hx y2_notrngE1_hs.
+  intro HINV hh PFmi_x1x2 G1mi_x1x2 hs_hx y2_notrngE1_hs
+  -- EC: split.
+  constructor
+  -- EC: + by apply/hs_addh=> //=; case: HINV.
+  · exact hs_addh _ _ _ _ (by cases HINV; assumption) y2_notrngE1_hs
+  -- EC: + apply/inv_addm=> //; 1:by case: HINV.
+  · refine inv_addm _ _ _ _ (by cases HINV; assumption) ?_ G1mi_x1x2
+    -- EC: case: {-1}(G1m.[(y1,y2)]) (eq_refl G1m.[(y1,y2)])=> [//|[xa xc]].
+    rcases h : FMap.get G1m (y1, y2) with _ | ⟨xa, xc⟩; · rfl
+    -- EC: + have /incl_of_INV + ^h - <- := HINV; 1: by rewrite h.
+    have hi := incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (y1, y2) (by simp [h])
+    rw [h] at hi
+    -- EC: have /m_mh_of_INV [] H _ /H {H} [hx' fx' hy' fy'] [#] := HINV.
+    obtain ⟨H, -⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨hx', fx', hy', fy', hs_hx', -, -⟩ := H _ _ _ _ hi
+    -- EC: by rewrite y2_notrngE1_hs.
+    exact absurd hs_hx' (y2_notrngE1_hs _ _)
+  -- EC: + apply/inv_addm; 1:by case: HINV.
+  · apply inv_addm; · cases HINV; assumption
+    -- EC: + have ^ /m_mh_of_INV Hm_mh /hs_of_INV Hhs := HINV.
+    --       by apply/(ch_notdomE2_mh _ _ Hm_mh Hhs).
+    · exact ch_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+        (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+    -- EC: have ^ /mi_mhi_of_INV Hm_mh /hs_of_INV Hhs := HINV.
+    --     by apply/(notin_m_notin_mh _ _ _ _ Hm_mh PFmi_x1x2 hs_hx).
+    exact notin_m_notin_mh _ _ _ _ _ _ _ (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+      PFmi_x1x2 hs_hx
+  -- EC: + have ^ /hs_of_INV ^ Hhs [] Hhuniq _ _ /m_mh_of_INV := HINV.
+  --       move=> /mi_mhi_addh_addmi /(_ hx x1 x2 ch y1 y2 Known Known _ hs_hx _) //.
+  --       exact/ch_notdomE_hs.
+  · have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    exact mi_mhi_addh_addmi _ _ _ hx x1 x2 ch y1 y2 Known Known
+      (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) y2_notrngE1_hs hs_hx (ch_notdomE_hs _ _ Hhs)
+  -- EC: + have ^ /hs_of_INV ^ Hhs [] Hhuniq _ _ /mi_mhi_of_INV := HINV.
+  --       move=> /m_mh_addh_addm /(_ hx x1 x2 ch y1 y2 Known Known _ hs_hx _) //.
+  --       exact/ch_notdomE_hs.
+  · have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; obtain ⟨Hhuniq, -, -⟩ := id Hhs
+    exact m_mh_addh_addm _ _ _ hx x1 x2 ch y1 y2 Known Known
+      (mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) Hhuniq hs_hx (ch_notdomE_hs _ _ Hhs)
+  -- EC: + by have /incl_of_INV/incl_addm ->:= HINV.
+  · exact incl_addm _ _ _ _ (incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + by have /incli_of_INV/incl_addm ->:= HINV.
+  · exact incl_addm _ _ _ _ (incli_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+  -- EC: + split.
+  · constructor
+    -- EC: + move=> ya' hy' xa' hx'; rewrite get_setE;
+    --       case: ((ya',hy') = (y1,ch))=> [[#] <*>> [#] <<*> /=|].
+    · intro ya' hy' xa' hx'; rw [FMap.get_setE]; split_ifs with hk
+      · intro he; obtain ⟨h1, h2⟩ := Prod.mk.inj hk
+        obtain ⟨h3, h4⟩ := Prod.mk.inj (Option.some.inj he); subst ya' hy' xa' hx'
+        -- EC: + exists y2 Known x2 Known=> //=; rewrite !get_setE /=.
+        --       by have /hs_of_INV [] _ _ dom_hs /#:= HINV.
+        obtain ⟨-, -, dom_hs⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        exact ⟨y2, Known, x2, Known, by simp,
+          by rw [FMap.get_set_neqE _ ch hx _ (dom_hs _ _ hs_hx).ne]; exact hs_hx, by simp⟩
+      -- EC: move=> yahy'_neq_y1ch; have /mh_of_INV [] Hmh _ _ /Hmh {Hmh} := HINV.
+      intro hm
+      obtain ⟨Hmh, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have Hhs := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: move=> [yc fy xc] [] /= [#] hs_hy' hs_hx'=> [[p v] [#] Hro Hpath|Gm_ya'yc <*>].
+      obtain ⟨yc, fy, xc, fx, hs_hy', hs_hx', Hite⟩ := Hmh _ _ _ _ hm
+      cases fx with
+      | Unknown =>
+        obtain ⟨p, v, Hro, Hpath⟩ := by simpa using Hite
+        -- EC: + exists yc fy xc Unknown => /=; rewrite !get_setE hs_hx' hs_hy'.
+        --       rewrite (dom_hs_neq_ch hs yc fy _ hs_hy') /=; 1:by case: HINV.
+        --       rewrite (dom_hs_neq_ch hs xc Unknown _ hs_hx')/= ; 1:by case: HINV.
+        refine ⟨yc, fy, xc, Unknown,
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hy')],
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hx')], ?_⟩
+        -- EC: exists p v; rewrite Hro /=; apply/build_hpath_up=> //.
+        rw [if_neg (by decide)]
+        refine ⟨p, v, Hro, build_hpath_up _ _ _ _ _ _ _ _ Hpath ?_⟩
+        -- EC: case: {-1}(G1mh.[(y1,ch)]) (eq_refl G1mh.[(y1,ch)])=> [//|[za zc]].
+        --     have /m_mh_of_INV [] _ H /H {H} [? ? ? ?] [#]:= HINV.
+        --     by have /hs_of_INV [] _ _ H /H {H} := HINV.
+        exact ch_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) Hhs
+      | Known =>
+        obtain ⟨Gm_ya'yc, rfl⟩ := by simpa using Hite
+        -- EC: exists yc Known xc Known=> //=; rewrite !get_setE;
+        --       case: ((ya',yc) = (y1,y2))=> [/#|].
+        -- EC: rewrite Gm_ya'yc /= (dom_hs_neq_ch hs yc Known _ hs_hy') /=; 1:by case: HINV.
+        --     by rewrite (dom_hs_neq_ch hs xc Known _ hs_hx')/= ; 1:by case: HINV.
+        refine ⟨yc, Known, xc, Known,
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hy')],
+          by rwa [FMap.get_set_neqE _ _ _ _ (dom_hs_neq_ch _ _ _ _ _ Hhs hs_hx')], ?_⟩
+        rw [if_pos rfl, FMap.get_setE]; split_ifs with he
+        · rw [he] at Gm_ya'yc
+          have := incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (y1, y2) (by simp [Gm_ya'yc])
+          exact absurd ((FMap.domE _ _).2 (by simp [this, Gm_ya'yc])) hh
+        exact ⟨Gm_ya'yc, rfl⟩
+    -- EC: + move=> p ya b; have /mh_of_INV [] _ -> _ := HINV.
+    · intro p ya b
+      obtain ⟨-, Hro, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      rw [Hro]
+      -- EC: apply/exists_iff=> v /=; apply/exists_iff=> hx' /=; apply/exists_iff=> hy' /=.
+      refine exists_congr fun v => exists_congr fun hx' => exists_congr fun hy' => ?_
+      -- EC: split=> [#].
       constructor
-      · rintro ⟨v, hi, hf, h1, h2⟩
-        refine ⟨v, hi, hf, mhup _ _ _ h1, ?_⟩
-        rw [FMap.get_set_neqE]
-        · exact h2
-        · intro he
-          rw [he, mh_ch] at h2
-          cases h2
-      · rintro ⟨v, hi, hf, h1, h2⟩
-        have h1' := mhdown _ _ _ h1
-        refine ⟨v, hi, hf, h1', ?_⟩
-        rw [FMap.get_set_neqE] at h2
-        · exact h2
-        · intro he
-          simp only [Prod.mk.injEq] at he
-          exact nopath_ch p v (he.2 ▸ h1')
-    · intro p v p' v' h0 h1 h2
-      exact Imh3 p v p' v' h0 (mhdown _ _ _ h1) (mhdown _ _ _ h2)
-  · refine ⟨fun c p v => ?_⟩
-    rw [Ipi]
-    constructor
-    · rintro ⟨h, h1, h2⟩
-      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
-    · rintro ⟨h, h1, h2⟩
-      have h1' := mhdown _ _ _ h1
-      refine ⟨h, h1', ?_⟩
-      have hne : h ≠ ch := by
+      -- EC: + move=> /(@build_hpath_up _ y1 ch x1 hx) /(_ _).
+      --       + apply/(@notin_hs_notdomE2_mh hs PFm)/(ch_notdomE_hs); by case: HINV.
+      · rintro ⟨Hpath, mh_vyahx'⟩
+        refine ⟨build_hpath_up _ y1 ch x1 hx _ _ _ Hpath
+          (notin_hs_notdomE2_mh hs PFm _ _ _ (by cases HINV; assumption)
+            (ch_notdomE_hs _ _ (by cases HINV; assumption))), ?_⟩
+        -- EC: move=> -> /=; rewrite get_setE /=; case: (hx' = ch)=> <*> //.
+        rw [FMap.get_setE, if_neg]; · exact mh_vyahx'
+        -- EC: have /m_mh_of_INV [] _ H /H {H} [xc fx yc fy] [#] := HINV.
+        --     by have /hs_of_INV [] _ _ H /H {H} := HINV.
         intro he
-        exact nopath_ch p v (he ▸ h1')
-      rwa [FMap.get_set_neqE _ _ _ _ hne] at h2
+        obtain ⟨-, H⟩ := m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨xc, fx, yc, fy, hs_ch, -, -⟩ := H _ _ _ _ mh_vyahx'
+        obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        rw [(Prod.mk.inj he).2] at hs_ch; have := Hlt _ _ hs_ch; linarith
+      -- EC: have no_path_to_ch: forall p0 v0, build_hpath G1mh p0 <> Some (v0,ch).
+      --     + move=> p0 v0; elim/last_ind: p0.
+      --       + by have /hs_of_INV [] /# := HINV.
+      --       move=> p0 b0 _; rewrite build_hpath_prefix.
+      --       apply/negb_exists=> b' /=; apply/negb_exists=> h' /=; apply/negb_and=> /=; right.
+      --       rewrite -negP; have /mh_of_INV [] H _ _ /H {H} [? ? ? ?] [#] _ := HINV.
+      --       by have /hs_of_INV [] _ _ H /H {H} := HINV.
+      have no_path_to_ch : ∀ p0 v0, build_hpath G1mh p0 ≠ some (v0, ch) := by
+        intro p0 v0 hp
+        rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+        · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+          have := Hlt _ _ h0; linarith
+        · obtain ⟨H, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+          obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := H _ _ _ _ hm
+          obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+          have := Hlt _ _ hs_ch; linarith
+      -- EC: have H /H {H} := build_hpath_down G1mh y1 ch x1 hx p v hx' no_path_to_ch.
+      rintro ⟨Hpath', Hextend⟩
+      have Hpath := build_hpath_down G1mh y1 ch x1 hx p v hx' no_path_to_ch Hpath'
+      -- EC: rewrite get_setE. case: ((v +^ ya,hx') = (y1,ch))=> [[#] <*>|_ Hpath Hextend //=].
+      --     by rewrite no_path_to_ch.
+      rw [FMap.get_setE] at Hextend; split_ifs at Hextend with he
+      · exact absurd ((Prod.mk.inj he).2 ▸ Hpath) (no_path_to_ch _ _)
+      exact ⟨Hpath, Hextend⟩
+    -- EC: move=> p v p' v' h0.
+    intro p v p' v' h0
+    -- EC: have: forall p0 v0, build_hpath G1mh p0 <> Some (v0,ch). (… as above)
+    have no_path_to_ch : ∀ p0 v0, build_hpath G1mh p0 ≠ some (v0, ch) := by
+      intro p0 v0 hp
+      rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0; linarith
+      · obtain ⟨H, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := H _ _ _ _ hm
+        obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ hs_ch; linarith
+    -- EC: move=> ^ + /build_hpath_down H /H {H} - /build_hpath_down H + /H {H}.
+    --     by have /mh_of_INV [] _ _ /(_ p v p' v' h0):= HINV.
+    intro h1 h2
+    obtain ⟨-, -, Huniq⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    exact Huniq p v p' v' h0 (build_hpath_down _ _ _ _ _ _ _ _ no_path_to_ch h1)
+      (build_hpath_down _ _ _ _ _ _ _ _ no_path_to_ch h2)
+  -- EC: split=> c p v; have /pi_of_INV [] -> := HINV.
+  · refine ⟨fun c p v => ?_⟩
+    obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    rw [Ipi]
+    -- EC: apply/exists_iff=> h /=; split=> [#].
+    refine exists_congr fun h => ?_
+    constructor
+    -- EC: + move=> /build_hpath_up /(_ y1 ch x1 hx _).
+    --       + have ^ /m_mh_of_INV [] _ H /hs_of_INV [] _ _ H' := HINV.
+    --         case: {-1}(G1mh.[(y1,ch)]) (eq_refl (G1mh.[(y1,ch)]))=> [//|].
+    --         by move=> [za zc] /H [? ? ? ?] [#] /H'.
+    --       move=> -> /=; rewrite get_setE.
+    --       by have /hs_of_INV [] _ _ dom_hs ^ + /dom_hs /#:= HINV.
+    · rintro ⟨Hpath, hs_h⟩
+      refine ⟨build_hpath_up _ y1 ch x1 hx _ _ _ Hpath
+        (ch_notdomE2_mh _ _ _ _ _ (m_mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)
+          (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV)), ?_⟩
+      obtain ⟨-, -, dom_hs⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      rw [FMap.get_set_neqE _ ch h _ (dom_hs _ _ hs_h).ne, hs_h]
+    -- EC: have no_path_to_ch: forall p0 v0, build_hpath G1mh p0 <> Some (v0,ch). (…)
+    have no_path_to_ch : ∀ p0 v0, build_hpath G1mh p0 ≠ some (v0, ch) := by
+      intro p0 v0 hp
+      rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, hch⟩ | ⟨p', b', v', h', -, -, hm⟩
+      · obtain ⟨-, h0, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ h0; linarith
+      · obtain ⟨H, -, -⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨xc, fx, yc, fy, -, hs_ch, -⟩ := H _ _ _ _ hm
+        obtain ⟨-, -, Hlt⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        have := Hlt _ _ hs_ch; linarith
+    -- EC: + have H /H {H} := build_hpath_down G1mh y1 ch x1 hx p v h no_path_to_ch.
+    rintro ⟨Hpath', hs_h⟩
+    have Hpath := build_hpath_down G1mh y1 ch x1 hx p v h no_path_to_ch Hpath'
+    -- EC: move=> ^ Hpath -> /=; rewrite get_setE; case: (h = ch)=> [<*> /= [#] <*>|//=].
+    refine ⟨Hpath, ?_⟩
+    rw [FMap.get_setE] at hs_h; split_ifs at hs_h with hch; rotate_right; · exact hs_h
+    subst h
+    -- EC: move: Hpath=> /build_hpathP [<*>|].
+    --     + by have /hs_of_INV [] _ + H - /H {H}:= HINV.
+    --     move=> p' b' v' h' <*> _; have /m_mh_of_INV [] _ H /H {H}:= HINV.
+    --     by move=> [xc fx yc fy] [#] _; have /hs_of_INV [] _ _ H /H {H}:= HINV.
+    exact absurd Hpath (no_path_to_ch _ _)
+  -- EC: split=>[].
+  · constructor
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [].
+    · obtain ⟨c1, -, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c1
+    -- EC: + by case:HINV=>_ _ _ _ _ _ _ _ (* _ *) [] _ [].
+    · obtain ⟨-, c2, -, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c2
+    -- EC: + move=>l hmem i hi.
+    · intro l hmem i hi
+      -- EC: have[]_ _ h2 _:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      obtain ⟨-, -, h2, -, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: have[]sa sc[]:=h2 l hmem i hi.
+      obtain ⟨sa, sc, h4, h5⟩ := h2 l hmem i hi
+      -- EC: have h1:=all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV.
+      have h1 := all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      -- EC: smt(domE get_setE).
+      refine ⟨sa, sc, h4, ?_⟩
+      rw [FMap.get_setE, if_neg]; · exact h5
+      intro he; rw [he] at h5
+      have := (FMap.domE _ _).1 (h1 l hmem (i + 1)); rw [← h5] at this
+      exact hh ((FMap.domE _ _).2 this)
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, c4, -⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c4
+    -- EC: by case:HINV=>_ _ _ _ _ _ _ _ _ [].
+    · obtain ⟨-, -, -, -, c5⟩ := m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; exact c5
 
+/-- EC's `lemma lemma3`, in EC's script. -/
 theorem lemma3 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
     (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa : block)
@@ -1516,153 +1879,161 @@ theorem lemma3 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsm
     INV_CF_G1 (FMap.set hs hy (yc, Known)) ch Pm Pmi
       (FMap.set Gm (xa, xc) (ya, yc)) (FMap.set Gmi (ya, yc) (xa, xc)) mh mhi
       ro (FMap.set pi yc (rcons p (b +^ xa), ya)) prefixes queries := by
-  intro HINV Pm_x Gm_x mh_x hs_hx hs_hy pi_xc
-  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
-  obtain ⟨hun, hs0, hlt⟩ := id Hhs
-  obtain ⟨Imh1, Imh2, Imh3⟩ := id Hmh
-  obtain ⟨Ipi⟩ := Hpi
-  obtain ⟨IG⟩ := id HinvG
-  obtain ⟨Imhi⟩ := id Hinvmh
-  obtain ⟨IP⟩ := inv_mh_inv_Pm hs Pm Pmi mh mhi Hmmh Hmimhi Hinvmh
-  have hxor : ∀ a b : block, a +^ (a +^ b) = b := by
-    intro a b
-    apply List.Vector.ext
-    intro i
-    simp [BitWord.xorw, List.Vector.get_map₂]
-  have hxy : hx ≠ hy := by
-    intro he
-    rw [he, hs_hy] at hs_hx
-    cases hs_hx
-  have Pmi_y : FMap.get Pmi (ya, yc) = some (xa, xc) := (IP _ _).1 Pm_x
-  have path_hy : build_hpath mh (rcons p (b +^ xa)) = some (ya, hy) := by
-    obtain ⟨h, hp, hsh⟩ := (Ipi xc p b).1 pi_xc
-    have := hun _ _ _ _ hsh hs_hx rfl
-    subst this
-    refine (build_hpath_prefix mh p _ ya hy).2 ⟨b, h, hp, ?_⟩
-    rw [hxor]
-    exact mh_x
-  refine ⟨?_, ?_, Hinvmh, m_mh_updh Unknown hs Pm mh yc hy Known Hmmh hs_hy,
-    m_mh_updh Unknown hs Pmi mhi yc hy Known Hmimhi hs_hy, ?_, ?_, ?_, ?_, Hmp⟩
-  · refine hs_updh hs ch Unknown hy yc Known Hhs ?_ hs_hy
-    intro he
-    rw [← he, hs0] at hs_hy
-    cases hs_hy
-  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
-    cases hg : FMap.get Gmi (ya, yc) with
-    | none => rfl
-    | some z =>
-      have hp := Hincli (ya, yc) (by rw [hg]; simp)
-      rw [hg, Pmi_y] at hp
-      cases hp
-      rw [← IG] at hg
-      rw [hg] at Gm_x
-      cases Gm_x
-  · intro z hz
-    rw [FMap.get_setE] at hz ⊢
-    split_ifs with he
-    · rw [he]
-      exact Pm_x
-    · rw [if_neg he] at hz
-      exact Hincl z hz
-  · intro z hz
-    rw [FMap.get_setE] at hz ⊢
-    split_ifs with he
-    · rw [he]
-      exact Pmi_y
-    · rw [if_neg he] at hz
-      exact Hincli z hz
-  · refine ⟨?_, Imh2, Imh3⟩
-    intro xa' hx' ya' hy' hm
-    by_cases hk : (xa', hx') = (xa, hx)
-    · simp only [Prod.mk.injEq] at hk
-      obtain ⟨hk1, hk2⟩ := hk
-      subst xa' hx'
-      rw [mh_x] at hm
-      simp only [Option.some.injEq, Prod.mk.injEq] at hm
-      obtain ⟨hm1, hm2⟩ := hm
-      subst ya' hy'
-      refine ⟨xc, Known, yc, Known, ?_, FMap.get_set_sameE _ _ _, ?_⟩
-      · rw [FMap.get_set_neqE _ _ _ _ hxy]
-        exact hs_hx
-      · simp
-    obtain ⟨xc', fx', yc', fy', h1, h2, h3⟩ := Imh1 _ _ _ _ hm
-    by_cases hyy : hy' = hy
-    · subst hyy
-      rw [hs_hy] at h2
-      simp only [Option.some.injEq, Prod.mk.injEq] at h2
-      obtain ⟨rfl, rfl⟩ := h2
-      simp only [reduceCtorEq, if_false] at h3
-      obtain ⟨p', b', h4, h5⟩ := h3
-      have path' : build_hpath mh (rcons p' (b' +^ xa')) = some (ya', hy') := by
-        refine (build_hpath_prefix mh p' _ ya' hy').2 ⟨b', hx', h5, ?_⟩
-        rw [hxor]
-        exact hm
-      obtain ⟨-, rfl⟩ := Imh3 _ _ _ _ _ path_hy path'
-      have e1 := (Imhi _ _).1 hm
-      rw [(Imhi _ _).1 mh_x] at e1
-      exact absurd (Option.some.inj e1).symm hk
-    · have hk' : (xa', xc') ≠ (xa, xc) := by
-        intro he
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨rfl, rfl⟩ := he
-        exact hk (by rw [hun _ _ _ _ h1 hs_hx rfl])
-      by_cases hxy' : hx' = hy
-      · subst hxy'
-        rw [hs_hy] at h1
-        simp only [Option.some.injEq, Prod.mk.injEq] at h1
-        obtain ⟨rfl, rfl⟩ := h1
-        refine ⟨_, Known, yc', fy', FMap.get_set_sameE _ _ _, ?_, ?_⟩
-        · rw [FMap.get_set_neqE _ _ _ _ hyy]
-          exact h2
-        · cases fy' with
-          | Known => simp at h3
-          | Unknown => simpa using h3
-      · refine ⟨xc', fx', yc', fy', ?_, ?_, ?_⟩
-        · rw [FMap.get_set_neqE _ _ _ _ hxy']
-          exact h1
-        · rw [FMap.get_set_neqE _ _ _ _ hyy]
-          exact h2
-        · cases fy' with
-          | Known =>
-            simp only [if_true] at h3 ⊢
-            exact ⟨by rw [FMap.get_set_neqE _ _ _ _ hk']; exact h3.1, h3.2⟩
-          | Unknown => simpa using h3
-  · refine ⟨fun c p' v => ?_⟩
-    rw [FMap.get_setE]
-    by_cases hc : c = yc
-    · subst hc
-      rw [if_pos rfl]
-      constructor
-      · intro he
-        simp only [Option.some.injEq, Prod.mk.injEq] at he
-        obtain ⟨rfl, rfl⟩ := he
-        exact ⟨hy, path_hy, FMap.get_set_sameE _ _ _⟩
-      · rintro ⟨h, h1, h2⟩
-        by_cases hhy : h = hy
-        · subst hhy
-          obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ path_hy h1
-          rfl
-        · rw [FMap.get_set_neqE _ _ _ _ hhy] at h2
-          exact absurd (hun _ _ _ _ h2 hs_hy rfl) hhy
-    · rw [if_neg hc, Ipi]
-      constructor
-      · rintro ⟨h, h1, h2⟩
-        refine ⟨h, h1, ?_⟩
-        have hhy : h ≠ hy := by
-          intro he
-          rw [he, hs_hy] at h2
-          cases h2
-        rw [FMap.get_set_neqE _ _ _ _ hhy]
-        exact h2
-      · rintro ⟨h, h1, h2⟩
-        refine ⟨h, h1, ?_⟩
-        have hhy : h ≠ hy := by
-          intro he
-          rw [he, FMap.get_set_sameE] at h2
-          simp only [Option.some.injEq, Prod.mk.injEq] at h2
-          exact hc h2.1.symm
-        rw [FMap.get_set_neqE _ _ _ _ hhy] at h2
-        exact h2
+  -- EC: move=> HINV Pm_xaxc Gm_xaxc mh_xahx hs_hx hs_hy pi_xc.
+  intro HINV Pm_xaxc Gm_xaxc mh_xahx hs_hx hs_hy pi_xc
+  -- EC: split.
+  constructor
+  -- EC: + have /hs_of_INV /hs_updh /(_ Unknown) H := HINV; apply/H=> {H} //.
+  · refine hs_updh _ _ Unknown _ _ _ (hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) ?_ hs_hy
+    -- EC: by rewrite -negP=> <*>; move: hs_hy; have /hs_of_INV [] _ -> := HINV.
+    rintro rfl; obtain ⟨-, h0, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV; simp [h0] at hs_hy
+  -- EC: + apply/inv_addm=> //; 1:by case: HINV.
+  · refine inv_addm _ _ _ _ (invG_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV) Gm_xaxc ?_
+    -- EC: case: {-1}(Gmi.[(ya,yc)]) (eq_refl Gmi.[(ya,yc)])=> [//|[xa' xc']].
+    rcases h : FMap.get Gmi (ya, yc) with _ | ⟨xa', xc'⟩; · rfl
+    -- EC: have /incli_of_INV + ^h - <- := HINV; 1:by rewrite h.
+    have hi := incli_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV (ya, yc) (by simp [h])
+    -- EC: move: Pm_xaxc; have [] -> -> /= := inv_mh_inv_Pm hs Pm Pmi mh mhi _ _ _;
+    --       first 3 by case: HINV.
+    obtain ⟨IP⟩ := inv_mh_inv_Pm hs Pm Pmi mh mhi (by cases HINV; assumption)
+      (by cases HINV; assumption) (by cases HINV; assumption)
+    -- EC: rewrite -negP=> [#] <<*>.
+    rw [h, (IP _ _).1 Pm_xaxc] at hi; obtain ⟨rfl, rfl⟩ := by simpa using hi
+    -- EC: move: h; have /invG_of_INV [] <- := HINV.
+    --     by rewrite Gm_xaxc.
+    obtain ⟨IG⟩ := invG_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    rw [← IG, Gm_xaxc] at h; cases h
+  -- EC: + by case: HINV.
+  · cases HINV; assumption
+  -- EC: + by apply/(m_mh_updh Unknown)=> //; case: HINV.
+  · exact m_mh_updh Unknown _ _ _ _ _ _ (by cases HINV; assumption) hs_hy
+  -- EC: + by apply/(m_mh_updh Unknown)=> //; case: HINV.
+  · exact m_mh_updh Unknown _ _ _ _ _ _ (by cases HINV; assumption) hs_hy
+  -- EC: + move=> [za zc]; rewrite get_setE; case: ((za,zc) = (xa,xc))=> // _.
+  · rintro ⟨za, zc⟩; rw [FMap.get_setE]; split_ifs with hz; · simp [hz, Pm_xaxc]
+    -- EC: by have /incl_of_INV H /H {H}:= HINV.
+    exact incl_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV _
+  -- EC: + move: mh_xahx; have /inv_of_INV [] H /H {H}:= HINV.
+  · obtain ⟨H⟩ := inv_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    -- EC: have /mi_mhi_of_INV [] _ H /H {H} [xct fxt yct fyt] [#] := HINV.
+    obtain ⟨-, H'⟩ := mi_mhi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨xct, fxt, yct, fyt, h1, h2, Pmi_yayc⟩ := H' _ _ _ _ ((H _ _).1 mh_xahx)
+    -- EC: rewrite hs_hx hs_hy=> /= [#] 2!<<- [#] 2!<<- Pmi_yayc.
+    rw [hs_hy] at h1; rw [hs_hx] at h2
+    obtain ⟨rfl, rfl⟩ := by simpa using h1
+    obtain ⟨rfl, rfl⟩ := by simpa using h2
+    -- EC: move=> [za zc]; rewrite get_setE; case: ((za,zc) = (ya,yc))=> // _.
+    rintro ⟨za, zc⟩; rw [FMap.get_setE]; split_ifs with hz; · simp [hz, Pmi_yayc]
+    -- EC: by have /incli_of_INV H /H {H}:= HINV.
+    exact incli_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV _
+  -- EC: + split; last 2 by have /mh_of_INV [] _:= HINV.
+  · obtain ⟨Imh, ro_def, Huniq⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    refine ⟨?_, ro_def, Huniq⟩
+    -- EC: move=> xa' hx' ya' hy'; case: ((xa',hx') = (xa,hx))=> [[#] <*>|].
+    intro xa' hx' ya' hy'
+    by_cases Hxahx' : (xa', hx') = (xa, hx)
+    · obtain ⟨h1, h2⟩ := Prod.mk.inj Hxahx'; subst xa' hx'
+      -- EC: + rewrite mh_xahx=> /= [#] <<*>; rewrite !get_setE /=.
+      rw [mh_xahx]; intro he; obtain ⟨rfl, rfl⟩ := by simpa using he
+      -- EC: case: (hx = hy)=> [<*>|_]; first by move: hs_hx; rewrite hs_hy.
+      have hxy : hx ≠ hy := by rintro rfl; simp [hs_hy] at hs_hx
+      -- EC: by exists xc Known yc Known; rewrite get_setE.
+      exact ⟨xc, Known, yc, Known, by simp [FMap.get_setE, hxy, hs_hx], by simp, by simp⟩
+    -- EC: move=> Hxahx' mh_xahx'.
+    intro mh_xahx'
+    -- EC: have ^path_to_hy: build_hpath mh (rcons p (b +^ xa)) = Some (ya,hy).
+    have path_to_hy : build_hpath mh (rcons p (b +^ xa)) = some (ya, hy) := by
+      -- EC: + apply/build_hpath_prefix; exists b hx.
+      refine (build_hpath_prefix _ _ _ _ _).2 ⟨b, hx, ?_, ?_⟩
+      -- EC: move: pi_xc; have /pi_of_INV [] -> [h] [#] := HINV.
+      --     by have /hs_of_INV [] H _ _ + /H {H} /(_ _ _ hs_hx _) := HINV.
+      · obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        obtain ⟨h, hp, hs_h⟩ := (Ipi _ _ _).1 pi_xc
+        obtain ⟨Hu, -, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+        rwa [Hu _ _ _ _ hs_h hs_hx rfl] at hp
+      -- EC: rewrite xorwA xorwK xorwC xorw0 mh_xahx /=.
+      · rw [xorwA, xorwK, xorwC, xorw0, mh_xahx]
+    -- EC: have /mh_of_INV [] /(_ _ _ _ _ mh_xahx') + ro_def H /H {H} unique_path_to_hy := HINV.
+    have unique_path_to_hy := fun p' v' => Huniq _ _ p' v' _ path_to_hy
+    -- EC: move=> [xc' fx' yc' fy'] /= [#].
+    obtain ⟨xc', fx', yc', fy', hs_hx', hs_hy', Hite⟩ := Imh _ _ _ _ mh_xahx'
+    -- EC: case: (hy' = hy)=> [<*> hs_hx'|Hhy'].
+    by_cases Hhy' : hy' = hy
+    · subst hy'
+      -- EC: + rewrite hs_hy=> /= [#] <<*> /= [p' b'] [#] ro_pbxa' path_hx'.
+      rw [hs_hy] at hs_hy'; obtain ⟨rfl, rfl⟩ := by simpa using hs_hy'
+      obtain ⟨p', b', ro_pbxa', path_hx'⟩ := by simpa using Hite
+      -- EC: have:= unique_path_to_hy (rcons p' (b' +^ xa')) ya' _.
+      --     + by apply/build_hpath_prefix; exists b' hx'; rewrite xorwA xorwK xorwC xorw0.
+      have := unique_path_to_hy (rcons p' (b' +^ xa')) ya' <|
+        (build_hpath_prefix _ _ _ _ _).2
+          ⟨b', hx', path_hx', by rw [xorwA, xorwK, xorwC, xorw0]; exact mh_xahx'⟩
+      -- EC: move=> [#] ^/rconsIs + /rconssI - <<*>.
+      obtain ⟨-, rfl⟩ := this
+      -- EC: by move: mh_xahx' Hxahx' mh_xahx; have /inv_of_INV [] ^ + -> - -> -> /= -> := HINV.
+      obtain ⟨H⟩ := inv_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      have e := (H _ _).1 mh_xahx'; rw [(H _ _).1 mh_xahx] at e
+      exact absurd (Option.some.inj e).symm Hxahx'
+    -- EC: rewrite (@get_set_neqE _ _ hy' _ Hhy')=> /= hs_hx' ^ hs_hy' -> Hite.
+    -- EC: exists xc' (if hx' = hy then Known else fx') yc' fy'.
+    refine ⟨xc', if hx' = hy then Known else fx', yc', fy', ?_,
+      by rwa [FMap.get_set_neqE _ _ _ _ Hhy'], ?_⟩
+    -- EC: rewrite get_setE; case: (hx' = hy)=> /= [<*>|//].
+    --     move: hs_hx'; rewrite hs_hy=> /= [#] <<*> /=.
+    · rw [FMap.get_setE]; split_ifs with hz; rotate_right; · exact hs_hx'
+      subst hx'; rw [hs_hy] at hs_hx'; obtain ⟨rfl, rfl⟩ := by simpa using hs_hx'
+      rfl
+    -- EC: rewrite (@get_setE Gm) (_: (xa',xc') <> (xa,xc)) /=.
+    -- EC: + move: Hxahx'=> /=; case: (xa' = xa)=> [<*> /=|//].
+    --       by apply/contra=> <*>; have /hs_of_INV [] + _ _ - /(_ _ _ _ _ hs_hx' hs_hx _) := HINV.
+    have hne : (xa', xc') ≠ (xa, xc) := by
+      intro he; obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+      obtain ⟨Hu, -, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+      exact Hxahx' (by rw [Hu _ _ _ _ hs_hx' hs_hx rfl])
+    -- EC: by move: Hite=> /= [#]; case: fy' hs_hy'=> //= _ ->.
+    rw [FMap.get_set_neqE _ _ _ _ hne]
+    cases fy' with
+    | Known => obtain ⟨hG, rfl⟩ := by simpa using Hite
+               simp [hG]
+    | Unknown => simpa using Hite
+  -- EC: + split=> c p' b'; rewrite !get_setE; case: (yc = c)=> [<<*> /=|yc_neq_c]; last first.
+  · obtain ⟨Ipi⟩ := pi_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨Hu, -, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    obtain ⟨-, -, Huniq⟩ := mh_of_INV _ _ _ _ _ _ _ _ _ _ _ _ HINV
+    have path_to_hy : build_hpath mh (rcons p (b +^ xa)) = some (ya, hy) := by
+      -- EC: apply/build_hpath_prefix; exists b hx; rewrite xorwA xorwK xorwC xorw0 mh_xahx /=.
+      refine (build_hpath_prefix _ _ _ _ _).2 ⟨b, hx, ?_, ?_⟩
+      -- EC: move: pi_xc; have /pi_of_INV [] -> [h] [#] + hs_h:= HINV.
+      --     by have /hs_of_INV [] + _ _ - /(_ _ _ _ _ hs_hx hs_h _) := HINV.
+      · obtain ⟨h, hp, hs_h⟩ := (Ipi _ _ _).1 pi_xc
+        rwa [Hu _ _ _ _ hs_h hs_hx rfl] at hp
+      · rw [xorwA, xorwK, xorwC, xorw0, mh_xahx]
+    refine ⟨fun c p' b' => ?_⟩
+    rw [FMap.get_setE]; split_ifs with yc_eq_c; rotate_right
+    -- EC: + rewrite (@eq_sym c) yc_neq_c /=; have /pi_of_INV [] -> := HINV.
+    · rw [Ipi]
+      -- EC: apply/exists_iff=> h /=; rewrite get_setE; case: (h = hy)=> [<*> /=|//=].
+      refine exists_congr fun h => ?_
+      rw [FMap.get_setE]; split_ifs with hh; rotate_right; · rfl
+      -- EC: by rewrite yc_neq_c hs_hy /=.
+      subst hh; simp [hs_hy, Ne.symm yc_eq_c]
+    -- EC: split=> [[#] <<*>|].
+    constructor
+    -- EC: + exists hy; rewrite get_setE /=; apply/build_hpath_prefix. (… the path to `hy`)
+    · intro he; obtain ⟨rfl, rfl⟩ := by simpa using he
+      exact ⟨hy, path_to_hy, by simp [yc_eq_c]⟩
+    -- EC: move=> [h]; rewrite get_setE; case: (h = hy)=> [<*> /=|]; last first.
+    rintro ⟨h, hp, hh⟩
+    rw [FMap.get_setE] at hh; split_ifs at hh with hhy; rotate_right
+    -- EC: + by have /hs_of_INV [] H _ _ + [#] _ /H {H} /(_ _ _ hs_hy _) // <*> := HINV.
+    · exact absurd (Hu _ _ _ _ hh hs_hy yc_eq_c) hhy
+    -- EC: have /mh_of_INV [] _ _ /(_ p' b') H /H {H} /(_ (rcons p (b +^ xa)) ya _) //:= HINV.
+    --     (… the path to `hy`)
+    subst hhy
+    obtain ⟨rfl, rfl⟩ := Huniq _ _ _ _ _ path_to_hy hp
+    rfl
+  -- EC: + by case:HINV.
+  · cases HINV; assumption
 
 theorem m_mh_None (hs0 : handles) (PFm : smap) (G1mh : hsmap) (hx2 : handle) (x2 : capacity)
     (k : flag) (x1 : block) :

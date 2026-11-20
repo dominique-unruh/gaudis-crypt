@@ -502,11 +502,11 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 | 688 | lemma | `build_hpath_down` |  | `build_hpath_down` | done |
 | 702 | lemma | `known_path_uniq` |  | `known_path_uniq` | done |
 | 716 | lemma | `path_split` |  | `path_split` | done |
-| 742 | lemma | `lemma1` |  | `lemma1` | done |
-| 849 | lemma | `lemma1'` |  | `lemma1'` | done |
-| 955 | lemma | `lemma2` |  | `lemma2` | done |
-| 1053 | lemma | `lemma2'` |  | `lemma2'` | done |
-| 1165 | lemma | `lemma3` |  | `lemma3` | done |
+| 742 | lemma | `lemma1` |  | `lemma1` (EC's script, 2026-11-20) | done |
+| 849 | lemma | `lemma1'` |  | `lemma1'` (EC's script, 2026-11-20) | done |
+| 955 | lemma | `lemma2` |  | `lemma2` (EC's script, 2026-11-20) | done |
+| 1053 | lemma | `lemma2'` |  | `lemma2'` (EC's script, 2026-11-20) | done |
+| 1165 | lemma | `lemma3` |  | `lemma3` (EC's script, 2026-11-20) | done |
 | 1247 | lemma | `m_mh_None` |  | `m_mh_None` | done |
 | 1257 | lemma | `build_hpath_None` |  | `build_hpath_None` | done |
 | 1261 | lemma | `build_hpath_upd_ch` |  | `build_hpath_upd_ch` | done |
