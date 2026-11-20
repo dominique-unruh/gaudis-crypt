@@ -426,13 +426,6 @@ theorem unpadP (t : List Bool) : unpad t ≠ none ↔ unpad_spec t := by
 def chunk (bs : List Bool) : List (List Bool) := BitChunking.chunk r bs
 
 omit [Params] in
-/-- Not an EasyCrypt lemma: fewer than `r` bits make no chunk. -/
-theorem chunk_lt' {α : Type} (r : ℤ) (bs : List α) (h : size bs < r) :
-    BitChunking.chunk r bs = [] := by
-  have hs : 0 ≤ size bs := by simp [size]
-  simp [BitChunking.chunk, mkseq, iota_, Int.ediv_eq_zero_of_lt hs h]
-
-omit [Params] in
 /-- Not an EasyCrypt lemma: at least `r` bits make a first chunk, then the chunks of the rest. -/
 theorem chunk_cons' {α : Type} (r : ℤ) (bs : List α) (h0 : 0 < r) (h : r ≤ size bs) :
     BitChunking.chunk r bs = take r bs :: BitChunking.chunk r (drop r bs) := by
