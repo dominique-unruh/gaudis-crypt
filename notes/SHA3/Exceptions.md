@@ -136,7 +136,8 @@ F.init`), `SecureORO.RF(R)` (`proc init = R.init`, `proc sample = R.sample`) and
 aliases, as are `IndifRO_is_secure`'s `GetF`, `SInit`, `DColl`.)  Still wrappers, in
 `IndifRO_is_secure`: `FInit` and `FM` (they go together: its first proof needs the two oracles
 `FM(C,P)`, `FInit(C(P))` the same; SHA3Security's `equiv_ro_iro` and the proof with `x3₁` are
-written for the wrappers' extra inlining level, GAP 3 there).  In `SHA3Security`: `CSetSize`, `FSetSize`, `DSetSize`.  In `SHA3OSecurity`: `FSetSize`, and the
+written for the wrappers' extra inlining level, GAP 3 there).  (`SHA3Security`'s `CSetSize`, `FSetSize`, `DSetSize` are EC's aliases since
+2026-11-20.)  In `SHA3OSecurity`: `FSetSize`, and the
 sections' `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In`, `Dist`.
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the

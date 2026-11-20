@@ -29,8 +29,9 @@ Translation:
   are the first port's, which EC's `Sponge`, `Perm`, `Simulator` are declared at.  A module of a
   first-port module type is one of the pilot's with the same procedures, by definition
   (`CSetSize(Sponge)` is an `Indiff0.CONSTRUCTION`, `Perm` an `Indiff0.PRIMITIVE`);
-* `CSetSize(F)(P)`, `FSetSize(F)` alias `init` and take module parameters: the alias is wrapped
-  in a call (exception E5); `CSetSize`'s `F` and `DSetSize`'s `D` are Lean parameters;
+* `CSetSize(F)(P)`, `FSetSize(F)` alias `init` and `DSetSize(D)(F)(P)` is
+  `D(DFSetSize(F), P)`: EC's aliases (`proc f = c;`, since 2026-11-20; before, wrapped in a call,
+  exception E5); `CSetSize`'s `F` and `DSetSize`'s `D` are Lean parameters;
   `SimSetSize(S)(F) = S(FGetSize(F))` is `Module.comp S FGetSize`;
 * the sections' local lemmas about values (`invm_dom_rng`, `invmC'`, `invmC`, `useful`) are the
   first port's (`SHA3Security.Preimage.*`).  EC states and proves them, and the local
@@ -80,8 +81,8 @@ The first port's translation notes (some mention declarations that went with its
   `of_list` and their axioms are the parameter class `Params` (as `Common.Params`).
 * `clone import IndifRO_is_secure as S with …` is the namespace `S` of abbreviations, opened.  The
   clone declares its module variables (`S.SRO.RO.RO.m` …); its `realize`s are `S.axioms`.
-* `CSetSize(F)(P)`, `FSetSize(F)` alias `init` and are applied to module parameters: the alias is
-  wrapped in a call (exception E5), as is `DSetSize(D)(F)(P) = D(DFSetSize(F), P)`.
+* `CSetSize(F)(P)`, `FSetSize(F)` alias `init` and are applied to module parameters, as
+  `DSetSize(D)(F)(P) = D(DFSetSize(F), P)` aliases `distinguish`: EC's aliases (`proc f = c;`).
   `SimSetSize(S)(F) = S(FGetSize(F))` is `Module.comp S FGetSize`.
 * The sections' local lemmas, repeated in each section, go into namespaces named after the sections
   (`Preimage.invmC` …).  Their `clone import Program as Prog` (`Prog2`, `Prog3`) are
@@ -333,13 +334,10 @@ clone import GaudisCrypt.SHA3.Pilot.IndifRO_is_secure as S with
 /-! ## The file's modules (EC l. 62–123) -/
 
 -- EC's `CSetSize(F : CONSTRUCTION)(P : DPRIMITIVE)`, with `F` a Lean parameter so that
--- `CSetSize F` is a construction of the clone; `proc init = F(P).init` wrapped in a call (E5)
+-- `CSetSize F` is a construction of the clone, and its alias `proc init = F(P).init`
 set_option linter.gaudisCrypt.using false in
 module CSetSize (F : CONSTRUCTION) using (P : DPRIMITIVE) : Indiff0.FUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F(P).init ();
-    return ()
-  };
+  proc init = F(P).init;
   proc f (x : List Bool) : f_out {
     var r : List Bool;
     r <- call F(P).f (($x, size_out));
@@ -347,12 +345,9 @@ module CSetSize (F : CONSTRUCTION) using (P : DPRIMITIVE) : Indiff0.FUNCTIONALIT
   };
 }
 
--- EC's `FSetSize(F : FUNCTIONALITY)`; `proc init = F.init` wrapped in a call (E5)
+-- EC's `FSetSize(F : FUNCTIONALITY)`, with its alias `proc init = F.init`
 module FSetSize using (F : FUNCTIONALITY) : Indiff0.FUNCTIONALITY {
-  proc init () : Unit {
-    _ <- call F.init ();
-    return ()
-  };
+  proc init = F.init;
   proc f (x : List Bool) : f_out {
     var r : List Bool;
     r <- call F.f (($x, size_out));
@@ -390,15 +385,10 @@ module types: what the clone's lemmas ask), and the modules that the clone's gam
 types are the file's by equations that hold by definition (GAP 6). -/
 
 -- EC's `module (DSetSize (D : Indiff0.DISTINGUISHER) : DISTINGUISHER) (F : DFUNCTIONALITY)
--- (P : DPRIMITIVE) = D(DFSetSize(F),P)`, with `D` a Lean parameter; the alias is wrapped in a
--- call (E5)
+-- (P : DPRIMITIVE) = D(DFSetSize(F),P)`, with `D` a Lean parameter
 set_option linter.gaudisCrypt.using false in
 module DSetSize (D : Indiff0.DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
-  proc distinguish () : Bool {
-    var b : Bool;
-    b <- call D(DFSetSize(F), P).distinguish ();
-    return $b
-  };
+  proc distinguish = D(DFSetSize(F), P).distinguish;
 }
 
 set_option maxHeartbeats 4000000 in
@@ -1994,7 +1984,7 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
     inferInstance ⟨‹Footprint.Restricted R _›.finite.sup (by fp_finite), by fp_disjoint⟩ m ?_
   -- EC: move=> F P P_f_ll P_fi_ll F_ll; proc; inline*; auto; sp.
   intro F _ P _ P_f_ll P_fi_ll F_ll
-  phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+  phoare_proc; phoare_inline*; stmt_sp
   -- EC: seq 1 : true; auto.
   phoare_seq_lossless 1 : (True)
   -- EC: + call (A_ll (SRO.Bounder(FInit(DFSetSize(F)))) _); auto.
