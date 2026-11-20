@@ -106,45 +106,34 @@ game.
 own `global_var`s under EasyCrypt's names (`Perm.m`, `F.RO.m`, `F2.RO.m`, `ROhandle.FRO.m`,
 `Switching.PRPi.m`, `BIRO.IRO.mp` …) and passes them, as EasyCrypt's clone semantics demands.
 
-## E5: procedure aliases inside a functor are wrapped in a call
+## E5: whole-module aliases are modules of their own
 
-**Rule broken.** EasyCrypt's `proc f = M.g` makes `f` the very procedure `M.g`.  Elsewhere the port
-keeps that: modules with aliases are Lean functions assembling the aliased procedures with `T.mk`
-(`PRestr`, `FRestr`, `Squeeze`, `IF'`).
+**Rule broken.** EasyCrypt's `proc f = M.g` makes `f` the very procedure `M.g`, and
+`module M (F) = N(F)` makes `M(F)` the very module `N(F)`.
 
-**What we do instead.** A few modules alias a procedure of a functor applied to their own module
-parameters and are used as functors themselves: `Gconcl_list.SimLast(S)(F)`
-(`proc f = S(Last(Valid(F))).f`) is a `SIMULATOR`, and `Gconcl_list.DValid(D)(F)(P)`
-(`= D(FValid(F), P)`) is a `DISTINGUISHER`.  `Gconcl_list.S2(F) = S(Last(F))` is a whole-module
-alias whose parts have different instances of one EC module type (`S` returns `SLCommon`'s
-`PRIMITIVE`, `S2` must be `BlockSponge`'s), so `Module.comp` does not inline; it is a wrapper too.
-`Gconcl_list.Simplify_Simulator.L(F) = IdealIndif(BIRO.IRO, Simu(F), DRestr(D))` is a whole-module
-alias used as an `IRO2.RO_Distinguisher` (for `RO_LRO_D`): its `distinguish` calls the game's `main`
-(with EasyCrypt's `d_in_t = unit` argument), as `Gconcl.G3`'s does.  (`Gconcl_list.D2(D)(F)`,
-`D3(D)(F)`, `D5(D)(F)`, `D6(D)(F2)` were wrappers too; since 2026-11-19 they are EC's aliases, as
-are `IF'` and `Valid2`'s `init`.  `D5`, `D6` write `S2(…)` for EC's `S(Last(…))`, our `S2` being a
-module of its own.)  A Lean function cannot be a functor module, and the others predate the
-`module` command's aliases (`proc f = c;`).  So their procedures call the aliased one:
-`proc f (x) { y <- call (S(Last(Valid(F)))).f (x); return y }`.  The denotation is the same; the
-code has one more call.
+**Procedure aliases: kept.** Since 2026-11-19/20 the `module` command has `proc f = c;`
+(`notes/ModuleProcAlias.md`): `X.f.apply_simp` rewrites the alias to `c`, `stmt_inline*` and
+`equiv_proc` treat a call of it as a call of `c`, `equiv_call` and `sim` see two aliases of one
+procedure as that procedure.  Every procedure alias of the port is EC's: `Gconcl_list`'s `IF'`,
+`Valid2`, `D2`, `D3`, `D5`, `D6`, `DValid`, `SimLast`'s `f`, `fi`, `S2`'s procedures;
+`SecureORO`'s `RF`, `Bounder`; `SHA3_OIndiff`'s `FSome`; `IndifRO_is_secure`'s `FInit`, `GetF`,
+`SInit`, `FM`, `DColl`; `SHA3Security`'s `CSetSize`, `FSetSize`, `DSetSize`; `SHA3OSecurity`'s
+`FSetSize`, `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In`, `Dist`.  (They were
+procedures calling the aliased one, one call more; converting them dropped that call's `inline`
+and shifted the inlined locals' names back to EC's.)
 
-`Sponge.LowerDist(D, F) = D(RaiseFun(F))` is a whole-module alias of the same kind: `D` applied to
-only one of its two oracles, used as `LowerDist(Dist) : BlockSponge.DISTINGUISHER`.  Its
-`distinguish` calls `D(RaiseFun(F), P).distinguish`.  (`SHA3_OIndiff.FSome(F)` (`proc init =
-F.init`), `SecureORO.RF(R)` (`proc init = R.init`, `proc sample = R.sample`) and
-`SecureORO.Bounder(F)` (`proc sample = F.sample`) were wrappers too; since 2026-11-20 they are EC's
-aliases, as are `IndifRO_is_secure`'s `FInit`, `GetF`, `SInit`, `FM`, `DColl`: SHA3Security's
-proofs through `FInit` lost the wrapper's inlining level, their inlined locals renamed, and EC's
-`sim 3 1` in `IndifRO_is_secure` is `sim n₁ n₂` on our inlined code.)  (`SHA3Security`'s `CSetSize`, `FSetSize`, `DSetSize` are EC's aliases since
-2026-11-20.)  (`SHA3OSecurity`'s `FSetSize`, `FInit`,
-`PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In` and the sections' `Dist` are EC's aliases
-since 2026-11-20; `Dist`'s `distinguish` takes `()`, PROM's `RO_LRO_D` any signature.)
+**What we still do instead: whole-module aliases.**
+* `Gconcl_list.S2(F) = S(Last(F))`: `S` returns `SLCommon`'s `PRIMITIVE`, `S2` must be
+  `BlockSponge`'s (one EC module type, two Lean instances), so `Module.comp` does not do; `S2` is a
+  module of its own whose three procedures are aliases of `S(Last(F))`'s.  `D5`, `D6` write
+  `S2(…)` where EC writes `S(Last(…))`.
+* `Gconcl_list.Simplify_Simulator.L(F) = IdealIndif(BIRO.IRO, Simu(F), DRestr(D))`, used as an
+  `IRO2.RO_Distinguisher`, and `Sponge.LowerDist(D, F) = D(RaiseFun(F))`, used as a
+  `BlockSponge.DISTINGUISHER`: their `distinguish` calls the game's `main`, `D(RaiseFun(F),
+  P).distinguish` (one call more).
 
-**How to remove it.** Combinators building a functor from its fields, so that the alias is the
-same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
-(`BlockSponge.Sim`).  For a procedure alias, the `module` command now has `proc f = c;`
-(2026-11-19, `notes/ModuleProcAlias.md`): `X.f.apply_simp` rewrites the alias to `c` itself.
-The wrappers listed above are not converted yet.
+**How to remove it.** A module-level alias (`module X = expr`, the module expression itself), or
+`Module.comp` where the module types agree (`BlockSponge.Sim`).
 
 ## E6: variables of local clones and local modules are lens parameters, fresh by hypothesis
 

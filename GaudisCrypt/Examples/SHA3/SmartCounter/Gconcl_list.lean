@@ -42,9 +42,9 @@ The first port's translation notes (some mention declarations that went with its
   repackages it with `mk` (`A`'s `P`).
 * Local modules that alias a procedure of an applied functor (`L3`) are Lean functions returning
   that procedure (the port's `IF'`, `Valid2`, `D2`, `D3`, `D5`, `D6` are `module`s with procedure
-  aliases, `proc f = c;`; its `L`, `L2`, `L4` are `abbrev`s).  `SimLast` and `DValid` are used as
-  functors: their aliased procedures are wrapped in a call (exception E5); so is `S2`
-  (`S(Last(F))`, whose `PRIMITIVE` is `SLCommon`'s).
+  aliases, `proc f = c;`; its `L`, `L2`, `L4` are `abbrev`s).  `SimLast`'s and `DValid`'s aliases
+  are EC's too (`proc f = c;`); `S2(F) = S(Last(F))`, a whole-module alias whose `PRIMITIVE` is
+  `SLCommon`'s, is a module of its own with `S(Last(F))`'s procedures as aliases (exception E5).
 -/
 
 namespace GaudisCrypt.SHA3.Gconcl_list
@@ -183,8 +183,8 @@ module Valid using (F : DFUNCTIONALITY) : FUNCTIONALITY {
   };
 }
 
--- EC's `SimLast(S : SLCommon.SIMULATOR)(F : DFUNCTIONALITY)`, with `S` a Lean parameter; its
--- aliases `proc f = S(Last(Valid(F))).f` and `proc fi = …` are wrapped in a call (exception E5)
+-- EC's `SimLast(S : SLCommon.SIMULATOR)(F : DFUNCTIONALITY)`, with `S` a Lean parameter, and its
+-- aliases `proc f = S(Last(Valid(F))).f` and `proc fi = …`
 set_option linter.gaudisCrypt.using false in
 module SimLast (S : SLCommon.SIMULATOR) using (F : DFUNCTIONALITY) : PRIMITIVE {
   proc init () : Unit {
@@ -192,16 +192,8 @@ module SimLast (S : SLCommon.SIMULATOR) using (F : DFUNCTIONALITY) : PRIMITIVE {
     _ <- call S(Last(Valid(F))).init ();
     return ()
   };
-  proc f (x : state) : state {
-    var y : state;
-    y <- call S(Last(Valid(F))).f ($x);
-    return $y
-  };
-  proc fi (x : state) : state {
-    var y : state;
-    y <- call S(Last(Valid(F))).fi ($x);
-    return $y
-  };
+  proc f = S(Last(Valid(F))).f;
+  proc fi = S(Last(Valid(F))).fi;
 }
 
 /-! `clone F as F2`: a second random oracle `block list -> block`, with its own variables -/
@@ -515,33 +507,18 @@ module FValid using (F : DFUNCTIONALITY) : DFUNCTIONALITY {
 }
 
 -- EC's local `DValid(D)(F)(P) = D(FValid(F), P)`, with `D` a Lean parameter; used as a
--- `DISTINGUISHER`, its procedure is a call of `D(FValid(F), P).distinguish` (exception E5)
+-- `DISTINGUISHER`: its procedure is the alias `proc distinguish = D(FValid(F), P).distinguish`
 set_option linter.gaudisCrypt.using false in
 module DValid (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
-  proc distinguish () : Bool {
-    var b : Bool;
-    b <- call D(FValid(F), P).distinguish ();
-    return $b
-  };
+  proc distinguish = D(FValid(F), P).distinguish;
 }
 
 -- EC's local `S2(F) = S(Last(F))`; used as a `SIMULATOR` (`BlockSponge`'s `PRIMITIVE`, while `S`
--- returns `SLCommon`'s), its procedures are calls of `S(Last(F))`'s (exception E5)
+-- returns `SLCommon`'s): a module whose procedures are the aliases of `S(Last(F))`'s
 module S2 using (F : DFUNCTIONALITY) : PRIMITIVE {
-  proc init () : Unit {
-    _ <- call Gconcl.S(Last(F)).init ();
-    return ()
-  };
-  proc f (x : state) : state {
-    var y : state;
-    y <- call Gconcl.S(Last(F)).f ($x);
-    return $y
-  };
-  proc fi (x : state) : state {
-    var y : state;
-    y <- call Gconcl.S(Last(F)).fi ($x);
-    return $y
-  };
+  proc init = Gconcl.S(Last(F)).init;
+  proc f = Gconcl.S(Last(F)).f;
+  proc fi = Gconcl.S(Last(F)).fi;
 }
 
 def inv_map (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block) : Prop :=
@@ -2358,12 +2335,10 @@ set_option maxHeartbeats 16000000 in
 -BIRO2.IRO}) : L3(D,F.RO).distinguish ~ L4(D,F.RO,F2.RO).distinguish : ={glob D} ==>
 ={glob D, res}`.
 
-Deviations: GAPs 5 and 7 of the file header.  `S2(F)` is a wrapper of `S(Last(F))` in the old
-declarations (exception E5), one call more than EC's alias: `stmt_inline{2} 0; stmt_sp` after
-EC's `call` into the simulator.  EC's variables of inlined callees are named differently
-(noted at each use).  EC's `smt` calls with `parse_gt0`, `parseK`, `formatK`, `parse_valid` are
-by hand (`smt_close` fails on them with an unknown free variable, GAP 2); the two loop side goals
-EC repeats are the local macros `l3l4_round` and `l3l4_i_lt_n`. -/
+Deviations: GAPs 5 and 7 of the file header.  EC's variables of inlined callees are named
+differently (noted at each use).  EC's `smt` calls with `parse_gt0`, `parseK`, `formatK`,
+`parse_valid` are by hand (`smt_close` fails on them with an unknown free variable, GAP 2); the two
+loop side goals EC repeats are the local macros `l3l4_round` and `l3l4_i_lt_n`. -/
 theorem equiv_L3_L4 :
     ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO, -BIRO.IRO, -BIRO2.IRO}),
     equiv[ L3(D, SLCommon.F.RO.asRO).distinguish ~
@@ -2622,8 +2597,6 @@ theorem equiv_L3_L4 :
   on_goals 2 => ec_auto
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
-  --     (E5: `S2(F)` is a wrapper of `S(Last(F))` here, one call more than EC's alias)
-  stmt_inline{2} 0; stmt_sp
   -- EC: if; [1,3:by auto]; sim 1 1; if; auto; sim 2 2; sp.
   stmt_if
   · ec_close
@@ -2796,11 +2769,10 @@ set_option maxHeartbeats 16000000 in
 -BIRO.IRO, -BIRO2.IRO}) : L4(D,F.LRO,F2.LRO).distinguish ~
 IdealIndif(BIRO.IRO,SimLast(S),DRestr(D)).main : ={glob D} ==> ={glob D, res}`.
 
-Deviations: GAP 5 of the file header.  `S2(F)` and `SimLast(S)(F)` are wrappers in the old
-declarations (exception E5): `stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp` after EC's `call`
-into the simulators.  What EC's `smt(parseK)`, `smt(parse_twice)` read off `INV_L4_ideal` is
-stated once at the top (`hdom`, `hget` for a valid prefix; `hpt`, `hdom'`, `hget'` for an invalid
-one) and applied by hand at EC's `progress` goals, with EC's `lemma5`, `lemma5bis`. -/
+Deviations: GAP 5 of the file header.  What EC's `smt(parseK)`, `smt(parse_twice)` read off
+`INV_L4_ideal` is stated once at the top (`hdom`, `hget` for a valid prefix; `hpt`, `hdom'`,
+`hget'` for an invalid one) and applied by hand at EC's `progress` goals, with EC's `lemma5`,
+`lemma5bis`. -/
 theorem equiv_L4_ideal :
     ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO, -BIRO.IRO, -BIRO2.IRO}),
     equiv[ L4(D, SLCommon.F.LRO, F2.LRO).distinguish ~
@@ -2858,9 +2830,8 @@ theorem equiv_L4_ideal :
       ={res, S.m, S.mi, S.paths} ∧
         INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
     on_goals 2 => ec_auto
-    --     (EC's `call (: I)` opens the callees; E5: `S2(F)` and `SimLast(S)(F)` are wrappers of
-    --     `S(Last(F))` and `S(Last(Valid(F)))` here, one call more than EC's aliases)
-    equiv_proc; stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
+    --     (EC's `call (: I)` opens the callees)
+    equiv_proc
     -- EC: if;1,3:auto.
     stmt_if
     · ec_close
@@ -2868,8 +2839,7 @@ theorem equiv_L4_ideal :
     -- EC: seq 1 1 : (={y1, x, glob S}
     --       /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2} F2.RO.m{1} BIRO2.IRO.mp{2});
     --     last by conseq(:_==> ={y, glob S});progress;sim.
-    --     (EC's `x` is the wrappers' inlined parameter, our `x0`)
-    equiv_seq 1 1 : (={y1, x0, S.m, S.mi, S.paths} ∧
+    equiv_seq 1 1 : (={y1, x, S.m, S.mi, S.paths} ∧
       INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
     rotate_left
     · equiv_conseq (: _ ==> ={y, S.m, S.mi, S.paths})
@@ -5262,8 +5232,6 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   rotate_left
   · ec_auto
   equiv_proc
-  --     (E5: `SimLast(S)`'s `f` is a wrapper around `S(Last(Valid(F))).f`)
-  stmt_inline{1} 0; stmt_wp; stmt_sp
   -- EC: if; 1,3: by auto.
   stmt_if
   · ec_close
@@ -5272,8 +5240,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   -- EC: seq 1 1: (={BIRO.IRO.mp,y1,x} /\ ={m,mi,paths}(S,Simulator) /\
   --           BIRO2.IRO.mp{1} = IRO2.RO.m{2} /\
   --           incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}); last first.
-  --     (the left's `x`, through the wrapper, is `x0`)
-  equiv_seq 1 1 : (={BIRO.IRO.mp, y1} ∧ §x0{1} = §x{2} ∧ §S.m{1} = §Simulator.m{2} ∧
+  equiv_seq 1 1 : (={BIRO.IRO.mp, y1, x} ∧ §S.m{1} = §Simulator.m{2} ∧
     §S.mi{1} = §Simulator.mi{2} ∧ §S.paths{1} = §Simulator.paths{2} ∧
     §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
     SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
@@ -5311,7 +5278,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
     --   by conseq(:_ ==> ={bs, BIRO.IRO.mp})=> />; sim=> />; smt(parseK formatK).
     --     (GAP 16: the two sides' locals are named differently, the loop by its invariant)
     equiv_while (={BIRO.IRO.mp, bs, n} ∧ §i{1} = §i0{2} ∧
-      §x2{1} = §(localVarLens "x1" (List block)){2} ∧ §x0{1} = §x{2} ∧
+      §x1{1} = §(localVarLens "x0" (List block)){2} ∧ §x{1} = §x{2} ∧
       §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
       §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
       SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
@@ -5329,8 +5296,8 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
       have e1 := h1.trans h2.symm
       have e2 := h3.trans h4.symm
       refine ⟨⟨⟨e2, e1, ‹SLCommon.incl _ _›⟩, by rw [e2]⟩, fun τ₁ τ₂ _ _ hI _ _ => ?_⟩
-      obtain ⟨⟨hmp, hbs, -⟩, -, -, hrest⟩ := hI
-      exact ⟨⟨hmp, by rw [hbs]⟩, hrest⟩
+      obtain ⟨⟨hmp, hbs, -⟩, -, -, hx, hrest⟩ := hI
+      exact ⟨⟨hmp, by rw [hbs], hx⟩, hrest⟩
   -- EC: sp; rcondt{1} 1; 1: auto; if{2}; last first.
   stmt_sp
   stmt_rcondt{1} 1
@@ -5376,13 +5343,13 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   --       (0 < i{2} => last Block.b0 bs0{1} = oget RO.m{2}.[(q{2}, i{2} - 1)]) /\
   --       BIRO2.IRO.mp{1} = RO.m{2} /\ incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1}).
   --     (GAP 15: EC's `conseq=> />` keeps what the loops do not write; here the invariant
-  --     carries it, with `0 < k`.  EC's `n0`, `x1` on the left are our `n1`, `x4`.)
+  --     carries it, with `0 < k`.  EC's `n0`, `x1` on the left are our `n1`, `x3`.)
   equiv_while (0 < §k{2} ∧ §i{2} ≤ §k{2} ∧ §n1{1} = §k{2} ∧ §i0{1} = §i{2} ∧
-    §(localVarLens "x4" (List block)){1} = §q{2} ∧
+    §(localVarLens "x3" (List block)){1} = §q{2} ∧
     (0 < §i{2} → last b0 §bs0{1} = oget (FMap.get §IRO2.RO.m{2} (§q{2}, §i{2} - 1))) ∧
     §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
     SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1} ∧
-    ={BIRO.IRO.mp} ∧ §x0{1} = §x{2} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+    ={BIRO.IRO.mp} ∧ §x{1} = §x{2} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
     §S.paths{1} = §Simulator.paths{2})
   -- EC: + sp; wp 2 2=> /=; conseq=> />.
   --       conseq(:_==> b0{1} = oget RO.m{2}.[(q{2}, i{2})] /\ BIRO2.IRO.mp{1} = RO.m{2} /\
@@ -5421,7 +5388,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
     by rw [h3]⟩, fun τ₁ τ₂ _ _ hI _ hk => ?_⟩
   obtain ⟨hk0, hik, -, -, -, hl, hmp, hincl, hb, hx, hm, hmi, hp⟩ := hI
   have e : (localVarLens "i" ℤ).get τ₂ = (localVarLens "k" ℤ).get τ₂ := le_antisymm hik hk
-  refine ⟨bdistr_expected_one, fun a _ => ⟨⟨hb, ?_⟩, hx, hm, hmi, hp, hmp, hincl⟩⟩
+  refine ⟨bdistr_expected_one, fun a _ => ⟨⟨hb, ?_, hx⟩, hm, hmi, hp, hmp, hincl⟩⟩
   rw [← e]
   exact hl (by rw [e]; exact hk0)
 

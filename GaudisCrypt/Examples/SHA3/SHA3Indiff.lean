@@ -269,7 +269,7 @@ set_option ec.strict true
   parameters spelled differently): the inliner applies `SimLast`'s `apply_simp` there only at
   default transparency, by `set_option inline.defEqApply true` (always on, it inlines further than
   the first port's proofs expect).
-* GAP 2: our inliner renames a callee's locals per side (`x3, n0` against `x0, n` in
+* GAP 2: our inliner renames a callee's locals per side (`x2, n0` against `x0, n` in
   `equiv_sim_f`'s IRO loops), so `sim` cannot relate loops by name where EC's does: `while` with
   the renamed variables' equalities.
 * GAP 6 (closed 2026-11-17): `LowerDist(D, F, P)` passes `P`, `BlockSponge`'s primitive, to the
@@ -482,8 +482,7 @@ theorem equiv_sim_f : ∀ (F <: DFUNCTIONALITY {-Gconcl.S, -Simulator}),
         §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2} ] := by
   intro F _
   -- EC: proc;inline*;if;1,3:auto=>/#.
-  --     (our `inline*` leaves the parameter's assignment before the `if`: `sp` first)
-  equiv_proc; stmt_inline*; stmt_sp; stmt_if
+  equiv_proc; stmt_inline*; stmt_if
   · auto_close
   on_goals 2 => equiv_auto
   -- EC: wp;conseq(:_==> ={y1, y2, glob F, glob Gconcl_list.BIRO2.IRO}
@@ -504,12 +503,12 @@ theorem equiv_sim_f : ∀ (F <: DFUNCTIONALITY {-Gconcl.S, -Simulator}),
   · equiv_auto
     smt_close [BlockSponge.parseK, BlockSponge.formatK]
   --     (GAP 2: `last sim` — our inliner names the IRO's locals differently on the two sides,
-  --     `x3, n0` against `x0, n`, so `sim` cannot relate the loops by name: EC's `while` with the
+  --     `x2, n0` against `x0, n`, so `sim` cannot relate the loops by name: EC's `while` with the
   --     renamed variables' equalities, the bodies by `sim`)
   on_goals -1 =>
     stmt_wp; stmt_sp; stmt_if
     · auto_close
-    · equiv_while (§x3{1} = §(localVarLens "x0" (List block)){2} ∧ §n0{1} = §n{2} ∧
+    · equiv_while (§x2{1} = §(localVarLens "x0" (List block)){2} ∧ §n0{1} = §n{2} ∧
           ={i, bs, Gconcl_list.BIRO2.IRO.mp})
       · sim
       · equiv_auto
@@ -542,8 +541,8 @@ theorem equiv_sim_fi : ∀ (F <: DFUNCTIONALITY {-Gconcl.S, -Simulator}),
         §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2} ] := by
   intro F _
   -- EC: by proc;inline*;if;auto=>/#.
-  --     (our `inline*` leaves the parameter's assignment before the `if`: `sp` first)
-  equiv_proc; stmt_inline*; stmt_sp; stmt_if
+  --     (EC's `inline*`: nothing to inline here, `proc` opens `SimLast`'s alias)
+  equiv_proc; stmt_if
   all_goals (equiv_auto; try auto_close)
 
 set_option maxHeartbeats 4000000 in
