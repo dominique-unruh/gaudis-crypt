@@ -82,4 +82,20 @@ example : equiv[ ={i, j} ==> ={j} ] {
     } := by
   sim
 
+/-- EC's `sim` through two loops whose variables are named differently on the two sides (an
+inlined callee's locals, `i0` against `i`): the variables at corresponding positions of the two
+loops are paired, EC's equality set of pairs (`i0{1} = i{2}`). -/
+example : equiv[ ={n} ==> ={s} ] {
+      var i0 : ℕ, s : ℕ, n : ℕ;
+      i0 <- 0;
+      s <- 0;
+      while (decide (§i0 < §n)) { s <- §s + §i0; i0 <- §i0 + 1; }
+    } ~ {
+      var i : ℕ, s : ℕ, n : ℕ;
+      i <- 0;
+      s <- 0;
+      while (decide (§i < §n)) { s <- §s + §i; i <- §i + 1; }
+    } := by
+  sim
+
 end GaudisCrypt.ECLoopTest

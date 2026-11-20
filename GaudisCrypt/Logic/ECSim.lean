@@ -28,7 +28,9 @@ arguments and globals (`equiv_call`), conditionals on both sides (`prhlStmt_seq_
 equal guards, each branch's relation found by `sim` on the branches (a branch it does not
 finish stops it at the conditional), and loops on both sides (`prhlStmt_seq_while`): EC's
 equality set as the invariant (the relation after the loops and the variables they mention
-equal), the bodies by `sim`.  Where both statements are used up, the precondition must imply
+equal; failing that, EC's equality set of pairs: the locals at corresponding positions of the
+two loops named differently on the two sides, an inlined callee's `i0` against `i`, equal), the
+bodies by `sim`.  Where both statements are used up, the precondition must imply
 what is left (`equiv_skip`), closed by `simp_all` if it can; anything else (calls of different
 procedures, a sampling against other code) stops `sim` with that goal.
 -/
@@ -559,6 +561,78 @@ def loopInvWith (J : Lean.Expr) (Rs xs : Array Lean.Expr) (l₁ l₂ : Lean.Expr
     let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 J σ₁ σ₂).headBeta
     mkLambdaFVars #[σ₁, σ₂] body
 
+/-- A local's lens, fully applied (`localVarLens …`, `(varLens …).intoLocal`). -/
+private def isLocalLens (e : Lean.Expr) : Bool :=
+  match e.getAppFn.constName? with
+  | some ``localVarLens => true
+  | some ``Lens.intoLocal => e.isApp && e.appArg!.isAppOf ``varLens
+  | _ => false
+
+/-- **EC's equality set of pairs**: the locals at corresponding positions of two statements of
+the same shape that are named differently on the two sides (an inlined callee's `i0` against `i`,
+EC's `sim` relates them), as pairs `(x, y)`, each local in at most one pair.  `none` when the
+statements differ in more than their locals' names. -/
+partial def alignLocals (a b : Lean.Expr) (acc : Array (Lean.Expr × Lean.Expr)) :
+    MetaM (Option (Array (Lean.Expr × Lean.Expr))) := do
+  if a == b then return some acc
+  if isLocalLens a && isLocalLens b && !a.hasLooseBVars && !b.hasLooseBVars then
+    let ka ← lensKey a
+    let kb ← lensKey b
+    if ka == kb then return some acc
+    unless ← isDefEq (← inferType a) (← inferType b) do return none
+    -- one partner each
+    for (x, y) in acc do
+      let kx ← lensKey x
+      let ky ← lensKey y
+      if kx == ka || ky == kb then return if kx == ka && ky == kb then some acc else none
+    return some (acc.push (a, b))
+  match a, b with
+  | .app f₁ x₁, .app f₂ x₂ =>
+    let some acc ← alignLocals f₁ f₂ acc | return none
+    alignLocals x₁ x₂ acc
+  | .lam _ t₁ b₁ _, .lam _ t₂ b₂ _ | .forallE _ t₁ b₁ _, .forallE _ t₂ b₂ _ =>
+    let some acc ← alignLocals t₁ t₂ acc | return none
+    alignLocals b₁ b₂ acc
+  | .letE _ t₁ v₁ b₁ _, .letE _ t₂ v₂ b₂ _ =>
+    let some acc ← alignLocals t₁ t₂ acc | return none
+    let some acc ← alignLocals v₁ v₂ acc | return none
+    alignLocals b₁ b₂ acc
+  | .mdata _ x, _ => alignLocals x b acc
+  | _, .mdata _ y => alignLocals a y acc
+  | .proj _ i₁ x₁, .proj _ i₂ x₂ => if i₁ == i₂ then alignLocals x₁ x₂ acc else return none
+  | _, _ => return none
+
+/-- The strings the `reset_vars` of `ss` name (an inlined call's temporaries). -/
+private def resetNames (ss : List Lean.Expr) : MetaM (Array String) := do
+  let resets ← IO.mkRef (#[] : Array String)
+  for l in ss do
+    Meta.forEachExpr (← instantiateMVars l) fun e => do
+      if e.isAppOf ``resetSetter then
+        Meta.forEachExpr e fun t => do
+          if let .lit (.strVal str) := t then resets.modify (·.push str)
+  resets.get
+
+/-- EC's `sim` invariant of two loops with **pairs**: `loopInv`'s, and the locals the loops use at
+corresponding positions under different names equal (`alignLocals`), but those the bodies reset
+(an inlined call's temporaries, dead at the loops' head). -/
+def loopInvPairs (B : Lean.Expr) (l₁ l₂ : Lean.Expr) : MetaM Lean.Expr := do
+  let some pairs ← alignLocals (← instantiateMVars l₁) (← instantiateMVars l₂) #[]
+    | throwError "sim: the loops differ in more than their locals' names"
+  let resets ← resetNames [l₁, l₂]
+  let reset (x : Lean.Expr) : Bool := (x.find? fun a =>
+    match a with | .lit (.strVal str) => resets.contains str | _ => false).isSome
+  let pairs := pairs.filter fun (x, y) => !reset x && !reset y
+  if pairs.isEmpty then throwError "sim: no locals named differently in the loops"
+  let base ← loopInv B #[l₁, l₂]
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    let get (x st : Lean.Expr) : MetaM Lean.Expr := do
+      mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], st]
+    let mut eqs : Array Lean.Expr := #[]
+    for (x, y) in pairs do eqs := eqs.push (← mkEq (← get x σ₁) (← get y σ₂))
+    let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 base σ₁ σ₂).headBeta
+    mkLambdaFVars #[σ₁, σ₂] body
+
 /-- `auto_close` (`Logic/ECClose.lean`, which imports this file) on `g`, when the environment has
 it: the goals left (`[g]` if it does not close it). -/
 def autoCloseIfAvailable (g : MVarId) : TacticM (List MVarId) := do
@@ -711,14 +785,18 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     -- `sim`, the guards agree and the exit by `closeImp`, then on before the loops.  Otherwise it
     -- stops at them.
     let s ← saveState
-    let attempt (eqOnly : Bool) : TacticM (List MVarId) := do
+    -- (`mode`: 0 `loopInv`/EC's `sim (_: J)`, 1 the equality set alone, 2 with the locals
+    -- named differently on the two sides paired, `loopInvPairs`)
+    let attempt (mode : Nat) : TacticM (List MVarId) := do
       let g ← HoareSplit.hoareSplit 1 g
       let ty ← prhlGoal g "sim"
       let B ← instantiateMVars (ty.getArg! 3)
       if B.getAppFn.isMVar then throwError "sim: the relation after the loops is open"
       let l₁ := stripLets (lastOf (ty.getArg! 1))
       let l₂ := stripLets (lastOf (ty.getArg! 2))
-      let I ← if eqOnly then loopInvEq B l₁ l₂ else match inv? with
+      let I ← if mode == 1 then loopInvEq B l₁ l₂
+        else if mode == 2 then loopInvPairs B l₁ l₂
+        else match inv? with
         | some (J, xs) => loopInvWith J eqset.1 xs l₁ l₂
         | none => loopInv B #[l₁, l₂]
       let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_while
@@ -742,19 +820,26 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         if let some m' := r.head? then
           throwError "sim: the loops' guards or exit:{indentExpr (← instantiateMVars (← m'.getType))}"
       sim gPre frame? (fuel - 1) eqset inv?
-    try attempt false
+    try attempt 0
     catch e =>
       s.restore
       if debug.sim.get (← getOptions) then
         -- printed, not logged: an enclosing rule's `restore` would drop a log message
         IO.eprintln s!"sim (loops): {← e.toMessageData.toString}"
       if inv?.isSome then return [g]
-      try attempt true
+      try attempt 1
       catch e =>
         s.restore
         if debug.sim.get (← getOptions) then
           IO.eprintln s!"sim (loops, equality set): {← e.toMessageData.toString}"
-        return [g]
+        -- EC's equality set of pairs: an inlined callee's locals, named differently on the two
+        -- sides (`i0` against `i`), related at their corresponding positions
+        try attempt 2
+        catch e =>
+          s.restore
+          if debug.sim.get (← getOptions) then
+            IO.eprintln s!"sim (loops, pairs): {← e.toMessageData.toString}"
+          return [g]
   | .sample, .sample =>
     let s ← saveState
     try
