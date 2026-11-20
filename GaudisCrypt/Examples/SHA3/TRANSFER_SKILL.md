@@ -369,6 +369,14 @@ Mappings for ssreflect idioms:
 * `omega` does not see through `abbrev handle := ℤ` ("No usable constraints"): use `linarith`,
   and `ne_of_lt`/`.ne` for `≠`.  In `rw [FMap.get_set_neqE _ _ _ _ (by tac)]` the keys are still
   metavariables when `tac` runs: name them, `FMap.get_set_neqE _ x y _ (by tac)`.
+* EC's `proc *` is `equiv_proc_to_stmt`.  EC's `have->: Pr[…] = Pr[…]` is `have h : … := by …`
+  then `rw [h]` (`rw [show … by …]` sees the `Pr[ … ]` before it is elaborated).
+* A lemma over EC's `A <: Adv` (no restriction) applied to a concrete game: the game's
+  `Module.Declared _ ⊥` is `⟨by fp_finite, by fp_disjoint⟩`; `fp_finite` needs an `@[fp_bound]` for
+  a module family with a Lean parameter inside the game (`DRestr D`: `fp_module C.c`, the
+  variables it adds as the tactic's argument).
+* `byphoare Hl` with `Hl : islossless p` (EC's `phoare[ p : true ==> true ] = 1%r`) closes
+  `Pr[ p (a) @ &m : true ] = 1`.
 * EC's `smt` sees through the section's `op`s (`(<=)` on maps in Gconcl_list) and `oget`;
   `grind` does not: give `smt_close` the definition (`smt_close [FMap.domE, «<=»]`) and, for
   `oget m.[x]` with `x \in m`, EC's `FMap.get_some`.

@@ -230,11 +230,20 @@ partial def finite (hook : FootprintSolver.BoundHook) (F : Lean.Expr) (fuel : Na
 
 end ModuleFootprint
 
-open Lean Elab Tactic ModuleFootprint in
+open Lean Meta Elab Tactic ModuleFootprint in
 /-- `fp_disjoint`, with the footprints of concrete modules read off their code (see the module
 docstring). -/
 elab_rules : tactic
   | `(tactic| fp_disjoint) => liftMetaFinishingTactic fun g => do
+    -- against nothing (`F ≤ ⊥ᶜ`, a module declared without restriction, EC's `A <: Adv`):
+    -- always, by `⊥ ≤ Fᶜ`; read off the goal's syntax, so the other goals pay nothing
+    let ty ← instantiateMVars (← g.getType)
+    if let some (_, _, F, rhs) := ty.app4? ``LE.le then
+      if let some (_, _, S) := rhs.app3? ``Compl.compl then
+        if S.isAppOf ``Bot.bot then
+          g.assign (← mkAppM ``Iff.mpr #[← mkAppM ``Footprint.le_compl_comm #[F, S],
+            ← mkAppOptM ``bot_le #[none, none, none, ← mkAppM ``Compl.compl #[F]]])
+          return
     FootprintSolver.solve g cachedBound
 
 open Lean Elab Tactic ModuleFootprint in

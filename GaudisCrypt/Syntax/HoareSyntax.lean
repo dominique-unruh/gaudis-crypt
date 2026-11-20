@@ -254,7 +254,9 @@ def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) := do
     if ty.isAppOf ``Module.Arr then
       throwErrorAt M "a triple is about a procedure, but this module still takes module \
         parameters — apply them first"
-    let ty' ← whnfCore ty
+    -- reducible unfolding too: a module type that is an abbreviation (EC's one-procedure
+    -- `module type Adv = { proc main() : bool }` as `abbrev Adv := procmod () → Bool`)
+    let ty' ← whnfR ty
     if ty' == ty then break
     ty := ty'
   throwErrorAt M m!"expected a procedure or a procedure module `Module.Proc …`, \

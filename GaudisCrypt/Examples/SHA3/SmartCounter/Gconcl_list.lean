@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl
+import GaudisCrypt.Lib.EC.AdvAbsVal
 import GaudisCrypt.Logic.ECProgress
 import GaudisCrypt.Lib.EC.ListLemmas
 import GaudisCrypt.Examples.SHA3.BlockSponge
@@ -967,42 +968,6 @@ omit [Params] in
 theorem fvP_Neg_D (D : DISTINGUISHER) : FVP.fvP (Real_Ideal_Abs.Neg_D D) ≤ FVP.fvP D := by
   fp_module
 
-omit [SLCommon.Params] [BlockSponge.Params] [Params] in
-/-- EC's `Neg_A_Pr_minus`, for a lossless procedure. -/
-theorem Pr_false_eq_one_sub {p : Procedure (procsig () -> Bool)} (hp : p.IsLossless)
-    (σ : VariableAssignment) :
-    ((p.Pr () σ (fun r _ => r = false) : NNReal) : ℝ) =
-      1 - ((p.Pr () σ (fun r _ => r = true) : NNReal) : ℝ) := by
-  have h1 : (p.Pr () σ (fun r _ => r = false) : ENNReal) + p.Pr () σ (fun r _ => r = true) = 1 := by
-    rw [Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp, ← Procedure.ewp_add, ← hp () σ]
-    congr 1
-    funext v g
-    cases v <;> simp [indicatorE]
-  have h2 : (p.Pr () σ (fun r _ => r = false) : ℝ) + p.Pr () σ (fun r _ => r = true) = 1 := by
-    have := congrArg ENNReal.toReal h1
-    rw [ENNReal.toReal_add ENNReal.coe_ne_top ENNReal.coe_ne_top] at this
-    simpa using this
-  linarith
-
-/-- A game on `Neg_D(D)` answers the negation of the game on `D` (EC: `byequiv; proc; inline*;
-sim`). -/
-theorem Indif_Neg_D (F : FUNCTIONALITY) (P0 : PRIMITIVE) (D : DISTINGUISHER) :
-    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
-      (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
-        (Module.pair F (Module.pair P0 (DRestr D)))).procedure
-      (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
-        (Module.pair F (Module.pair P0 (DRestr (Neg_D D))))).procedure
-      (fun r₁ _ r₂ _ => r₁ = !r₂) := by
-  equiv_proc_to_stmt
-  stmt_inline{1} 0
-  stmt_inline{2} 0
-  stmt_inline{1} 2
-  stmt_inline{2} 2
-  stmt_inline{2} 3
-  stmt_wp
-  simp only [Bool.not_not]
-  equiv_sim
-
 end Real_Ideal_Abs
 
 /-! ## The simulator -/
@@ -1234,9 +1199,8 @@ set_option ec.strict true
   written out.
 * GAP 16: inlining names the two sides' locals differently (`i`/`i0`), and `sim` does not match
   them: the loop by its invariant.
-* GAP 17: EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A_Pr_minus`) is not ported: `neg_D_concl`
-  states its two steps as one equation, from the first port's `Indif_Neg_D` and
-  `Pr_false_eq_one_sub`.
+* GAP 17 (closed 2026-11-20): EC's theory `AdvAbsVal` is `Lib/EC/AdvAbsVal.lean`; `neg_D_concl`
+  is EC's script.
 * After `sp`, a goal prints as the plain `prhlStmt` term until the next tactic (the conditions
   `x = e` it adds are not in read form); display only.
 * EC's `List` lemmas the scripts cite (`take0`, `size_take`, `nth_take`, `size_cat`, `last_nseq`,
@@ -4819,13 +4783,24 @@ end Real_Ideal
 EC's section, complete.  Three deviations, each at its lemma: `Real_lossless` calls `D` with
 lossless oracles where EC keeps the invariant `invm Perm.m Perm.mi` (GAP 12); in
 `Ideal_lossless` the sampling behind a loop is passed by `phoare_auto` and one rewrite (GAP 13);
-`neg_D_concl` states EC's two `AdvAbsVal` steps as one equation (GAP 17).  The section's `D` has
+`neg_D_concl` is EC's script with `AdvAbsVal`'s `Neg_A_Pr_minus`.  The section's `D` has
 a region for `glob D` (exception E14): `concl` is applied to `Neg_D(D)` here, and
 `Inefficient_Real_Ideal` to a distinguisher built from a declared one in `SHA3Indiff`. -/
 
 section Real_Ideal_Abs
 
 open GaudisCrypt.SHA3.Gconcl_list.Real_Ideal_Abs (Neg_D)
+open GaudisCrypt.EC.AdvAbsVal (Neg_main Neg_A_Pr_minus)
+
+omit [Gconcl_list.Params] in
+/-- `DRestr(D)` touches what `D` does and the counter `C.c`.  Not an EC lemma: `Neg_A_Pr_minus`
+takes the games on `Neg_D(D)` as modules with finitely many globals, which the footprint solver
+reads through it. -/
+theorem fvP_DRestr' (D : DISTINGUISHER) :
+    FVP.fvP (DRestr D) ≤ FVP.fvP D ⊔ C.c.footprint := by
+  fp_module C.c
+
+attribute [local fp_bound] fvP_DRestr'
 
 -- (the same restriction as section `Real_Ideal`'s, whose `concl` is applied to `Neg_D(D)`; and
 -- a region for `glob D`, exception E14: `Inefficient_Real_Ideal` is applied to a distinguisher
@@ -5041,13 +5016,10 @@ Pr [ RealIndif(Sponge,P,DRestr(D)).main() @ &m : res ] +
 (max_size ^ 2 - max_size)%r / 2%r / (2^r)%r / (2^c)%r + max_size%r * ((2*max_size)%r / (2^c)%r) +
 max_size%r * ((2*max_size)%r / (2^c)%r)`.
 
-Deviation (GAP 17): EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A_Pr_minus`) is not ported.  EC
-moves both games to `Neg_main` of the game on `Neg_D(D)` (two `byequiv … sim`) and applies
-`Neg_A_Pr_minus` with the game's losslessness; together the two steps say that the game on `D`
-answers `true` with one minus the probability of the game on `Neg_D(D)`.  That is stated here
-(`eI'`, `eR'`), from the first port's `Indif_Neg_D` (the game on `Neg_D(D)` answers the negation)
-and `Pr_false_eq_one_sub` (EC's `Pr[mu_not]` for a lossless procedure).  `concl` is applied to
-`Neg_D(D)` with the region of `D` (`glob Neg_D(D)` is `glob D`). -/
+EC's script, with `AdvAbsVal`'s `Neg_main` and `Neg_A_Pr_minus` (`Lib/EC/AdvAbsVal.lean`); the
+games are modules with finitely many globals (`Neg_A_Pr_minus`'s `A <: Adv`) through the bound
+`fvP_DRestr'`.  `concl` is applied to `Neg_D(D)` with the region of `D` (`glob Neg_D(D)` is
+`glob D`). -/
 theorem neg_D_concl (m : VariableAssignment) :
     Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] ≤
       Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] +
@@ -5058,35 +5030,35 @@ theorem neg_D_concl (m : VariableAssignment) :
   -- EC: have->:Pr[IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main() @ &m : res] =
   --       Pr[Neg_main(IdealIndif(BIRO.IRO, SimLast(S), DRestr(Neg_D(D)))).main() @ &m : res].
   --     + by byequiv=>//=;proc;inline*;auto;conseq(:_==> b0{1} = b2{2});progress;sim.
-  --     have h2 := Neg_A_Pr_minus (IdealIndif(BIRO.IRO, SimLast(S), DRestr(Neg_D(D)))) &m
+  --     (the left's `b0`, a `Bool`, is written with its type: `b0` is also the zero block)
+  have eI : Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] =
+      Pr[ Neg_main(IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(Neg_D(D)))).main () @ &m :
+        §res ] := by
+    byequiv; equiv_proc; stmt_inline*; ec_auto
+    equiv_conseq (: _ ==> §(localVarLens "b0" Bool){1} = §b2{2})
+    case post => ec_progress
+    sim
+  rw [eI]
+  -- EC: have h2 := Neg_A_Pr_minus (IdealIndif(BIRO.IRO, SimLast(S), DRestr(Neg_D(D)))) &m
   --       Ideal_lossless.
-  have eI := Procedure.Pr_eq_of_prhlProc (Real_Ideal_Abs.Indif_Neg_D BIRO.IRO.asF
-    (Module.app (SimLast S) (GaudisCrypt.SHA3.Indifferentiability.FUNCTIONALITY.view SLCommon.state
-      (List block × ℤ) (List block) BIRO.IRO.asF)) D)
-    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = false)
-    (fun r₁ _ r₂ _ h => by subst h; cases r₂ <;> simp) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
-  have lI := Real_Ideal_Abs.Pr_false_eq_one_sub (Ideal_lossless D D_lossless) m
-  have eI' : Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(D)).main () @ &m : §res ] =
-      1 - Pr[ IdealIndif(BIRO.IRO.asF, SimLast(S), DRestr(Neg_D(D))).main () @ &m : §res ] :=
-    (congrArg NNReal.toReal eI).trans lI
+  have h2 := @Neg_A_Pr_minus _ ⟨by fp_finite, by fp_disjoint⟩ m (Ideal_lossless D D_lossless)
   -- EC: have->:Pr [ RealIndif(Sponge,P,DRestr(D)).main() @ &m : res ] =
   --       Pr [ Neg_main(RealIndif(Sponge,P,DRestr(Neg_D(D)))).main() @ &m : res ].
   --     + by byequiv=>//=;proc;inline*;auto;conseq(:_==> b0{1} = b2{2});progress;sim.
-  --     have h1 := Neg_A_Pr_minus (RealIndif(Sponge,P,DRestr(Neg_D(D)))) &m Real_lossless.
-  have eR := Procedure.Pr_eq_of_prhlProc (Real_Ideal_Abs.Indif_Neg_D (Module.app Sponge
-    (GaudisCrypt.SHA3.Indifferentiability.PRIMITIVE.view SLCommon.state (List block × ℤ)
-      (List block) P)) P D)
-    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = false)
-    (fun r₁ _ r₂ _ h => by subst h; cases r₂ <;> simp) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
-  have lR := Real_Ideal_Abs.Pr_false_eq_one_sub (Real_lossless D D_lossless) m
-  have eR' : Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] =
-      1 - Pr[ RealIndif(Sponge, Perm, DRestr(Neg_D(D))).main () @ &m : §res ] :=
-    (congrArg NNReal.toReal eR).trans lR
+  have eR : Pr[ RealIndif(Sponge, Perm, DRestr(D)).main () @ &m : §res ] =
+      Pr[ Neg_main(RealIndif(Sponge, Perm, DRestr(Neg_D(D)))).main () @ &m : §res ] := by
+    byequiv; equiv_proc; stmt_inline*; ec_auto
+    equiv_conseq (: _ ==> §(localVarLens "b0" Bool){1} = §b2{2})
+    case post => ec_progress
+    sim
+  rw [eR]
+  -- EC: have h1 := Neg_A_Pr_minus (RealIndif(Sponge,P,DRestr(Neg_D(D)))) &m Real_lossless.
+  have h1 := @Neg_A_Pr_minus _ ⟨by fp_finite, by fp_disjoint⟩ m (Real_lossless D D_lossless)
   -- EC: have/#:=concl (Neg_D(D)) _ &m;progress.
   --     by proc;call(D_lossless F0 P0 H H0 H1);auto.
   have hc := @concl _ _ _ (Neg_D D) ⟨by fp_finite, by fp_disjoint⟩ _ _ _
     (Neg_D_lossless D D_lossless) m
-  rw [eI', eR']
+  rw [h2, h1]
   linarith
 
 set_option synthInstance.maxHeartbeats 400000 in

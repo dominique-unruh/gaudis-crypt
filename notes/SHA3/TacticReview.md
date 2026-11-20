@@ -385,8 +385,7 @@ module `L D`, which `RO_LRO_D` takes (E5).
   of `D`, because EC's permutation samples losslessly only under it; here `Perm.f`, `Perm.fi`
   are lossless in every state, so the call is EC's `call (: true)`.
 * `neg_D_concl`: `concl` applied to `Neg_D(D)` with the region of `D` (the second use of the
-  region form).  EC's theory `AdvAbsVal` is not ported (GAP 17): its two steps are one equation
-  here, from two lemmas of the first port.
+  region form).  Since 2026-11-20 EC's script with `AdvAbsVal` (GAP 17 closed).
 * `Inefficient_Real_Ideal`, `Real_Ideal`: EC's lines.
 All of section `Real_Ideal_Abs` and the last section declare `D` with a region, since
 `SHA3Indiff` applies `Real_Ideal` to `LowerDist(Dist)`.
@@ -431,7 +430,9 @@ first needs a full rebuild, so they go together):
 7. `smt_close`'s unknown free variable in `ec_instances` (GAP 2).
 8. `sim` over differently named locals (GAP 16); pair states equal by components (GAP 8).
 9. EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A`, `Neg_A_Pr`, `Neg_A_Pr_minus`): a small library
-   file; needs `proc *` and `Pr[mu_not]` (GAP 17).
+   file; needs `proc *` and `Pr[mu_not]` (GAP 17).  **Done 2026-11-20** (`Lib/EC/AdvAbsVal.lean`;
+   `proc *` is `equiv_proc_to_stmt`, `Pr[mu_not]` is `Pr_mu_not`; on the way: procedure modules
+   typed by an abbreviation, `byphoare Hl` with `Hl : islossless p`, `fp_disjoint` against `⊥`).
 10. From `Sponge.lean` (its GAP 2–5): EC's path for a callee inside a library procedure;
    reads through a discarded call result in the strict `auto`; the oracle goals of an abstract
    call in the module's own procedure names, and only for the procedures the module type's

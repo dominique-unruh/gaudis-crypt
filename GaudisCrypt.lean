@@ -240,6 +240,7 @@ import GaudisCrypt.Logic.ECCallTrueTest
 import GaudisCrypt.Examples.WhileSampling
 import GaudisCrypt.Lib.EC.ROM
 import GaudisCrypt.Lib.EC.OW
+import GaudisCrypt.Lib.EC.AdvAbsVal
 import GaudisCrypt.Lib.EC.IsUniform
 import GaudisCrypt.Lib.EC.ListFind
 import GaudisCrypt.Logic.ECCallFrameRel

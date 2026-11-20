@@ -203,6 +203,18 @@ elab "byequiv" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
   if !judgment.isEmpty then
     try evalTactic (← `(tactic| beta_reduce)) catch _ => pure ()
 
+/-- A lossless procedure's probability of an event that always holds is `1` (EC's
+`byphoare Hl` with `Hl : islossless p` on `Pr[ p @ &m : true ] = 1%r`). -/
+theorem Procedure.toReal_Pr_eq_one_of_isLossless {sig : ProcedureSignature} {p : Procedure sig}
+    (h : p.IsLossless) {a : sig.ParamType} {σ : VariableAssignment}
+    {E : sig.ret → VariableAssignment → Prop} (hE : ∀ v g, E v g) :
+    ((p.Pr a σ E : NNReal) : ℝ) = 1 := by
+  have : (p.Pr a σ E : ENNReal) = 1 := by
+    rw [Procedure.Pr_eq_ewp, ← h a σ]
+    congr 1; funext v g; simp [indicatorE, hE v g]
+  have h2 := congrArg ENNReal.toReal this
+  simpa using h2
+
 open Lean Meta Elab Tactic PrTactics in
 /-- **EC's `byphoare`**, see the module docstring. -/
 elab "byphoare" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
@@ -221,6 +233,29 @@ elab "byphoare" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
   let hasHx := rule != ``Procedure.le_toReal_Pr_of_phoareProc
   match h? with
   | some h =>
+    -- EC's `islossless p` is the judgment `phoare[ p : true ==> true ] = 1%r`: on
+    -- `Pr[ p (a) @ &m : E ] = 1` with `E` true (its `let`s unfolded), ours is
+    -- `Procedure.IsLossless p`, through `toReal_Pr_eq_one_of_isLossless`
+    -- (a hypothesis's name only, its type read without side effects: a term with named holes,
+    -- `(?j : phoare[ … ])`, must be elaborated once, by the rule)
+    let name := if h.raw.isOfKind ``Lean.Parser.Term.paren then h.raw[1] else h.raw
+    let isLossless ← if name.isIdent then withoutModifyingState do
+        let hTy ← whnfR (← instantiateMVars (← inferType (← Term.elabTerm h none)))
+        pure (hTy.isAppOf ``Procedure.IsLossless)
+      else pure false
+    if isLossless then
+      unless rel == ``Eq do
+        throwError "byphoare: with `islossless p`, the goal is `Pr[ p (a) @ &m : true ] = 1`"
+      let pT ← Term.exprToSyntax P[1]!
+      let aT ← Term.exprToSyntax P[2]!
+      let mT ← Term.exprToSyntax P[3]!
+      let eT ← Term.exprToSyntax P[4]!
+      evalTactic (← `(tactic|
+        refine Eq.trans (Procedure.toReal_Pr_eq_one_of_isLossless (p := $pT) (a := $aT)
+          (σ := $mT) (E := $eT) (show Procedure.IsLossless $pT from $h) ?hE) ?hx))
+      evalTactic (← `(tactic| case hE => intro _ _; simp))
+      evalTactic (← `(tactic| case hx => norm_num))
+      return
     if hasHx then evalTactic (← `(tactic| refine $ruleId $h ?hA ?hr ?hx))
     else evalTactic (← `(tactic| refine $ruleId $h ?hA ?hr))
   | none =>

@@ -157,4 +157,9 @@ example : equiv[ FairCoin.flip ~ FairCoin.flip : True ==> ={res} ] := by
   trace_state
   sorry
 
+-- EC's `byphoare Hl` with `Hl : islossless p`: the probability of `true` is `1`
+example (m : VariableAssignment) (Hl : Procedure.IsLossless (Module.Proc.procedure FairCoin.flip)) :
+    Pr[ FairCoin.flip (true) @ &m : True ] = 1 := by
+  byphoare (Hl)
+
 end GaudisCrypt.ByPrTest

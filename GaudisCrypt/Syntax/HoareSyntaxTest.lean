@@ -387,6 +387,11 @@ info: expected a procedure or a procedure module `Module.Proc …`, but this has
 #guard_msgs in
 #check_failure hoare[ x : True ==> True ]
 
+-- a procedure module whose type is an abbreviation (EC's one-procedure module type
+-- `module type Adv = { proc main() : bool }`)
+abbrev AbbrevProcType := procmod () → Bool
+example (A : AbbrevProcType) : Prop := hoare[ A : True ==> True ]
+
 /- ### Printing
 
 A procedure triple prints back in surface syntax, the parameter names recovered from the `let`s

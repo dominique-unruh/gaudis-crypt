@@ -670,6 +670,10 @@ example (R : ℤ → ℤ → Prop) :
 -- in `R`'s restriction), a module built from one declared against `R`
 example : Module.Declared Inc R := ⟨by fp_finite, by fp_disjoint⟩
 
+-- declared against nothing (EC's `A <: T` without restriction, as `Neg_main(A)` of
+-- `AdvAbsVal` asks of a concrete game)
+example : Module.Declared Inc ⊥ := ⟨by fp_finite, by fp_disjoint⟩
+
 example (O : Orc) [Module.Declared O R] : FVP.fvP (Module.app Twice O) ≤ Rᶜ := by fp_disjoint
 
 -- the region is restricted against less (as a declaration is)
