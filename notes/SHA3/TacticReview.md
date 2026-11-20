@@ -805,8 +805,10 @@ in one and a half), then one full rebuild per item.
    `L4`, `L4F`, `L4G` and their bridges deleted): `equiv_ideal`'s four steps are EC's.  Cost:
    `Gconcl_list` 314 s → 406 s (the four `RO_LRO_D` side conditions, `ec_module`/`fp_disjoint`
    over `D2(D)` … `D6(D)`, run inside `equiv_ideal`, where the bridges' footprint lemmas ran in
-   parallel).  Left: `S2`, `DValid` as aliases (then `equiv_L3_L4`, `equiv_L4_ideal` lose their
-   extra inline after the simulator's call).
+   parallel).  `S2`, `DValid`, `SimLast` as aliases the next day (`cfe2989`;
+   `equiv_L3_L4`, `equiv_L4_ideal` lost their extra inline after the simulator's call), with every
+   other procedure alias of the port (SecureORO, SHA3_OIndiff, IndifRO_is_secure, SHA3Security,
+   SHA3OSecurity): E5 is down to the whole-module aliases.
 4. **`clone`'s module variables** (item 3 above; a design decision, the least certain).
    First a test (`Syntax/CloneTest.lean`): two clones of one theory at the same types with
    different operators, to see what breaks in fact (used through their namespaces they may

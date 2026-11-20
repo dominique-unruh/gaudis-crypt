@@ -96,7 +96,8 @@ The proof stops at the first port's `Valid2`, the limit above.
 
 ## Use
 
-Removes exception E5 once the wrappers are converted (`SimLast`, `DValid`, `L`, `D2`, `D3`,
-`FSome`, `RF`, `Bounder`, the SHA-3 sections' `FInit`/`PInit`/…).  It is also the first step of
-porting `Gconcl_list`'s lazy/eager block in EasyCrypt's form, which then needs the first port's
-`Valid2`/`IF'`/`L`/`L2`/`L4` as modules and PROM's `RO_Distinguisher` over any procedure signature.
+Done (2026-11-19/20): every procedure alias of the SHA-3 port is EC's (26 wrappers converted,
+list in `notes/SHA3/Exceptions.md`, E5), and `Gconcl_list.equiv_ideal`'s four lazy/eager steps are
+EC's script (with PROM's `RO_LRO_D` over any procedure signature and `ec_auto`'s `subst_states`).
+Exception E5 now covers only whole-module aliases (`module X = expr`), which this feature does not
+provide.
