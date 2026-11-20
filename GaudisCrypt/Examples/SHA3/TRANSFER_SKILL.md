@@ -369,6 +369,9 @@ Mappings for ssreflect idioms:
 * `omega` does not see through `abbrev handle := ℤ` ("No usable constraints"): use `linarith`,
   and `ne_of_lt`/`.ne` for `≠`.  In `rw [FMap.get_set_neqE _ _ _ _ (by tac)]` the keys are still
   metavariables when `tac` runs: name them, `FMap.get_set_neqE _ x y _ (by tac)`.
+* EC's `smt` sees through the section's `op`s (`(<=)` on maps in Gconcl_list) and `oget`;
+  `grind` does not: give `smt_close` the definition (`smt_close [FMap.domE, «<=»]`) and, for
+  `oget m.[x]` with `x \in m`, EC's `FMap.get_some`.
 * `rewrite xorwA xorwK xorwC xorw0` → the same `rw`, with EC's names from `Lib/EC/BitWordRing`
   (import it, `open GaudisCrypt.EC.BitWord (xorwA xorwK xorwC xorw0)`).
 * `smt (@Block.DBlock …)` for losslessness → the `@[simp]` facts `bdistr_expected_one` etc.

@@ -227,7 +227,8 @@ theorem leq_add_nin {β : Type} (m1 m2 : FMap (List block) β) (x : List block) 
 theorem leq_add_in {β : Type} [Inhabited β] (m1 m2 : FMap (List block) β) (x : List block) :
     «<=» m1 m2 → FMap.dom m2 x → «<=» (FMap.set m1 x (oget (FMap.get m2 x))) m2 := by
   -- EC: move=>h_leq H_n_dom a H_a_dom;rewrite get_setE/=;smt(domE get_setE).
-  intro h_leq H_n_dom a ha H_a_dom; rw [FMap.get_setE]; smt_close [FMap.domE, FMap.get_setE, «<=», FMap.get_some]
+  intro h_leq H_n_dom a ha H_a_dom; rw [FMap.get_setE]
+  smt_close [FMap.domE, FMap.get_setE, «<=», FMap.get_some]
 
 theorem leq_nin_dom {β : Type} (m1 m2 : FMap (List block) β) (x : List block) :
     «<=» m1 m2 → x ≠ [] → ¬ FMap.dom m2 x → ¬ FMap.dom m1 x := by
