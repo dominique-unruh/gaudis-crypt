@@ -58,10 +58,10 @@ Translation:
   precondition at another type (`x1`{1}, `x0`{2}), and a variable the statement no longer
   mentions (`k` after `wp`, in `splitwhile`'s condition) are written with their lenses,
   `§(localVarLens "x0" (List Bool)){2}` (GAP 2);
-* GAP 3: the first port's `ODRestr` hands the adversary its primitive built with the first
-  port's module type constructor, which the clone `SH`'s projections do not see through:
-  `simp only [ODPRIMITIVE_f_mk]` (`ODPRIMITIVE_fi_mk`) in front of `proc` on the primitive's
-  procedures;
+* GAP 3 (closed): the first port's `ODRestr` hands the adversary its primitive built with the
+  first port's module type constructor, which the clone `SH`'s projections did not see through;
+  `proc` and `inline*` open it since 2026-11-17 (procedures across clones' module types), and the
+  hand `simp only [ODPRIMITIVE_f_mk]` lines left over from before went on 2026-11-21;
 * GAP 4: after `sp` through a game's initializations, `glob A` is equal in the two memories by
   the memories' equation, taken out by hand (GAP 7 of `SHA3Security.lean`).  Where the two sides'
   initializations are the same, `ec_auto` derives the memories' equality itself (`subst_states`,
@@ -556,20 +556,6 @@ theorem RO_LRO_D {sig : ProcedureSignature} (D : RO_T →ₘ Module.Proc sig)
     (fun _ => dbool_ll) RO.m D hD hdisj
 
 end Eager
-
-/-- A sponge-level primitive given to an adversary of the clone `SH` (EC's module types are
-structural): its `f` is the primitive's.  (The first port's `ODRestr` builds the primitive with
-its own module type's constructor, which the clone's projection lemma does not match.) -/
-theorem ODPRIMITIVE_f_mk (f fi) :
-    SH.OIndif.ODPRIMITIVE.f (GaudisCrypt.SHA3.OptionIndifferentiability.ODPRIMITIVE.mk
-      SHA3Indiff.state (List Bool × ℤ) (List Bool) { f := f, fi := fi }) = f :=
-  SH.OIndif.ODPRIMITIVE.f.mk_simp { f := f, fi := fi }
-
-/-- As `ODPRIMITIVE_f_mk`, for `fi`. -/
-theorem ODPRIMITIVE_fi_mk (f fi) :
-    SH.OIndif.ODPRIMITIVE.fi (GaudisCrypt.SHA3.OptionIndifferentiability.ODPRIMITIVE.mk
-      SHA3Indiff.state (List Bool × ℤ) (List Bool) { f := f, fi := fi }) = fi :=
-  SH.OIndif.ODPRIMITIVE.fi.mk_simp { f := f, fi := fi }
 
 /-! ## Section `Preimage` (EC l. 190–916) -/
 
@@ -1551,9 +1537,7 @@ theorem eager_ideal (m : VariableAssignment) :
     equiv_call (_ : ={Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
       Gconcl_list.BIRO2.IRO.mp} ∧ §IRO.mp{1} = §Eager.RO.m{2})
     -- EC: - proc; sp; if; auto.
-    --     (GAP 3: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
@@ -1579,8 +1563,7 @@ theorem eager_ideal (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; sim
+    · equiv_proc; stmt_inline*; sim
     -- EC: proc; sim 1 1.
     --     inline{1} 1; inline{2} 1; sp; sim 1 1.
     · equiv_proc; stmt_wp
@@ -1634,9 +1617,7 @@ theorem eager_ideal (m : VariableAssignment) :
     equiv_call (_ : ={Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
       Gconcl_list.BIRO2.IRO.mp} ∧ §IRO.mp{1} = §Eager.RO.m{2})
     -- EC: - proc; sp; if; auto.
-    --     (GAP 3: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
@@ -1661,8 +1642,7 @@ theorem eager_ideal (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; sim
+    · equiv_proc; stmt_inline*; sim
     -- EC: proc; sim 1 1.
     --     inline{1} 1; inline{2} 1; sp; sim 1 1.
     · equiv_proc; stmt_wp
@@ -1859,8 +1839,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
     --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}); last first; auto.
     equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
       Counter.c} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
@@ -1877,8 +1856,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
           · ec_auto
         · ec_auto
       · ec_auto
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
@@ -2015,9 +1993,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
     Counter.c, Log.m} ∧ inv §IRO.mp{1} §RFList.m{2} ∧
     §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
   -- EC: + proc; sp; if; auto=> />; 1: smt().
-  --     (GAP 3 on the left: the primitive's `f` behind the first port's constructor)
-  · simp only [ODPRIMITIVE_f_mk]
-    equiv_proc; stmt_sp
+  · equiv_proc; stmt_sp
     stmt_if
     · ec_close
     -- EC: inline{1} 1; inline{2} 1; sp; auto.
@@ -2069,8 +2045,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
       · ec_auto; ec_close
     · ec_auto
   -- EC: + by proc; inline*; sp; if; auto; sp; if; auto=> />; smt().
-  · simp only [ODPRIMITIVE_fi_mk]
-    equiv_proc; stmt_inline*; stmt_sp
+  · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
     · ec_close
     · stmt_sp; stmt_if
@@ -2357,17 +2332,12 @@ theorem rw_real (m : VariableAssignment) :
       · ec_close
       sim
     · ec_auto
-  --     (the initializations: `PSome(Perm).init` behind the clone's projection, GAP 6)
-  stmt_inline{1} 0
-  rw [PSome_Perm_init _ rfl]
-  simp only [PSome, GaudisCrypt.SHA3.OptionIndifferentiability.OPRIMITIVE.init.mk_simp]
   stmt_inline*
   stmt_swap{1} 4; stmt_sp
   -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
   equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
   -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
-  · simp only [ODPRIMITIVE_f_mk]
-    equiv_proc; stmt_inline*; stmt_sp
+  · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
     · ec_close
     · stmt_sp; stmt_if
@@ -2376,8 +2346,7 @@ theorem rw_real (m : VariableAssignment) :
       · ec_auto
     · ec_auto
   -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
-  · simp only [ODPRIMITIVE_fi_mk]
-    equiv_proc; stmt_inline*; stmt_sp
+  · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
     · ec_close
     · stmt_sp; stmt_if
@@ -2824,9 +2793,7 @@ theorem eager_ideal (m : VariableAssignment) :
     equiv_call (_ : ={Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
       Gconcl_list.BIRO2.IRO.mp, Dist_of_P2Adv.m} ∧ §IRO.mp{1} = §Eager.RO.m{2})
     -- EC: - proc; sp; if; auto.
-    --     (GAP 3: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
@@ -2852,8 +2819,7 @@ theorem eager_ideal (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; sim
+    · equiv_proc; stmt_inline*; sim
     -- EC: proc; sim 1 1.
     --     inline{1} 1; inline{2} 1; sp; sim 1 1.
     · equiv_proc; stmt_wp
@@ -2925,9 +2891,7 @@ theorem eager_ideal (m : VariableAssignment) :
     equiv_call (_ : ={Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
       Gconcl_list.BIRO2.IRO.mp, Dist_of_P2Adv.m} ∧ §IRO.mp{1} = §Eager.RO.m{2})
     -- EC: - proc; sp; if; auto.
-    --     (GAP 3: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
@@ -2952,8 +2916,7 @@ theorem eager_ideal (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; sim
+    · equiv_proc; stmt_inline*; sim
     -- EC: proc; sim 1 1.
     --     inline{1} 1; inline{2} 1; sp; sim 1 1.
     · equiv_proc; stmt_wp
@@ -3114,8 +3077,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
     --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}); last first; auto.
     equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
       Counter.c, Dist_of_P2Adv.m} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
@@ -3132,8 +3094,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
           · ec_auto
         · ec_auto
       · ec_auto
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
@@ -3340,9 +3301,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
       Counter.c, Log.m} ∧ inv §IRO.mp{1} §RFList.m{2} ∧
       §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
     -- EC: + proc; sp; if; auto=> />; 1: smt().
-    --     (GAP 3 on the left: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; auto.
@@ -3394,8 +3353,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
         · ec_auto; ec_close
       · ec_auto
     -- EC: + by proc; inline*; sp; if; auto; sp; if; auto=> />; smt().
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; stmt_sp
+    · equiv_proc; stmt_inline*; stmt_sp
       stmt_if
       · ec_close
       · stmt_sp; stmt_if
@@ -3733,18 +3691,13 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
           · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
           ec_auto
         · ec_auto
-    --     (the initializations: `PSome(Perm).init` behind the clone's projection, GAP 6)
-    stmt_inline{1} 0
-    rw [PSome_Perm_init _ rfl]
-    simp only [PSome, GaudisCrypt.SHA3.OptionIndifferentiability.OPRIMITIVE.init.mk_simp]
     stmt_inline*
     stmt_sp
     -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
     equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2} ∧
       §Dist_of_P2Adv.m{2} = mess)
     -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_inline*; stmt_sp
+    · equiv_proc; stmt_inline*; stmt_sp
       stmt_if
       · ec_close
       · stmt_sp; stmt_if
@@ -3753,8 +3706,7 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; stmt_sp
+    · equiv_proc; stmt_inline*; stmt_sp
       stmt_if
       · ec_close
       · stmt_sp; stmt_if
@@ -4076,9 +4028,7 @@ theorem eager_ideal (m : VariableAssignment) :
     equiv_call (_ : ={Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
       Gconcl_list.BIRO2.IRO.mp} ∧ §IRO.mp{1} = §Eager.RO.m{2})
     -- EC: - proc; sp; if; auto.
-    --     (GAP 3: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
@@ -4104,8 +4054,7 @@ theorem eager_ideal (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; sim
+    · equiv_proc; stmt_inline*; sim
     -- EC: proc; sim 1 1.
     --     inline{1} 1; inline{2} 1; sp; sim 1 1.
     · equiv_proc; stmt_wp
@@ -4173,9 +4122,7 @@ theorem eager_ideal (m : VariableAssignment) :
     equiv_call (_ : ={Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
       Gconcl_list.BIRO2.IRO.mp} ∧ §IRO.mp{1} = §Eager.RO.m{2})
     -- EC: - proc; sp; if; auto.
-    --     (GAP 3: the primitive's `f` behind the first port's constructor)
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       -- EC: inline{1} 1; inline{2} 1; sp; sim 1 1.
@@ -4200,8 +4147,7 @@ theorem eager_ideal (m : VariableAssignment) :
         · ec_auto
       · ec_auto
     -- EC: - by proc; inline*; sim.
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_inline*; sim
+    · equiv_proc; stmt_inline*; sim
     -- EC: proc; sim 1 1.
     --     inline{1} 1; inline{2} 1; sp; sim 1 1.
     · equiv_proc; stmt_wp
@@ -4352,8 +4298,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
     --       eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2}); last first; auto.
     equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
       Counter.c} ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log.m{2})
-    · simp only [ODPRIMITIVE_f_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
@@ -4370,8 +4315,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
           · ec_auto
         · ec_auto
       · ec_auto
-    · simp only [ODPRIMITIVE_fi_mk]
-      equiv_proc; stmt_sp
+    · equiv_proc; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp
@@ -4563,9 +4507,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
     Counter.c, Log.m} ∧ inv §IRO.mp{1} §RFList.m{2} ∧
     §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
   -- EC: + proc; sp; if; auto=> />; 1: smt().
-  --     (GAP 3 on the left: the primitive's `f` behind the first port's constructor)
-  · simp only [ODPRIMITIVE_f_mk]
-    equiv_proc; stmt_sp
+  · equiv_proc; stmt_sp
     stmt_if
     · ec_close
     -- EC: inline{1} 1; inline{2} 1; sp; auto.
@@ -4617,8 +4559,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
       · ec_auto; ec_close
     · ec_auto
   -- EC: + by proc; inline*; sp; if; auto; sp; if; auto=> />; smt().
-  · simp only [ODPRIMITIVE_fi_mk]
-    equiv_proc; stmt_inline*; stmt_sp
+  · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
     · ec_close
     · stmt_sp; stmt_if
@@ -4941,17 +4882,12 @@ theorem rw_real (m : VariableAssignment) :
         · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
         ec_auto
       · ec_auto
-  --     (the initializations: `PSome(Perm).init` behind the clone's projection, GAP 6)
-  stmt_inline{1} 0
-  rw [PSome_Perm_init _ rfl]
-  simp only [PSome, GaudisCrypt.SHA3.OptionIndifferentiability.OPRIMITIVE.init.mk_simp]
   stmt_inline*
   stmt_sp
   -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
   equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
   -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
-  · simp only [ODPRIMITIVE_f_mk]
-    equiv_proc; stmt_inline*; stmt_sp
+  · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
     · ec_close
     · stmt_sp; stmt_if
@@ -4960,8 +4896,7 @@ theorem rw_real (m : VariableAssignment) :
       · ec_auto
     · ec_auto
   -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
-  · simp only [ODPRIMITIVE_fi_mk]
-    equiv_proc; stmt_inline*; stmt_sp
+  · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
     · ec_close
     · stmt_sp; stmt_if

@@ -18,8 +18,9 @@ Translation:
 * EC's hypothesis on `Dist` has no restriction on `F` and `P`; `security`'s has (`{-OD(Dist)}`).
 
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: `PSome(Perm).init` behind the first port's record is not opened by `inline*`: unfolded
-  first (`simp only [PSome, …]`).  (`Perm.f` behind the first port's views: closed 2026-11-17.)
+* GAP 1 (closed): `PSome(Perm).init` behind the first port's record was not opened by `inline*`;
+  it is since 2026-11-17 (procedures across clones' module types), and the hand unfolding left
+  over from before went on 2026-11-21.
 * GAP 2: `sim` does not go through the loops of the inlined `Sponge.f` (GAP 2 of
   `SHA3Indiff.lean`): the `while` rule with the variables' equalities.  In the body of
   `Sponge.f`'s second loop the closers split `={sa, sc}` at `x <- (sa, sc)` into components, and
@@ -398,11 +399,9 @@ theorem SHA3OIndiff (m : VariableAssignment) :
   have h1 : Pr[ OGReal(CSome(Sponge), PSome(Perm), ODRestr(Dist)).main () @ &m : §res ] =
       Pr[ RealIndif(Sponge, Perm, DRestr(OD(Dist))).main () @ &m : §res ] := by
     -- EC: byequiv=>//=; proc; inline*; sim 4 5; sp.
-    --     (GAP 1: `PSome(Perm).init` is `Perm.init` behind the first port's record, opened first;
-    --     EC's `sim 4 5` is the two sides' last assignments, `wp`; the initializations stay
+    --     (EC's `sim 4 5` is the two sides' last assignments, `wp`; the initializations stay
     --     before the call, for the last `auto`)
     byequiv; equiv_proc
-    simp only [PSome, SHA3.OptionIndifferentiability.OPRIMITIVE.init.mk_simp]
     stmt_inline*
     stmt_wp
     -- EC: call(: ={glob Perm, glob Counter} /\ ={c}(Counter,Cntr))=>/>; auto.

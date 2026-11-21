@@ -696,6 +696,12 @@ Document each in the docstring when it applies.
   that worked.  Never `simp_all` on a goal after `sp`: it can eat the whole budget.  An operator
   that EC's `auto` unfolds (`increase_counter`) is unfolded once after `inline*`
   (`simp only [increase_counter]`); the closers do not unfold definitions.
+* **A fixed gap's workarounds outlive the fix**: when a tactic learns to handle a case, grep the
+  ports for the hand steps that stood in for it (their `-- GAP n` comments, the lemmas they used)
+  and try deleting them.  On 2026-11-21, 36 `simp only [ODPRIMITIVE_f_mk]` / `simp only [PSome,
+  …]` lines in SHA3OSecurity and SHA3_OIndiff turned out to be unneeded since the 2026-11-17 fix
+  for procedures across clones' module types; `proc` and `inline*` opened those procedures all
+  along.  Check by deleting first, before building infrastructure for an old gap.
 * **Frames are by writes** (since 2026-11-21, as EC's): a call keeps a global the callee only
   reads, or that its module touches elsewhere (`S(F).fi` does not write `F`'s map; `F.LRO.sample`
   writes nothing), for `equiv_call` and for `equiv_conseq`'s frame (`writes_keep` on the callee's
