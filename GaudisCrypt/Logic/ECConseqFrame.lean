@@ -4,6 +4,8 @@ import GaudisCrypt.Logic.HoareFrame
 import GaudisCrypt.Logic.FrameTactics
 import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.ModuleFootprint
+import GaudisCrypt.Logic.Fel
+import GaudisCrypt.Logic.ECCallAbstract
 
 /-!
 # EasyCrypt's `conseq` keeps what the code does not modify
@@ -116,6 +118,27 @@ theorem call_writes {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
     (hy : ∀ r σ, L.get (y.set r σ).globals = L.get σ.globals) :
     Stmt.Keeps L.intoGlobal (Stmt.call y p args) := fun c =>
   hoare_pre (hoare_call_wp y p args (hoareProc_of_writesKeep L.get p hp c) _) fun σ h =>
+    ⟨by rw [Lens.intoGlobal_get_eq] at h; exact h, fun r g hg => by
+      rw [Lens.intoGlobal_get_eq, hy]
+      exact hg⟩
+
+/-- A call of a declared module `D` on oracles `O` keeps a global `L` outside `D` that every write
+of every oracle procedure keeps (EC's frame by writes through an abstract call: the adversary
+does not touch `L`, its oracles read it at most), its result written elsewhere. -/
+theorem call_app_writes {T : Type 1} [IsModule T] {sig : ProcedureSignature} {holes : HoleSigs}
+    (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) {γ : Type} (L : Lens γ VariableAssignment)
+    (hdisj : FVP.fvP D ≤ (L.footprint)ᶜ)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O : T)
+    (hO : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      StmtWithHoles.WritesKeep L.get ((ext O).lookup n).body)
+    {y : Setter sig.ret ProgramState} {args : Getter sig.ParamType ProgramState}
+    (hy : ∀ r σ, L.get (y.set r σ).globals = L.get σ.globals) :
+    Stmt.Keeps L.intoGlobal (Stmt.call y (Module.app D O).procedure args) := fun c =>
+  hoare_pre (hoare_call_wp y _ args
+      (Module.hoare_app_inv (L := L) D ext hD hdisj hc O (fun v => v = c)
+        fun n => hoareProc_of_writesKeep L.get _ (hO n) c) _) fun σ h =>
     ⟨by rw [Lens.intoGlobal_get_eq] at h; exact h, fun r g hg => by
       rw [Lens.intoGlobal_get_eq, hy]
       exact hg⟩
@@ -243,6 +266,92 @@ namespace ECConseqFrame
 
 open Lean Meta Elab Tactic
 
+/-- `Stmt.Keeps.call_app_writes` for `goal` (`Stmt.Keeps L.intoGlobal s`, `s` a call of a declared
+module `D` on oracles `O`): `D`'s representation from its declaration and the oracles' module
+type's `T.ext` (else its canonical one, as `equiv_call`'s), `D` outside `L` (`fp_disjoint`), the
+oracles' arguments countable, every write of every oracle procedure keeping `L`
+(`ECCallEquiv.writesKeepProof`), the result elsewhere (`StmtSwap.discharge`). -/
+def callAppWrites (goal s L : Lean.Expr) : MetaM Lean.Expr := do
+  let p ← whnfR (s.getArg! (s.getAppNumArgs - 2))
+  unless p.isAppOfArity ``Module.Proc.procedure 2 do throwError "keeps: the callee"
+  let M := p.getArg! 1
+  unless M.isAppOfArity ``Module.app 6 do throwError "keeps: not an applied module"
+  let D := M.getArg! 4
+  let O := M.getArg! 5
+  let T₀ ← inferType O
+  let T ← whnfR T₀
+  -- the oracles' procedures, in the order of the holes, as the canonical `ext` gives them
+  -- (`Module.fst O`, …), and the simp lemmas that take them apart (`Module.fst_pair`, the module
+  -- types' records' `T.f.mk_simp`)
+  let comps ← ECCall.components T₀ O (literal := false)
+  let procs ← comps.flatMapM fun (C, X) => ECCall.procsOf C X
+  let env ← getEnv
+  let mut simps : Array Ident := #[mkIdent ``Module.fst_pair, mkIdent ``Module.snd_pair]
+  for (C, _) in comps do
+    let some c := C.getAppFn.constName? | continue
+    if isStructure env (c ++ `Structure) then
+      for f in getStructureFields env (c ++ `Structure) do
+        let n := c ++ f ++ `mk_simp
+        if env.contains n && !simps.contains (mkIdent n) then simps := simps.push (mkIdent n)
+  let m ← mkFreshExprMVar goal
+  let log ← Core.getMessageLog
+  -- only this proof's messages (errors logged earlier in the file are not its own)
+  Core.resetMessageLog
+  try
+    let rest ← Elab.Term.TermElabM.run' <| Elab.Term.withoutErrToSorry <|
+      Elab.Tactic.run m.mvarId! do
+        let Ds ← Elab.Term.exprToSyntax D
+        let Os ← Elab.Term.exprToSyntax O
+        let Ls ← Elab.Term.exprToSyntax L
+        let TS ← Elab.Term.exprToSyntax T₀
+        -- the oracles' module type's `T.ext`, else its canonical one
+        let extC := (T.getAppFn.constName?.getD .anonymous) ++ `ext
+        let exts ← if (← getEnv).contains extC then
+            Elab.Term.exprToSyntax (mkAppN (← mkConstWithFreshMVarLevels extC) T.getAppArgs)
+          else `(fun O => (Module.moduleTypeRep $TS).extOf (Module.cast $TS O))
+        evalTactic (← `(tactic| refine Stmt.Keeps.call_app_writes $Ds $exts
+          (Module.Declared.ecModule $Ds $exts).representable $Ls ?hdisj ?hc $Os ?hO ?hy))
+        for g in ← getGoals do g.setTag (← g.getTag).eraseMacroScopes
+        let take (n : Name) : TacticM MVarId := do
+          let gs ← getGoals
+          let some g ← gs.findM? fun g => return (← g.getTag) == n
+            | throwError "keeps: no goal `{n}`"
+          setGoals (gs.filter (· != g))
+          return g
+        let gd ← take `hdisj
+        let [] ← evalTacticAt (← `(tactic| ((try simp only [Footprint.lens_pair]); fp_disjoint)))
+          gd | throwError "keeps: the adversary touches the variable"
+        let gc ← take `hc
+        for g in ← ECCall.splitHoles gc procs.size do
+          let [] ← evalTacticAt (← `(tactic| first
+            | infer_instance
+            | (dsimp only [ProcedureSignature.ParamType, typeListToTuple]; infer_instance))) g
+            | throwError "keeps: an oracle's arguments"
+        -- each oracle's writes, its procedure for the instantiation's lookup
+        let go ← take `hO
+        let os ← ECCall.splitHoles go procs.size
+        let mut left := []
+        for (g, pr) in os.zip procs.toList do
+          let g' ← g.withContext do
+            let ty ← instantiateMVars (← g.getType)
+            g.change (ty.replace fun e =>
+              if e.isAppOf ``HoleSigs.Instantiation.lookup then some pr else none)
+          let gs ← evalTacticAt (← `(tactic| try simp only [$[$simps:ident],*])) g'
+          left := left ++ gs
+        setGoals ((← getGoals) ++ left)
+    -- the oracles' writes, and the result's
+    for g in rest do
+      let t ← instantiateMVars (← g.getType)
+      if t.isAppOf ``StmtWithHoles.WritesKeep then g.assign (← ECCallEquiv.writesKeepProof t)
+      else g.assign (← StmtSwap.discharge t none)
+    if (← Core.getMessageLog).hasErrors then throwError "keeps: the abstract call"
+    let pf ← instantiateMVars m
+    if pf.hasExprMVar || pf.hasSyntheticSorry || pf.hasSorry then
+      throwError "keeps: the abstract call"
+    return pf
+  finally
+    Core.setMessageLog log
+
 /-- A proof of `Stmt.Keeps x s`, by the statement's syntax: writes to other variables (the side
 equations by `StmtSwap.discharge`), calls keeping the caller's other locals, a global outside
 the callee's footprint (`fp_disjoint`), or a global no write of the callee's body touches (EC's
@@ -297,7 +406,10 @@ partial def keepsOf (s x : Lean.Expr) : MetaM Lean.Expr := do
       catch _ =>
         -- EC's frame by writes: the callee does not write it
         unless ec.frameWrites.get (← getOptions) do throwError "keeps: the call"
-        byRule ``Stmt.Keeps.call_writes #[(`L, x.appArg!)]
+        try byRule ``Stmt.Keeps.call_writes #[(`L, x.appArg!)]
+        catch _ =>
+          -- … through a call of a declared module on oracles that do not write it
+          callAppWrites goal s x.appArg!
   | _ => throwError "keeps: no rule for{indentExpr s}"
 
 /-- A write keeps the region: `∀ v σ, F.touched_getter.get (y.set v σ).globals = …` — a local

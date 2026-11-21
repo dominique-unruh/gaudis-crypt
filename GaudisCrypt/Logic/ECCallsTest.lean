@@ -757,4 +757,71 @@ example : equiv[ Once(Inc).main ~ Once(Inc2).main :
   · equiv_proc; equiv_auto; auto_close
   · equiv_auto
 
+module Run using (O : Orc, A : ADV) {
+  proc main () : ℤ {
+    var r : ℤ;
+    r <- call A(O).run ();
+    return $r
+  };
+}
+
+section
+
+declare module A <: ADV {-cCount, -cFlag}
+
+-- `conseq (: _ ==> ={r, glob A, cCount})` before a call of the declared `A` on `Peek`: its frame
+-- keeps `cFlag{1} = true` (EC's frame by writes through an abstract call: `A` stays out of
+-- `cFlag`, `Peek` reads it without writing it), not `cCount` (`Peek` writes it)
+/--
+trace: A : ADV
+inst✝ : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
+⊢ ∀ (σ₁ σ₂ : ProgramState),
+    ((FVP.fvP A).touched_getter.get σ₁.globals = (FVP.fvP A).touched_getter.get σ₂.globals ∧
+          cCount.get σ₁.globals = cCount.get σ₂.globals) ∧
+        cFlag.get σ₁.globals = true →
+      ∀ (τ₁ τ₂ : ProgramState),
+        cFlag.get τ₁.globals = cFlag.get σ₁.globals ∧ True →
+          cFlag.get τ₂.globals = cFlag.get σ₂.globals ∧ True →
+            §(localVarLens "r" ℤ) = §(localVarLens "r" ℤ) ∧
+                §(FVP.fvP A).touched_getter = §(FVP.fvP A).touched_getter ∧ §cCount = §cCount →
+              (localVarLens "r" ℤ).get τ₁ = (localVarLens "r" ℤ).get τ₂ ∧ cFlag.get τ₁.globals = true
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : equiv[ Run(Peek, A).main ~ Run(Peek, A).main :
+    ={glob A, cCount} ∧ §cFlag{1} = true ==> ={res} ∧ §cFlag{1} = true ] := by
+  equiv_proc
+  equiv_conseq (: _ ==> ={r, glob A, cCount})
+  case post => trace_state; sorry
+  all_goals sorry
+
+-- … not without frames by writes
+/--
+trace: A : ADV
+inst✝ : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
+⊢ ∀ (σ₁ σ₂ : ProgramState),
+    ((FVP.fvP A).touched_getter.get σ₁.globals = (FVP.fvP A).touched_getter.get σ₂.globals ∧
+          cCount.get σ₁.globals = cCount.get σ₂.globals) ∧
+        cFlag.get σ₁.globals = true →
+      ∀ (τ₁ τ₂ : ProgramState),
+        True →
+          True →
+            §(localVarLens "r" ℤ) = §(localVarLens "r" ℤ) ∧
+                §(FVP.fvP A).touched_getter = §(FVP.fvP A).touched_getter ∧ §cCount = §cCount →
+              (localVarLens "r" ℤ).get τ₁ = (localVarLens "r" ℤ).get τ₂ ∧ cFlag.get τ₁.globals = true
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+set_option ec.frameWrites false in
+example : equiv[ Run(Peek, A).main ~ Run(Peek, A).main :
+    ={glob A, cCount} ∧ §cFlag{1} = true ==> ={res} ∧ §cFlag{1} = true ] := by
+  equiv_proc
+  equiv_conseq (: _ ==> ={r, glob A, cCount})
+  case post => trace_state; sorry
+  all_goals sorry
+
+end
+
 end GaudisCrypt.ECCallsTest

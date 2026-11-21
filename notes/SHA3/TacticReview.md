@@ -468,6 +468,11 @@ first needs a full rebuild, so they go together):
    before the callees' postcondition (`simp_all` rewrites a premise with earlier ones only).
    Closed: Gconcl_list GAP 4 and GAP 6, Gext GAP 5.  Golden tests in `ECCallsTest` (`Peek`).
    `set_option ec.frameWrites false` turns it off (Gext: 3m55s with it, 4m32s without).
+   **Frames by writes through an abstract call done 2026-11-21**: `equiv_conseq`'s frame keeps a
+   global across `A(O).f` (`A` declared) when `A`'s restriction excludes it and every oracle
+   procedure's writes keep it (`Stmt.Keeps.call_app_writes` from `Module.hoare_app_inv`;
+   `ECConseqFrame.callAppWrites`).  For SHA3Security and SHA3OSecurity GAP 8.  Golden test in
+   `ECCallsTest` (`Run(Peek, A)`, with and without `ec.frameWrites`).
    **The exit frame done 2026-11-21**: `equiv_while{i} I V` frames what the postcondition or the
    invariant reads (`Logic/ECWhileRel.lean`; golden test in `ECWhileRelTest`).  The conjuncts
    added for it are gone (Sponge GAP 7, SHA3Security GAP 4).

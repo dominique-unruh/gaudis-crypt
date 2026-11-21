@@ -703,7 +703,10 @@ Document each in the docstring when it applies.
   invariants need not carry the oracles' maps through a call's specification.  In the goal after
   `call`, each side's frame comes **before** the callees' postcondition
   (`∀ r₁ g₁ r₂ g₂, Fr₁ → Fr₂ → Q → B`, as in `conseq` and `while`): hand intro patterns read
-  `fun r₁ g₁ r₂ g₂ _ _ ⟨hQ…⟩`.
+  `fun r₁ g₁ r₂ g₂ _ _ ⟨hQ…⟩`.  `equiv_conseq`'s frame also keeps a global across a call of a
+  **declared adversary** on oracles (`A(O).run`) when the adversary's restriction excludes it
+  and no oracle procedure writes it (`Stmt.Keeps.call_app_writes`, since 2026-11-21): EC's
+  `conseq` before the adversary's call keeps `DPre.h`, no invariant needs to carry it.
 * **`equiv_call (_ : ={glob M} ∧ I)` must not be parenthesized**: `(_ : (={glob M} ∧ I))` is
   read as an invariant without a `glob` part and fails ("the conditions read … which is not a
   global variable").

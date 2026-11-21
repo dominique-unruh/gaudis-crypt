@@ -62,8 +62,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 7: after `sp` through a game's initializations, `DPre.h` and `glob A` are equal in the
   two memories by the memories' equation, taken out by hand (`congrArg` of the getter,
   `simp_reads_all` / `touched_set_of_le_compl`); GAP 14 of `SmartCounter/Gconcl_list.lean`.
-* GAP 8: `conseq (: _ ==> Q)` in front of the adversary's call does not keep `DPre.h`, which the
-  adversary does not write (EC's does): `DPre.h{1} = ha` goes through the call's invariant.
+* GAP 8 (closed 2026-11-21): `conseq (: _ ==> Q)` in front of the adversary's call did not keep
+  `DPre.h`, which neither the adversary nor its oracles write (EC's does); its frame now keeps a
+  global across a declared adversary's call by the oracles' writes (`Stmt.Keeps.call_app_writes`).
 * GAP 5 (closed 2026-11-21): the strict `auto` ran out of recursion depth (its closing
   `simp_all`) on a goal with quantified invariant conjuncts over a map being set; a closing
   attempt that hits a runtime limit now leaves the goal, as EC's `auto` does.
@@ -1071,18 +1072,14 @@ theorem Sponge_preimage_resistant (m : VariableAssignment) (ha : f_out) :
       -- EC: conseq(:_==> ={m, glob SRO.Counter, glob SRO.Bounder, glob DPre}
       --       /\ ={c}(SRO.Counter,Cntr)
       --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); progress.
-      --     (GAP 8: EC's `conseq` keeps `DPre.h`, which the adversary does not write; here the
-      --     fact `DPre.h{1} = ha` goes through the call's invariant, as on the real side)
       equiv_conseq (: _ ==> ={m, SRO.Counter.c, SRO.Bounder.bounder, DPre.h} ∧
-        §SRO.Counter.c{1} = §Cntr.c{2} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §DPre.h{1} = ha)
+        §SRO.Counter.c{1} = §Cntr.c{2} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2})
       · ec_progress
-        have h := congrArg DPre.h.get ‹Simulator.m.set _ _ = _›
-        simp_reads_all; exact h
       -- EC: call(: ={glob SRO.Counter, glob SRO.Bounder, glob DPre}
       --       /\ ={c}(SRO.Counter,Cntr)
       --       /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2}); auto.
       equiv_call (_ : ={SRO.Counter.c, SRO.Bounder.bounder, DPre.h} ∧
-        §SRO.Counter.c{1} = §Cntr.c{2} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §DPre.h{1} = ha)
+        §SRO.Counter.c{1} = §Cntr.c{2} ∧ same_ro §SRO.RO.m{1} §IRO.mp{2})
       -- EC: + proc; sp; if; auto; sp; if; auto; sp.
       · equiv_proc; stmt_sp
         stmt_if

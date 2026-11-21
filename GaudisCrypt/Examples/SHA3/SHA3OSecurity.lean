@@ -75,9 +75,9 @@ Translation:
 * EC's `rnd f g` between `dlist dbool size_out` and `dout` is `equiv_rnd (fun l => oget
   (of_list l))`: it asks that `f` push the first distribution to the second, which is the first
   port's `dlist_dout` (EC's `dout_equal_dlist`, `to_listK`);
-* GAP 8: `conseq (: _ ==> Q)` in front of the adversary's call does not keep a variable the
-  adversary does not write (`Dist_of_P2Adv.m`; EC's does): its fact goes through the call's
-  invariant, and through the `seq` inside the simulator's oracle;
+* GAP 8 (closed 2026-11-21): `conseq (: _ ==> Q)` in front of the adversary's call did not keep
+  a variable neither the adversary nor its oracles write (`Dist_of_P2Adv.m`; EC's does); its
+  frame now does (`Stmt.Keeps.call_app_writes`), and the call's invariant is EC's;
 * `byequiv` with a fact about `&m` where one game takes a parameter: the judgment is written
   out, `byequiv (?last : equiv[ … ~ ….main (m1) : … ∧ §Dist_of_P2Adv.m{1} = mess ∧ §m1{2} = mess
   ==> (§res{1} → §res{2}) ])`;
@@ -3332,12 +3332,13 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
     --     auto; call(: ={glob OSimulator, glob Counter, glob Log} /\
     --       inv BIRO.IRO.mp{1} RFList.m{2} /\
     --       SORO.Bounder.bounder{2} <= Counter.c{1}); auto; last first.
-    --     (GAP 8: `conseq` in front of the adversary's call does not keep `Dist_of_P2Adv.m`,
-    --     which the adversary does not write (EC's does): it goes through the call's invariant
-    --     and the `seq` inside the simulator's oracle)
+    equiv_conseq (: _ ==> ={glob A, Counter.c, Simulator.m, Simulator.mi, Simulator.paths,
+      Gconcl_list.BIRO2.IRO.mp, Log.m} ∧ §m'{1} = §mi{2} ∧
+      inv §IRO.mp{1} §RFList.m{2} ∧ §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
+    · ec_close
     equiv_call (_ : ={Simulator.m, Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp,
       Counter.c, Log.m} ∧ inv §IRO.mp{1} §RFList.m{2} ∧
-      §SORO.Bounder.bounder{2} ≤ §Counter.c{1} ∧ §Dist_of_P2Adv.m{1} = mess)
+      §SORO.Bounder.bounder{2} ≤ §Counter.c{1})
     -- EC: + proc; sp; if; auto=> />; 1: smt().
     --     (GAP 3 on the left: the primitive's `f` behind the first port's constructor)
     · simp only [ODPRIMITIVE_f_mk]
@@ -3373,8 +3374,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
               stmt_sp
               equiv_seq 3 2 : (={x0, x1, o1, k0, Log.m, suffix, Simulator.m, Simulator.mi,
                 Simulator.paths, Gconcl_list.BIRO2.IRO.mp, Counter.c} ∧
-                inv §IRO.mp{1} §RFList.m{2} ∧ §SORO.Bounder.bounder{2} ≤ §Counter.c{2} + 1 ∧
-                §Dist_of_P2Adv.m{1} = mess)
+                inv §IRO.mp{1} §RFList.m{2} ∧ §SORO.Bounder.bounder{2} ≤ §Counter.c{2} + 1)
               swap
               -- EC: - by conseq(:_==> ={y, x1, glob OSimulator, Log.m}); 1: smt(); sim=> />.
               · equiv_conseq (: _ ==> ={y, x1, Simulator.m, Simulator.mi, Simulator.paths,
