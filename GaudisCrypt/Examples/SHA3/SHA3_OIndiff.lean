@@ -20,10 +20,12 @@ Translation:
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 1: `PSome(Perm).init` behind the first port's record is not opened by `inline*`: unfolded
   first (`simp only [PSome, …]`).  (`Perm.f` behind the first port's views: closed 2026-11-17.)
-* GAP 2: `sim` does not go through the loops of the inlined `IRO.f` and `Sponge.f` (GAP 2 of
+* GAP 2: `sim` does not go through the loops of the inlined `Sponge.f` (GAP 2 of
   `SHA3Indiff.lean`): the `while` rule with the variables' equalities.  In the body of
   `Sponge.f`'s second loop the closers split `={sa, sc}` at `x <- (sa, sc)` into components, and
-  the pair's equation is put back by hand.
+  the pair's equation is put back by hand.  (`IRO.f`'s loop, whose relation after it reads
+  `x0{1}` against `x1{2}`, which the loops keep: EC's `sim` since 2026-11-21, its framed loop
+  rule.)
 * GAP 3: EC's `sim n m` and `sp` at the start of the two games are positions in EC's inlined
   code; ours has the inliner's `reset_vars` statements: `wp` for the last assignments, and the
   initializations stay before the call (EC's `auto` after it takes them).
@@ -531,15 +533,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
               stmt_if
               · ec_close
               · stmt_wp
-                --     (GAP 2: `sim` stops at the loop: the relation after it mixes `x0{1}` and
-                --     `x1{2}` in terms, not equalities, which EC's `sim` leaves as its goal: the
-                --     `while` rule with EC's equality set)
-                equiv_while (={Gconcl_list.BIRO2.IRO.mp, i0, n1, x4, bs0})
-                · stmt_sp; stmt_if
-                  · ec_close
-                  · ec_auto
-                  · ec_auto
-                ec_auto; ec_close
+                sim; ec_close
               · ec_auto
           · ec_auto
         · ec_auto

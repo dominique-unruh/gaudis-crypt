@@ -161,3 +161,45 @@ elab "equiv_while " I:term:max : tactic => withMainContext do
       ← Term.exprToSyntax hF₁, ← Term.exprToSyntax F₂, ← Term.exprToSyntax hF₂)
     refineTagged (← `(prhlStmt_seq_while_ec (I := $Is) $F₁s $F₂s $hF₁s $hF₂s ?body ?hpre))
       [`body, `hpre]
+
+namespace GaudisCrypt.ECWhileRel
+
+open Lean Meta
+
+/-- `ECSim.simWhileHook`: on `g`, ending in two loops, `prhlStmt_seq_while_ec` with the invariant
+`I` and EC's frames of the relation after the loops (as `equiv_while`'s); the goals `body` and
+`hpre`, or `none` if the code does not end in two loops. -/
+def simWhileFramed (g : MVarId) (I : Lean.Expr) : MetaM (Option (MVarId × MVarId)) :=
+    g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``prhlStmt 4 do return none
+  let #[_, c₁, c₂, Q] := ty.getAppArgs | return none
+  let loopOf (c : Lean.Expr) : MetaM (Option Lean.Expr) := do
+    let c ← TacticMisc.openStmt (GaudisCrypt.stripLets (← instantiateMVars c))
+    unless c.isAppOfArity ``StmtWithHoles.seq 3 do return none
+    let w ← TacticMisc.openStmt (c.getArg! 2)
+    unless w.isAppOf ``StmtWithHoles.while do return none
+    return some (c.getArg! 2)
+  let some w₁ ← loopOf c₁ | return none
+  let some w₂ ← loopOf c₂ | return none
+  let (ls, gls) ← ECSim.varsOf #[Q]
+  let xs := ls ++ (← gls.mapM fun x => mkAppM ``Lens.intoGlobal #[x])
+  let rs ← ECConseqFrame.regionsOf #[Q]
+  let (F₁, hF₁) ← ECConseqFrame.frameOf w₁ xs rs
+  let (F₂, hF₂) ← ECConseqFrame.frameOf w₂ xs rs
+  let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_while_ec
+  let cTy ← inferType c
+  let names := cTy.getForallBinderNames
+  let (ms, _, concl) ← forallMetaTelescope cTy
+  let idx (n : Name) : MetaM Nat := do
+    let some i := names.findIdx? (· == n) | throwError "simWhileFramed: no `{n}`"
+    return i
+  for (n, v) in [(`I, I), (`F₁, F₁), (`F₂, F₂), (`hF₁, hF₁), (`hF₂, hF₂)] do
+    unless ← isDefEq ms[← idx n]! v do throwError "simWhileFramed: `{n}`"
+  unless ← isDefEq concl ty do throwError "simWhileFramed: not two loops"
+  g.assign (mkAppN c ms)
+  return some (ms[← idx `hb]!.mvarId!, ms[← idx `hpre]!.mvarId!)
+
+initialize ECSim.simWhileHook.set simWhileFramed
+
+end GaudisCrypt.ECWhileRel

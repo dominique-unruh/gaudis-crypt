@@ -4,6 +4,7 @@ import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECClose
 import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECIf
+import GaudisCrypt.Logic.ECWhileRel
 import GaudisCrypt.Syntax.Syntax
 
 /-! Tests of `stmt_splitwhile` and `stmt_unroll` (`Logic/ECLoop.lean`). -/
@@ -209,6 +210,19 @@ example : equiv[ ={q, k} ==> ={bs, y} ] {
         }
       }
       y <$ SubProbability.uniform;
+    } := by
+  sim
+
+-- EC's `sim` through two loops whose relation after them reads variables the loops keep,
+-- differently named on the two sides (`x{1}` against `y{2}`, inside `f`): the equality set of
+-- what the loops write as the invariant, EC's frame on exit (the framed loop rule of
+-- `Logic/ECWhileRel.lean`, `ECSim.simWhileHook`)
+example (f : List ℕ → ℕ → ℕ) : equiv[ ={i, s} ∧ §x{1} = §y{2} ==> f §s{1} §x{1} = f §s{2} §y{2} ] {
+      var i : ℕ, s : List ℕ, x : ℕ;
+      while (decide (§i < 5)) { s <- §i :: §s; i <- §i + 1; }
+    } ~ {
+      var i : ℕ, s : List ℕ, y : ℕ;
+      while (decide (§i < 5)) { s <- §i :: §s; i <- §i + 1; }
     } := by
   sim
 

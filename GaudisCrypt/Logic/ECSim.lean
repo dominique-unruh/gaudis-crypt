@@ -558,6 +558,46 @@ def eqVarsOf (A : Lean.Expr) : MetaM (Array Lean.Expr) := do
       unless (← xs.get).contains x do xs.modify (·.push x)
     xs.get
 
+/-- The variables `s` writes (assignments and samplings, through conditionals and loops), or
+`none` when it has a statement whose writes are not read off its syntax (a call, a hole). -/
+partial def writesOf (s : Lean.Expr) : MetaM (Option VarSet) := do
+  let s := stripLets (← instantiateMVars s)
+  let args := s.getAppArgs
+  let last (k : Nat) : Lean.Expr := args[args.size - k]!
+  match s.getAppFn.constName? with
+  | some ``StmtWithHoles.skip => return some (#[], #[])
+  | some ``StmtWithHoles.seq | some ``StmtWithHoles.ifThenElse =>
+    let some a ← writesOf (last 2) | return none
+    let some b ← writesOf (last 1) | return none
+    return some (← vsUnion a b)
+  | some ``StmtWithHoles.while => writesOf (last 1)
+  | some ``StmtWithHoles.sample | some ``StmtWithHoles.assign => return some (← varsOf #[last 2])
+  | _ => return none
+
+/-- `loopInvEq` under EC's frame of the loops' exit (`simWhileHook`): of the variables `B` reads,
+only those a loop writes (the others the frame keeps, and they may differ between the sides:
+`x0{1}` against `x1{2}`), closed backwards through each loop. -/
+def loopInvEqWritten (B : Lean.Expr) (l₁ l₂ : Lean.Expr) : MetaM Lean.Expr := do
+  let SB ← varsOf #[B]
+  let SB ← match ← writesOf l₁, ← writesOf l₂ with
+    | some w₁, some w₂ => do
+      let W ← vsUnion w₁ w₂
+      vsDiff SB (← vsDiff SB W)
+    | _, _ => pure SB
+  let (ls, gs) ← vsUnion (← eqBack l₁ SB) (← eqBack l₂ SB)
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    let get (x st : Lean.Expr) : MetaM Lean.Expr := do
+      mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], st]
+    let mut eqs : Array Lean.Expr := #[]
+    for x in ls do eqs := eqs.push (← mkEq (← get x σ₁) (← get x σ₂))
+    for x in gs do
+      eqs := eqs.push (← mkEq (← get x (← mkAppM ``ProgramState.globals #[σ₁]))
+        (← get x (← mkAppM ``ProgramState.globals #[σ₂])))
+    let some last := eqs.back? | throwError "sim: no variables for the loops' equality set"
+    let body ← (eqs.pop).foldrM (fun e acc => mkAppM ``And #[e, acc]) last
+    mkLambdaFVars #[σ₁, σ₂] body
+
 /-- EC's `sim (_: J)` invariant of two loops: `J`, the variables both loops mention equal, and
 of the precondition's equality set (its regions `Rs`, its variables `xs`) what neither or both
 loops mention. -/
@@ -719,6 +759,13 @@ def loopInvPairs (B : Lean.Expr) (l₁ l₂ : Lean.Expr) : MetaM Lean.Expr := do
     let some last := (eqs ++ atoms).back? | throwError "sim: no equalities for the loops"
     let body ← (eqs ++ atoms).pop.foldrM (fun e acc => mkAppM ``And #[e, acc]) last
     mkLambdaFVars #[σ₁, σ₂] body
+
+/-- **EC's framed loop rule, for `sim`**: on a goal ending in two loops, with the invariant `I`,
+`prhlStmt_seq_while_ec` with EC's frames of the relation after the loops (what the loops keep of
+the variables it reads); the goals `body` and `hpre`.  `Logic/ECWhileRel.lean` sets it (the
+frames need `Logic/ECConseqFrame.lean`, which comes later than this file). -/
+initialize simWhileHook : IO.Ref (MVarId → Lean.Expr → MetaM (Option (MVarId × MVarId))) ←
+  IO.mkRef fun _ _ => pure none
 
 /-- `auto_close` (`Logic/ECClose.lean`, which imports this file) on `g`, when the environment has
 it: the goals left (`[g]` if it does not close it). -/
@@ -920,6 +967,27 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         s.restore
         if debug.sim.get (← getOptions) then
           IO.eprintln s!"sim (loops, equality set): {← e.toMessageData.toString}"
+        -- the equality set with EC's frame on exit (`simWhileHook`): the relation after the
+        -- loops may relate variables the loops keep (`x0{1}` with `x1{2}`), as it was before them
+        try
+          let g' ← HoareSplit.hoareSplit 1 g
+          let ty ← prhlGoal g' "sim"
+          let B ← instantiateMVars (ty.getArg! 3)
+          if B.getAppFn.isMVar then throwError "sim: the relation after the loops is open"
+          let I ← loopInvEqWritten B (stripLets (lastOf (ty.getArg! 1)))
+            (stripLets (lastOf (ty.getArg! 2)))
+          let some (gBody, gPre) ← (← simWhileHook.get) g' I
+            | throwError "sim: no framed loop rule"
+          for m in [gBody, gPre] do m.setKind .syntheticOpaque
+          let rb ← sim (← Judgment.simpArg gBody 0 relSimpDecls []) frame? (fuel - 1) eqset inv?
+          let rb ← rb.flatMapM autoCloseIfAvailable
+          if let some r := rb.head? then
+            throwError "sim: the loops' bodies:{indentExpr (← instantiateMVars (← r.getType))}"
+          return ← sim gPre frame? (fuel - 1) eqset inv?
+        catch e =>
+          s.restore
+          if debug.sim.get (← getOptions) then
+            IO.eprintln s!"sim (loops, equality set, framed): {← e.toMessageData.toString}"
         -- EC's equality set of pairs: an inlined callee's locals, named differently on the two
         -- sides (`i0` against `i`), related at their corresponding positions
         try attempt 2

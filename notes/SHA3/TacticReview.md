@@ -473,6 +473,11 @@ first needs a full rebuild, so they go together):
    procedure's writes keep it (`Stmt.Keeps.call_app_writes` from `Module.hoare_app_inv`;
    `ECConseqFrame.callAppWrites`).  For SHA3Security and SHA3OSecurity GAP 8.  Golden test in
    `ECCallsTest` (`Run(Peek, A)`, with and without `ec.frameWrites`).
+   **`sim` through loops with EC's exit frame done 2026-11-21**: a fourth loop attempt, the
+   equality set of what the loops write (`loopInvEqWritten`) under `prhlStmt_seq_while_ec`'s
+   frames (`ECSim.simWhileHook`, set by `Logic/ECWhileRel.lean`): the relation after the loops may
+   relate kept variables of different names (SHA3_OIndiff's third site, now EC's `sim`).  Test in
+   `ECLoopTest` (`f §s{1} §x{1} = f §s{2} §y{2}`).
    **The exit frame done 2026-11-21**: `equiv_while{i} I V` frames what the postcondition or the
    invariant reads (`Logic/ECWhileRel.lean`; golden test in `ECWhileRelTest`).  The conjuncts
    added for it are gone (Sponge GAP 7, SHA3Security GAP 4).
