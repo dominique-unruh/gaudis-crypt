@@ -291,6 +291,22 @@ def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
     let p := last.getArg! (last.getAppNumArgs - 2)
     unless p.isAppOf ``Module.Proc.procedure do throwError "sim: not a module's procedure"
     let M := p.appArg!
+    -- the same callee on the right (the rule has one `M`), first: two callees that differ
+    -- (`OSimulator(…(RFList)).fi`, `OSimulator(…(RFWhile)).fi`) take minutes to tell apart by
+    -- unfolding, so past syntactic equality only within a budget, as `equiv_call`'s
+    let st₂ ← TacticMisc.openStmt (ty.getArg! 2)
+    let last₂ ← if st₂.isAppOfArity ``StmtWithHoles.seq 3 then
+      TacticMisc.openStmt (st₂.getArg! 2) else pure st₂
+    unless last₂.isAppOf ``Stmt.call || last₂.isAppOf ``StmtWithHoles.call do
+      throwError "sim: not a call on the right"
+    let p₂ ← instantiateMVars (last₂.getArg! (last₂.getAppNumArgs - 2))
+    unless (← instantiateMVars p) == p₂ do
+      let same ← tryCatchRuntimeEx
+        (withCurrHeartbeats <|
+          withTheReader Core.Context (fun c => { c with maxHeartbeats := 50000 * 1000 }) do
+            withNewMCtxDepth (isDefEq p p₂))
+        (fun _ => pure false)
+      unless same do throwError "sim: the callees differ"
     let (Rs, xs) := eqset
     -- EC's call keeps every variable outside the callee: the frames also cover what the
     -- postcondition reads
