@@ -91,7 +91,7 @@ only, with the invariant `I` and the variant `V : ℕ` (relational).  Goals: `lo
 terminates under `I` and the guard), `variant` (the body keeps `I` and decreases `V`, a Hoare
 triple for each state of the other side and each value of `V`), then the code before the loop:
 `I`, and for every final state of the loop that keeps what it does not write (EC's frame, the
-variables the postcondition reads), `I` and a false guard give the postcondition
+variables the postcondition or the invariant reads), `I` and a false guard give the postcondition
 (`prhlStmt_seq_while_left_ec`/`_right_ec`).  The older form, with a separate `exit` goal and no
 frame, is `equiv_while_noframe{i}`. -/
 elab "equiv_while" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:term:max : tactic =>
@@ -113,10 +113,11 @@ elab "equiv_while" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:term:max
     let w := c.getArg! 2
     unless (← TacticMisc.openStmt w).isAppOf ``StmtWithHoles.while do
       throwError "equiv_while: the last statement of side {side} is not a loop:{indentExpr w}"
-    -- EC's frame: the variables the postcondition reads that the loop keeps
-    let (ls, gls) ← ECSim.varsOf #[B]
+    -- EC's frame: the variables the postcondition or the invariant reads that the loop keeps
+    -- (a variable only the invariant reads ties the loop's state to the code before it)
+    let (ls, gls) ← ECSim.varsOf #[B, Ie]
     let xs := ls ++ (← gls.mapM fun x => mkAppM ``Lens.intoGlobal #[x])
-    let rs ← ECConseqFrame.regionsOf #[B]
+    let rs ← ECConseqFrame.regionsOf #[B, Ie]
     let (F, hF) ← ECConseqFrame.frameOf w xs rs
     let lem := if side == 1 then ``prhlStmt_seq_while_left_ec else ``prhlStmt_seq_while_right_ec
     let gs ← try applyLemma lem g #[(`F, F), (`hF, hF), (`I, Ie), (`V, Ve)]

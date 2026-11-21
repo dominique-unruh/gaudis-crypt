@@ -53,8 +53,8 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   first, exception E5.)  EC's
   lists of procedures to inline in front of an adversary's call are `repeat stmt_inline{i} 0`
   (the calls before the abstract one, by call site).
-* GAP 4: the exit goal of a one-sided `while` does not frame a variable of the other side that
-  only the invariant reads: the conjunct is added to the invariant (GAP 7 of `Sponge.lean`).
+* GAP 4 (closed 2026-11-21): the exit goal of a one-sided `while` did not frame a variable that
+  only the invariant reads (a conjunct was added to EC's invariant); its frame now has it.
 * GAP 6: the clone's games apply `CSetSize(Sponge)`, `SimSetSize(Simulator)` at the clone's
   module types, where `inline` and the lemmas stated at the sponge's types do not see them:
   rewritten right after `proc` by `CSetSize_Sponge_Perm_init`, `CSetSize_Sponge_Perm_f`,
@@ -685,12 +685,10 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
     --         /\ n0{2} = size_out /\ x0{2} \in SRO.RO.RO.m{1} /\ 0 <= i{2} <= size_out
     --         /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2} /\ BIRO.IRO.mp{2} = mp)
     --       (size_out - i{2}); auto.
-    --     (GAP 4: the exit goal does not frame `x{1}`, read only by the invariant: the conjunct
-    --     `x0{2} = x{1}` is added)
     equiv_while{2} (§bs0{2} =
           List.map (fun j => oget (FMap.get §IRO.mp{2} (§x1{2}, j))) (range 0 §i{2}) ∧
         §n0{2} = size_out ∧ FMap.dom §SRO.RO.m{1} §x1{2} ∧ 0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧
-        same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §IRO.mp{2} = mp ∧ §x1{2} = §x{1})
+        same_ro §SRO.RO.m{1} §IRO.mp{2} ∧ §IRO.mp{2} = mp)
       ((size_out - §i{2}).toNat)
     · while_ll_phoare
       intro σ₁

@@ -455,6 +455,9 @@ first needs a full rebuild, so they go together):
    `X.f.procedure` fitting `equiv[ X.f ~ … ]`; `={bs}` in a condition of `equiv_trans` when
    the goal's two sides have a `bs` of different types; `sim` through an inlined call that
    copies its parameters and has a loop; `omega` on a guard's read against the invariant's.
+   **The exit frame done 2026-11-21**: `equiv_while{i} I V` frames what the postcondition or the
+   invariant reads (`Logic/ECWhileRel.lean`; golden test in `ECWhileRelTest`).  The conjuncts
+   added for it are gone (Sponge GAP 7, SHA3Security GAP 4).
 
 **Added without waiting for the batch** (new names in new files, no existing tactic touched):
 `equiv_conseq (: P ==> Q) _ (: P₂ ==> Q₂)`, EC's `conseq (_ : P ==> Q) _ (_ : P₂ ==> Q₂)`

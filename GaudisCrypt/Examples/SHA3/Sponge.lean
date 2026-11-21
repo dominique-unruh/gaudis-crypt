@@ -74,9 +74,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   literally `H`'s (EC closes them): `conseq_side`.
 * GAP 6: the strict `auto` runs out of recursion depth on the body of a one-sided loop whose
   invariant reads the other memory: `stmt_wp; hoare_skip`.
-* GAP 7: the exit goal of a one-sided loop frames what the postcondition reads, not what the
-  invariant reads; an unmodified variable that only the invariant reads is lost (`xs{1}` in
-  `next_block_split_BlockSpongeTrans`, added to EC's `conseq` there).
+* GAP 7 (closed 2026-11-21): the exit goal of a one-sided loop framed what the postcondition
+  reads, not what the invariant reads (`xs{1}` in `next_block_split_BlockSpongeTrans`, added to
+  EC's `conseq` there); its frame now has both.
 * GAP 8: `transitivity N (P₁ ==> Q₁) (P₂ ==> Q₂)` on procedures is the rule `prhlProc_trans_ec`,
   not a tactic: the second judgment is its own lemma, and the side conditions are over the
   parameter tuples (hypotheses restated by `replace` before use).
@@ -2245,10 +2245,7 @@ theorem next_block_split_BlockSpongeTrans (i2 : ℤ) :
               ofblock §(localVarLens "r" block){2} ∧
           §i{1} = (i2 + 1) * r ∧
           eager_invar (FMap.set §BlockSponge.BIRO.IRO.mp{2} (§x0{2}, i2)
-            §(localVarLens "r" block){2}) §HybridIROEager.mp{1} ∧ §xs{1} = §x0{2})
-      --     (GAP 7: the last conjunct is not EC's.  The one-sided loop's exit goal frames what
-      --     the postcondition reads, not what the invariant reads, and the invariant's `xs{1}`
-      --     has to be the initial one)
+            §(localVarLens "r" block){2}) §HybridIROEager.mp{1})
       -- EC: progress;
       --       [by rewrite ofblockK | rewrite size_cat size_blocks2bits /#].
       case pre =>
@@ -2331,12 +2328,12 @@ theorem next_block_split_BlockSpongeTrans (i2 : ℤ) :
       have hr' : (i2 + 1) * r = i₁ + r := by rw [add_mul, one_mul, ← h3]
       refine ⟨⟨h0, hm, hsz1, le_rfl, by omega, fun _ _ _ => rfl, fun j hj => by omega⟩,
         fun τ hfr hI hg => ?_⟩
-      obtain ⟨hbs, -, -, -, hx, -⟩ := hfr
+      obtain ⟨hbs, -, -, -, -, hx, -⟩ := hfr
       obtain ⟨-, tm, -, t1, t2, tee, tran⟩ := hI
       simp only [decide_eq_false_iff_not, not_lt] at hg
       -- (GAP 10, as in the first case)
       have hi := (le_antisymm t2 hg).trans (sub_eq_iff_eq_add'.mp tm)
-      refine ⟨hbs.trans hb, by rw [hr', hi], ?_, hx⟩
+      refine ⟨hbs.trans hb, by rw [hr', hi], ?_⟩
       refine eager_invar_eq_except_upd1 mp₂ _ _ _ i2 r₂ hi2 ei ?_ fun j hj => ?_
       · rw [← h3, hr', ← hx]; exact tee
       · rw [← h3, hr'] at hj
