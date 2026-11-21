@@ -6,6 +6,7 @@ import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECCallUpto
+import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.FootprintUpper
@@ -709,5 +710,42 @@ declare module A <: ADV {-cCount, -cFlag, -B} with glob R
 example : Module.Declared (Module.app Twice B) R := ⟨by fp_finite, by fp_disjoint⟩
 
 end
+
+/-! ## EC's frame by writes: a callee that reads a variable without writing it keeps it -/
+
+-- An oracle that reads `cFlag` (into a dead local) and writes only `cCount`: `cFlag` is in its
+-- footprint, not among its writes.
+module Peek : Orc {
+  proc get (x : ℤ) : ℤ {
+    var t : Bool;
+    t <- $cFlag;
+    cCount <- $cCount + 1;
+    return $x + $cCount
+  };
+}
+
+module Once using (O : Orc) {
+  proc main (x : ℤ) : ℤ {
+    var r : ℤ;
+    r <- call O.get ($x);
+    return $r
+  };
+}
+
+-- `call (_ : ={cCount, cFlag})`: `cFlag{1} = true` holds after the call (the callee's judgment
+-- gives `={cFlag}` only), the callee does not write it
+example : equiv[ Once(Peek).main ~ Once(Peek).main :
+    ={arg, cCount, cFlag} ∧ §cFlag{1} = true ==> ={res} ∧ §cFlag{1} = true ] := by
+  equiv_proc
+  equiv_call (_ : ={cCount, cFlag})
+  equiv_auto
+
+-- `conseq (: _ ==> ={r, cFlag})`: its frame keeps `cFlag{1} = true` across the call
+example : equiv[ Once(Peek).main ~ Once(Peek).main :
+    ={arg, cCount, cFlag} ∧ §cFlag{1} = true ==> ={res} ∧ §cFlag{1} = true ] := by
+  equiv_proc
+  equiv_conseq (: _ ==> ={r, cFlag})
+  case post => auto_close
+  sim
 
 end GaudisCrypt.ECCallsTest

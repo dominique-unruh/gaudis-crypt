@@ -694,6 +694,14 @@ Document each in the docstring when it applies.
   that worked.  Never `simp_all` on a goal after `sp`: it can eat the whole budget.  An operator
   that EC's `auto` unfolds (`increase_counter`) is unfolded once after `inline*`
   (`simp only [increase_counter]`); the closers do not unfold definitions.
+* **Frames are by writes** (since 2026-11-21, as EC's): a call keeps a global the callee only
+  reads, or that its module touches elsewhere (`S(F).fi` does not write `F`'s map; `F.LRO.sample`
+  writes nothing), for `equiv_call` and for `equiv_conseq`'s frame (`writes_keep` on the callee's
+  body, after the footprint test fails).  So EC's order of `conseq` and `inline*` is kept, and
+  invariants need not carry the oracles' maps through a call's specification.  In the goal after
+  `call`, each side's frame comes **before** the callees' postcondition
+  (`∀ r₁ g₁ r₂ g₂, Fr₁ → Fr₂ → Q → B`, as in `conseq` and `while`): hand intro patterns read
+  `fun r₁ g₁ r₂ g₂ _ _ ⟨hQ…⟩`.
 * **`equiv_call (_ : ={glob M} ∧ I)` must not be parenthesized**: `(_ : (={glob M} ∧ I))` is
   read as an invariant without a `glob` part and fails ("the conditions read … which is not a
   global variable").

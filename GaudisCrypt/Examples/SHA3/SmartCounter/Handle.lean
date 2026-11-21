@@ -3512,7 +3512,6 @@ theorem eq_f : equiv[ DPRestr(PF).f ~ DPRestr(G1.S).f :
     · simp [FMap.domE, hq]
     exact ⟨trivial, lemma3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ inv0 PFm_x1x2 G1m_x1x2 G1mh_x1hx2
       hs_hx2 hs_hy2 pi_x2⟩
-  · auto_close
 
 module_subtype FUNCTIONALITY <: DFUNCTIONALITY
 

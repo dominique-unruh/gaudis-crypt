@@ -1317,7 +1317,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
           --     (EC's `smt w=size_set_le`: the step `inv_lt.step` with `size_set_le` at `inv_le`)
           auto_prep
-          refine ⟨‹_›, fun r₁ g₁ r₂ g₂ ⟨hF, hI⟩ _ _ => ⟨by auto_close,
+          refine ⟨‹_›, fun r₁ g₁ r₂ g₂ _ _ ⟨hF, hI⟩ => ⟨by auto_close,
             Gext.inv_lt.step hI (Gext.size_set_le _ _ _) (Gext.size_set_le _ _ _) le_rfl⟩⟩
       · equiv_auto
     -- EC: + proc;sp;if=> //;swap -1.
@@ -1392,7 +1392,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
           --     (EC's `smt w=size_set_le`: `inv_lt.step` with `size_set_le`)
           auto_prep
-          refine ⟨‹_›, fun r₁ g₁ r₂ g₂ ⟨hF, hI⟩ _ _ => ⟨by auto_close,
+          refine ⟨‹_›, fun r₁ g₁ r₂ g₂ _ _ ⟨hF, hI⟩ => ⟨by auto_close,
             Gext.inv_lt.step hI (Gext.size_set_le _ _ _) (Gext.size_set_le _ _ _) le_rfl⟩⟩
       · equiv_auto
     -- EC: + proc;sp 1 1;if;auto;if;auto=>//.

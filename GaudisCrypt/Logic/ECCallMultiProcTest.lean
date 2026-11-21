@@ -96,8 +96,11 @@ A_a2_ll : ∀ (X : POr) [Module.Declared X (FVP.fvP A).glob], X.o.procedure.IsLo
 ⊢ equiv[ ={glob A, O.v, G.z} ==>
       (§x{1} + §G.z{1} = §x{2} + §G.z{2} ∧ ={glob A, O.v}) ∧
         ∀ (r₁ : Bool) (g₁ : VariableAssignment) (r₂ : Bool) (g₂ : VariableAssignment),
-          r₁ = r₂ ∧ (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ O.v.get g₁ = O.v.get g₂ →
-            G.z.get g₁ = §G.z{1} → G.z.get g₂ = §G.z{2} → r₁ = r₂ ∧ G.z.get g₁ = G.z.get g₂ ]
+          G.z.get g₁ = §G.z{1} →
+            G.z.get g₂ = §G.z{2} →
+              r₁ = r₂ ∧
+                  (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ O.v.get g₁ = O.v.get g₂ →
+                r₁ = r₂ ∧ G.z.get g₁ = G.z.get g₂ ]
       {
       var x : ℕ;
       G.z <$ do

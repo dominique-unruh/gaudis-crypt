@@ -107,6 +107,19 @@ theorem call_global {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
     rw [Lens.intoGlobal_get_eq, Lens.intoGlobal_get_eq, hy]
     exact hg
 
+/-- A call keeps a global `L` that every write of the callee keeps (EC's frame by writes: a callee
+that reads `L`, or whose module touches it elsewhere, without writing it), its result written
+elsewhere. -/
+theorem call_writes {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState} {γ : Type}
+    (L : Lens γ VariableAssignment) (hp : StmtWithHoles.WritesKeep L.get p.body)
+    (hy : ∀ r σ, L.get (y.set r σ).globals = L.get σ.globals) :
+    Stmt.Keeps L.intoGlobal (Stmt.call y p args) := fun c =>
+  hoare_pre (hoare_call_wp y p args (hoareProc_of_writesKeep L.get p hp c) _) fun σ h =>
+    ⟨by rw [Lens.intoGlobal_get_eq] at h; exact h, fun r g hg => by
+      rw [Lens.intoGlobal_get_eq, hy]
+      exact hg⟩
+
 end Stmt.Keeps
 
 /-- `s` keeps the region `F` of the globals (EC's `glob A`, `F = fvP A`): every run ends with
@@ -231,8 +244,9 @@ namespace ECConseqFrame
 open Lean Meta Elab Tactic
 
 /-- A proof of `Stmt.Keeps x s`, by the statement's syntax: writes to other variables (the side
-equations by `StmtSwap.discharge`), calls keeping the caller's other locals, or a global outside
-the callee's footprint (`fp_disjoint`). -/
+equations by `StmtSwap.discharge`), calls keeping the caller's other locals, a global outside
+the callee's footprint (`fp_disjoint`), or a global no write of the callee's body touches (EC's
+frame by writes, `ECCallEquiv.writesKeepProof`). -/
 partial def keepsOf (s x : Lean.Expr) : MetaM Lean.Expr := do
   let s ← TacticMisc.openStmt (← instantiateMVars s)
   let goal ← mkAppM ``Stmt.Keeps #[x, s]
@@ -263,6 +277,7 @@ partial def keepsOf (s x : Lean.Expr) : MetaM Lean.Expr := do
               (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[p.getArg! 1], R])
             FootprintSolver.solve le.mvarId!
             mkLambdaFVars as (← mkAppM ``ProgramDenotation.inFootprint_mono #[hM, le])
+        else if t.isAppOf ``StmtWithHoles.WritesKeep then ECCallEquiv.writesKeepProof t
         else StmtSwap.discharge t none
       unless ← isDefEq m pf do throwError "keeps: cannot use the proof of{indentExpr t}"
     instantiateMVars (mkAppN c ms)
@@ -278,7 +293,10 @@ partial def keepsOf (s x : Lean.Expr) : MetaM Lean.Expr := do
     catch _ =>
       -- a global `L.intoGlobal`, outside the callee
       unless x.isAppOfArity ``Lens.intoGlobal 2 do throwError "keeps: the call"
-      byRule ``Stmt.Keeps.call_global #[(`L, x.appArg!)]
+      try byRule ``Stmt.Keeps.call_global #[(`L, x.appArg!)]
+      catch _ =>
+        -- EC's frame by writes: the callee does not write it
+        byRule ``Stmt.Keeps.call_writes #[(`L, x.appArg!)]
   | _ => throwError "keeps: no rule for{indentExpr s}"
 
 /-- A write keeps the region: `∀ v σ, F.touched_getter.get (y.set v σ).globals = …` — a local

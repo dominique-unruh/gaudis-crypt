@@ -3838,7 +3838,7 @@ theorem RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f :
   rintro x₁ tg₁ mp₁ bs₁ n₁ imp₁ x₂ tg₂ imp₂ bs₂ n₂ mp₂ ⟨⟨⟨⟨⟨⟨rfl, rfl⟩, hinv⟩, rfl⟩, hx⟩, rfl⟩, rfl⟩
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj hx
   refine ⟨⟨rfl, rfl, rfl, rfl, hinv⟩, ?_⟩
-  rintro res1 g₁ res2 g₂ ⟨hinv', vb_imp, not_vb_imp⟩ ⟨-, hg₁⟩ ⟨-, hg₂⟩
+  rintro res1 g₁ res2 g₂ ⟨-, hg₁⟩ ⟨-, hg₂⟩ ⟨hinv', vb_imp, not_vb_imp⟩
   refine ⟨⟨?_, hg₁.trans hg₂.symm⟩, hinv'⟩
   -- EC: case: (valid_block (pad2blocks bs{2}))=> [vb | not_vb].
   by_cases vb : valid_block (pad2blocks bs₂)

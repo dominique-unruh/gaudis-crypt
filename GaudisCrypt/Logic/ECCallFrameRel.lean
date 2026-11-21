@@ -21,7 +21,8 @@ open GaudisCrypt.Lib.RO.Instantiate
 
 /-- **EC's `call (: P ==> Q)`**, with each callee's frame: the callees' runs coupled by `h`; the
 postcondition for every results and globals `h` relates that are in each side's frame of its
-globals before the call. -/
+globals before the call.  The frames come first, as in `conseq`'s and `while`'s rules: what they
+keep rewrites the reads of `Q` (`simp_all` rewrites a premise with the ones before it only). -/
 theorem prhlStmt_seq_call_frame {sig₁ sig₂ : ProcedureSignature} {M₁ : Module.Proc sig₁}
     {M₂ : Module.Proc sig₂}
     {P : sig₁.ParamType → VariableAssignment → sig₂.ParamType → VariableAssignment → Prop}
@@ -33,7 +34,7 @@ theorem prhlStmt_seq_call_frame {sig₁ sig₂ : ProcedureSignature} {M₁ : Mod
     {e₂ : Getter sig₂.ParamType ProgramState} {A B : ProgramState → ProgramState → Prop}
     {s₁ s₂ : Stmt}
     (hpre : prhlStmt A s₁ s₂ fun σ₁ σ₂ => P (e₁.get σ₁) σ₁.globals (e₂.get σ₂) σ₂.globals ∧
-      ∀ r₁ g₁ r₂ g₂, Q r₁ g₁ r₂ g₂ → Fr₁ σ₁.globals g₁ → Fr₂ σ₂.globals g₂ →
+      ∀ r₁ g₁ r₂ g₂, Fr₁ σ₁.globals g₁ → Fr₂ σ₂.globals g₂ → Q r₁ g₁ r₂ g₂ →
         B (x₁.set r₁ (ProgramState.globalL.set g₁ σ₁))
           (x₂.set r₂ (ProgramState.globalL.set g₂ σ₂))) :
     prhlStmt A (.seq s₁ (Stmt.call x₁ M₁.procedure e₁)) (.seq s₂ (Stmt.call x₂ M₂.procedure e₂))
@@ -58,11 +59,57 @@ theorem prhlStmt_seq_call_frame {sig₁ sig₂ : ProcedureSignature} {M₁ : Mod
       programDenotation_call_apply, SubProbability.expected_hbind]
     simp only [expected_pure]
   · exact SubProbability.satisfies_bind _ fun w hw => SubProbability.satisfies_pure _ _
-      (hB _ _ _ _ (hsat w hw) (hμ₁ w hw) (hμ₂ w hw))
+      (hB _ _ _ _ (hμ₁ w hw) (hμ₂ w hw) (hsat w hw))
+
+/-- **EC's frame by writes**: a lens that every write of `M`'s body keeps (its callees'
+included) is a frame of `M` — a callee that reads `X` without writing it keeps it, where
+`Module.Proc.frame_lens` asks `M` to stay out of `X` altogether. -/
+theorem Module.Proc.frame_lens_writes {sig : ProcedureSignature} {M : Module.Proc sig} {β : Type}
+    (X : Lens β VariableAssignment) (hp : StmtWithHoles.WritesKeep X.get M.procedure.body) :
+    M.Frame fun g g' => X.get g' = X.get g :=
+  fun a g => Procedure.satisfies_of_writesKeep X.get M.procedure hp a g
 
 namespace ECCallEquiv
 
 open Lean Meta Elab Tactic
+
+/-- A proof of `StmtWithHoles.WritesKeep G s`: the single writes of `s`, its callees' included
+(`writesKeepSplit`, which unfolds module procedures as the inliner does), each by `rfl` (a write
+to a local) or `StmtSwap.discharge` (a write to another global). -/
+def writesKeepProof (ty : Lean.Expr) : MetaM Lean.Expr := do
+  let m ← mkFreshExprMVar ty
+  let gs ← writesKeepSplit m.mvarId!
+  for g in gs do
+    let t ← instantiateMVars (← g.getType)
+    let s ← saveState
+    let ok ← try
+        let (_, g') ← g.intros
+        g'.refl
+        pure true
+      catch _ => s.restore; pure false
+    unless ok do g.assign (← StmtSwap.discharge t none)
+  let r ← instantiateMVars m
+  if r.hasExprMVar then throwError "writes keep: a write is left"
+  return r
+
+/-- `Module.Proc.frame_lens_writes` for `M` and the lens `X`, when every write of `M`'s body
+keeps `X` (`writesKeepProof`); the state is restored if not. -/
+def frameLensWrites? (M X : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let s ← saveState
+  try
+    let c ← mkConstWithFreshMVarLevels ``Module.Proc.frame_lens_writes
+    let (ms, _, _) ← forallMetaTelescope (← inferType c)
+    -- binders: `sig`, `M`, `β`, `X`, `hp`
+    unless ← isDefEq ms[1]! M do throwError "frame: the callee"
+    unless ← isDefEq ms[3]! X do throwError "frame: the lens"
+    let hp ← writesKeepProof (← instantiateMVars (← inferType ms[4]!))
+    unless ← isDefEq ms[4]! hp do throwError "frame: the writes"
+    let e ← instantiateMVars (mkAppN c ms)
+    if e.hasExprMVar then throwError "frame: open"
+    return some e
+  catch _ =>
+    s.restore
+    return none
 
 /-- `t` elaborates, with no error and no `sorry`; the state is restored if not. -/
 def elabClean (t : Term) : TermElabM (Option Lean.Expr) := do
@@ -82,13 +129,17 @@ def elabClean (t : Term) : TermElabM (Option Lean.Expr) := do
   catch _ => s.restore; Core.setMessageLog log; return none
 
 /-- The frame of the callee `M` for the global variables `xs` and the regions `Rs` a condition
-reads: those `M` stays out of (EC's call keeps them), combined with `Module.Proc.frame_and`. -/
+reads: those `M` stays out of, or, for a variable, does not write (EC's call keeps them), combined
+with `Module.Proc.frame_and`. -/
 def frameFor (M : Lean.Expr) (xs Rs : Array Lean.Expr) : TermElabM Lean.Expr := do
   let MS ← Term.exprToSyntax M
   let mut parts : Array Lean.Expr := #[]
   for x in xs do
     let XS ← Term.exprToSyntax x
     if let some e ← elabClean (← `(Module.Proc.frame_lens (M := $MS) $XS (by fp_disjoint))) then
+      parts := parts.push e
+    -- EC's frame by writes: `M` reads `X` but does not write it
+    else if let some e ← frameLensWrites? M x then
       parts := parts.push e
   for R in Rs do
     let RS ← Term.exprToSyntax R

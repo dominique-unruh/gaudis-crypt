@@ -455,6 +455,11 @@ first needs a full rebuild, so they go together):
    `X.f.procedure` fitting `equiv[ X.f ~ … ]`; `={bs}` in a condition of `equiv_trans` when
    the goal's two sides have a `bs` of different types; `sim` through an inlined call that
    copies its parameters and has a loop; `omega` on a guard's read against the invariant's.
+   **Frames by writes done 2026-11-21**: `equiv_call`'s and `equiv_conseq`'s frames keep what
+   the callee does not write (`Module.Proc.frame_lens_writes`, `Stmt.Keeps.call_writes`, by
+   `writes_keep` on the callee's body when the footprint test fails); the call rule's frames come
+   before the callees' postcondition (`simp_all` rewrites a premise with earlier ones only).
+   Closed: Gconcl_list GAP 4 and GAP 6.  Golden tests in `ECCallsTest` (`Peek`).
    **The exit frame done 2026-11-21**: `equiv_while{i} I V` frames what the postcondition or the
    invariant reads (`Logic/ECWhileRel.lean`; golden test in `ECWhileRelTest`).  The conjuncts
    added for it are gone (Sponge GAP 7, SHA3Security GAP 4).

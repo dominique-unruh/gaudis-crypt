@@ -1158,17 +1158,17 @@ set_option ec.strict true
   our `smt_close` lists them (deviation, not a gap).
 * GAP 3: `glob M` of a concrete module in the `={…}` of `equiv_while`'s invariant stays a region
   (`FVP.fvP IF`), where EC reads the module's variables: the variables are written out.
-* GAP 4: `equiv_conseq`'s frame takes a call of a procedure that writes nothing (`F.LRO.sample`,
-  EC's `proc sample(x) = {}`) as writing its module's variables, and loses `F.RO.m` on that side:
-  EC's following `inline*` is done first.
+* GAP 4 (closed 2026-11-21): `equiv_conseq`'s frame took a call of a procedure that writes
+  nothing (`F.LRO.sample`, EC's `proc sample(x) = {}`) as writing its module's variables; the
+  frame is now by writes, and EC's order (`conseq`, then `inline*`) is kept.
 * GAP 5: EC's `call (: I)` on two different concrete procedures (`S(IF').f ~ S(Valid2).f`) has no
   one-condition form: `equiv_call (_ : ={arg, …} ==> ={res, …})` with the invariant's variables,
   then `equiv_proc` (EC's form opens the callees).  `equiv_call (_ : ={glob IF})` on the same
   concrete callee falls back to the frameless rule (no footprint bound for `IF`'s `init`):
   `={F.RO.m}`.
-* GAP 6: the frame of `equiv_call (_ : P ==> Q)` is the callee module's (`S(F)`), not the
-  procedure's: `S(F).fi` does not call `F`, but the call loses the oracles' maps, and the
-  invariant on them is carried in `P` and `Q` (the callee by `sim (_ : inv)`).
+* GAP 6 (closed 2026-11-21): the frame of `equiv_call (_ : P ==> Q)` was the callee module's
+  (`S(F)`), not the procedure's: `S(F).fi` does not call `F`, but the call lost the oracles'
+  maps.  The frame is now by writes.
 * GAP 7: a fact about unmodified variables (`(p, n) = parse x`) is carried in the new
   postcondition of `hoare_conseq (: _ ==> Q)` and in the loop invariant.  (Written when these
   had no frame.  Since 2026-11-16 `hoare_conseq` and `hoare_while` have EC's frame — the
@@ -1773,12 +1773,11 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     equiv_call (_ : ={SLCommon.F.RO.m})
     ec_auto
     -- EC: conseq(:_==> true);auto.
-    --     (GAP 4: EC's `inline*` of the next line first — `conseq`'s frame does not see that
-    --     `F.LRO.sample` writes nothing, and loses `F.RO.m` on the left)
-    stmt_inline*
     equiv_conseq (: _ ==> True)
     case post => ec_close
+    --     (EC's `auto`: nothing to do before the loop)
     -- EC: by inline*;while{1}(true)(n{1}-i{1});auto;smt().
+    stmt_inline*
     equiv_while{1} (True) ((§n{1} - §i{1}).toNat)
     · while_ll_phoare
       intro σ₂
@@ -1795,11 +1794,11 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
   equiv_call (_ : ={SLCommon.F.RO.m})
   ec_auto
   -- EC: conseq(:_==> true);auto.
-  --     (GAP 4: EC's `inline*` of the next line first)
-  stmt_inline*
   equiv_conseq (: _ ==> True)
   case post => ec_close
+  --     (EC's `auto`: nothing to do before the loop)
   -- EC: by inline*;while{1}(true)(n{1}-i{1});auto;smt().
+  stmt_inline*
   equiv_while{1} (True) ((§n{1} - §i{1}).toNat)
   · while_ll_phoare
     intro σ₂
@@ -1925,14 +1924,12 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     · ec_close
     on_goals 2 => ec_auto
     ec_auto
-    --     (GAP 6: the frame of the call is the module's, `S(F)`, not the procedure's — `fi`
-    --     does not call `F` — and loses the oracles' maps: the invariant is carried along)
-    equiv_call (_ : ={arg, S.m, S.mi, S.paths} ∧
-        inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ==>
-      ={res, S.m, S.mi, S.paths} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    --     (GAP 5: two different concrete callees, EC's `call (: ={glob S})` in its two-condition
+    --     form; the frame keeps the oracles' maps, which `S(F).fi` does not write)
+    equiv_call (_ : ={arg, S.m, S.mi, S.paths} ==> ={res, S.m, S.mi, S.paths})
     on_goals 2 => ec_auto
     --     (EC's `call (: I)` opens the callees)
-    equiv_proc; sim (_ : inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+    equiv_proc; sim
   -- EC: + proc;sp;if;auto;call(: inv_L_L3 F.RO.m{1} F.RO.m{2} F2.RO.m{2});auto;sp.
   · equiv_proc; stmt_sp; stmt_if
     · ec_close
