@@ -150,6 +150,9 @@ def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
     commitIfNoEx <| g.withContext do
   let (fvs, g) ← g.introN 2
   let #[σ₁, σ₂] := fvs | throwError "generalizeReadsRel: expected two states"
+  -- the globals of the renamed states as the states' own, without the slow definitional check
+  -- (`foldRenameGlobals`), as `unfoldReads` would fold them
+  let g ← if normDec then g.withContext (foldRenameGlobalsGoal g #[σ₁, σ₂]) else pure g
   let (gvs, g) ← g.withContext do
     let ty ← instantiateMVars (← g.getType)
     -- `§allGlobals` is the globals themselves (`allGlobals_get`, by `rfl`): spelled as such, it

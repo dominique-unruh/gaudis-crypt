@@ -313,6 +313,50 @@ partial def unfoldReadStep (σ : FVarId) (e : Lean.Expr) : MetaM (Option Lean.Ex
       return some (← getAt x (mkApp (mkConst part) s))
   return none
 
+/-- Is `L` a renaming of the locals, by its form: `Flatten.trafo`, `Flatten.emb`,
+`Flatten.rename ren`, `ProgramState.mapLocal m`, and chains of them?  Its reads keep the globals
+(`globals_chain_get`, `globals_trafo_get`, …, by `rfl`). -/
+partial def isLocalsRenaming (L : Lean.Expr) : Bool :=
+  let L := L.consumeMData
+  L.isConstOf `GaudisCrypt.Flatten.trafo || L.isConstOf `GaudisCrypt.Flatten.emb ||
+    L.isAppOfArity `GaudisCrypt.Flatten.rename 1 ||
+    L.isAppOfArity `GaudisCrypt.ProgramState.mapLocal 1 ||
+    (L.isAppOfArity ``Lens.chain 5 && isLocalsRenaming (L.getArg! 3) &&
+      isLocalsRenaming (L.getArg! 4))
+
+/-- `s` with the renamings of the locals it is read through stripped (`(L.get s').globals` is
+`s'.globals` for such an `L`), if what is left is the state `σ`. -/
+partial def stripLocalsRenamings? (σ : FVarId) (s : Lean.Expr) : Option Lean.Expr :=
+  let s := s.consumeMData
+  if s.isFVarOf σ then some s
+  else if s.isAppOfArity ``Getter.get 4 && (s.getArg! 2).isAppOfArity ``Lens.toGetter 3 &&
+      isLocalsRenaming (s.getArg! 2).appArg! then stripLocalsRenamings? σ s.appArg!
+  else none
+
+/-- The globals of `σ` read through renamings of the locals (what an inlined call leaves,
+`((Flatten.rename r).chain Flatten.trafo).get σ`) as `σ.globals`, by their form.  A definitional
+rewrite, but one `isDefEq` would take long to confirm: it compares the renamed state with `σ`
+first, field by field, and the locals differ (half a minute on SHA-3's `Gcol`). -/
+def foldRenameGlobals (σ : FVarId) (e : Lean.Expr) : Lean.Expr :=
+  e.replace fun t =>
+    let s? := if t.isAppOfArity ``ProgramState.globals 1 then some t.appArg!
+      else match t with
+        | .proj ``ProgramState 0 s => some s
+        | _ => none
+    match s? with
+    | some s =>
+      if s.consumeMData.isFVarOf σ then none
+      else (stripLocalsRenamings? σ s).map (mkApp (mkConst ``ProgramState.globals))
+    | none => none
+
+/-- `foldRenameGlobals` on the target of `g`, for the states `σs`, without a definitional check
+(see there). -/
+def foldRenameGlobalsGoal (g : MVarId) (σs : Array FVarId) : MetaM MVarId := do
+  let ty ← instantiateMVars (← g.getType)
+  let ty' := σs.foldl (fun e σ => foldRenameGlobals σ e) ty
+  if ty' == ty then return g
+  g.replaceTargetDefEq ty'
+
 /-- Unfold the reads of `σ` in `e` that are not reads of a lens or getter as it is, but of
 an expression built around them (`unfoldReadStep`), until none is left: what remains are reads
 `x.get σ` (or `x.get σ.globals`) of the lenses and getters themselves.  A definitional rewrite. -/
@@ -607,6 +651,7 @@ def generalizeReads (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext
   unless ← isDefEq dom (mkConst ``ProgramState) do
     throwError "generalizeReads: the first binder is not a `ProgramState`:{indentExpr ty}"
   let (σ, g) ← g.intro1
+  let g ← g.withContext (foldRenameGlobalsGoal g #[σ])
   g.withContext do
     let g ← g.change (← unfoldReads σ (← instantiateMVars (← g.getType)))
     let g ← try globTuples g catch _ => pure g

@@ -209,6 +209,25 @@ example (R S : ℤ → ℤ → Prop) : equiv[ R §x{1} §rCount{2} ==> S §x{1} 
   trace_state
   sorry
 
+-- … a global read through the renamings of an inlined call's locals: the state's own global
+/--
+trace: case h
+X : Lens ℤ VariableAssignment
+P Q : ℤ → ℤ → Prop
+⊢ ∀ (X₁ X₂ : ℤ), P X₁ X₂ → Q X₁ X₂
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (X : Lens ℤ VariableAssignment) (P Q : ℤ → ℤ → Prop) :
+    prhlStmt (fun σ₁ σ₂ => P
+        (X.get ((((Flatten.rename [("a", "b")]).chain Flatten.trafo).get σ₁).globals))
+        (X.get σ₂.globals))
+      .skip .skip (fun σ₁ σ₂ => Q (X.get σ₁.globals) (X.get σ₂.globals)) := by
+  equiv_skip_ec
+  trace_state
+  sorry
+
 -- `skip` on a Hoare triple
 /--
 trace: P Q : ℤ → Prop

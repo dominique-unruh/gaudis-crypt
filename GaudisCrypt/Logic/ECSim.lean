@@ -171,7 +171,7 @@ def lastKind (s : Lean.Expr) : MetaM Last := do
 /-- Close `∀ …, A → B` (what `equiv_skip` leaves) by `simp_all`, if it can.  The attempts by
 `simp_all` alone go without a declared module's restrictions (`clear_decl_hyps`: a join of
 dozens of footprints, which `simp_all` would simplify in each attempt); those through `glob A`
-keep them, for `fp_disjoint`. -/
+keep them, for `fp_disjoint`, and run only on a goal that has a region. -/
 def closeImp (g : MVarId) : TacticM (List MVarId) := do
   let s ← saveState
   -- the reads through writes to the state (`HoareWp.simpReadsDecls`: locals past resets and
@@ -179,6 +179,30 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
   let reads : Array Ident := (HoareWp.simpReadsDecls.map mkIdent).toArray ++
     #[mkIdent ``Setter.throwaway, mkIdent ``lensWriteNorm]
   let readsTac ← `(tactic| simp_all (config := { decide := true }) [$[$reads:ident],*])
+  -- the attempts through `glob A` only when the goal has a region (`glob A`, `globInvF`): they
+  -- keep the restrictions, and a contextual `simp_all` over them fails slowly (half a minute)
+  let ty ← instantiateMVars (← g.getType)
+  let hasGlob := (ty.find? fun e =>
+    e.isConstOf ``globInvF || e.isConstOf ``Footprint.touched_getter).isSome
+  let globTac ← if hasGlob then `(tactic| first
+      | (intros
+         -- states agreeing on `glob A` and some variables (EC's `={glob A, x}`, the invariant
+         -- `globInvF` of an abstract call): `glob A` past the writes outside it (`fp_disjoint`),
+         -- the writes read through
+         simp only [globInvF, Prod.mk.injEq] at *
+         (try simp (disch := fp_disjoint) only [touched_set_of_le_compl])
+         simp_all (config := { contextual := true }) [Lens.set_get, Lens.get_of_disjoint_set,
+           Setter.throwaway, ProgramState.globalL]
+         done)
+      | (intros
+         -- … the variables' equations substituted first, the conditional writes split
+         simp only [globInvF, Prod.mk.injEq] at *
+         casesm* _ ∧ _
+         (try split_ifs) <;> (try simp (disch := fp_disjoint) only [touched_set_of_le_compl]) <;>
+           simp_all (config := { contextual := true }) [Lens.set_get, Lens.get_of_disjoint_set,
+             Setter.throwaway, ProgramState.globalL]
+         done))
+    else `(tactic| fail)
   try
     let gs ← evalTacticAt (← `(tactic| first
       | (clear_decl_hyps; intros; subst_vars; simp_all; done)
@@ -196,23 +220,7 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
       | (clear_decl_hyps; intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]
          done)
       | (clear_decl_hyps; intros; subst_vars; $readsTac:tactic; done)
-      | (intros
-         -- states agreeing on `glob A` and some variables (EC's `={glob A, x}`, the invariant
-         -- `globInvF` of an abstract call): `glob A` past the writes outside it (`fp_disjoint`),
-         -- the writes read through
-         simp only [globInvF, Prod.mk.injEq] at *
-         (try simp (disch := fp_disjoint) only [touched_set_of_le_compl])
-         simp_all (config := { contextual := true }) [Lens.set_get, Lens.get_of_disjoint_set,
-           Setter.throwaway, ProgramState.globalL]
-         done)
-      | (intros
-         -- … the variables' equations substituted first, the conditional writes split
-         simp only [globInvF, Prod.mk.injEq] at *
-         casesm* _ ∧ _
-         (try split_ifs) <;> (try simp (disch := fp_disjoint) only [touched_set_of_le_compl]) <;>
-           simp_all (config := { contextual := true }) [Lens.set_get, Lens.get_of_disjoint_set,
-             Setter.throwaway, ProgramState.globalL]
-         done))) g
+      | $globTac:tactic)) g
     if gs.isEmpty then return [] else s.restore; return [g]
   catch _ => s.restore; return [g]
 
