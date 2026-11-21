@@ -746,13 +746,11 @@ Document each in the docstring when it applies.
   its side conditions as auto-params (`hD := by ec_module`, `hdisj := by fp_disjoint`), as in
   `SecureRO.lean` and `SHA3OSecurity`'s `Eager.RO_LRO_D`; then
   `equiv_call (Eager.RO_LRO_D (Dist A))`, with `Dist A` taking `RO_Distinguisher`'s `unit`.
-* **`equiv_call (_ : ={x₁, …})` on a declared adversary with long oracle proofs**: the form
-  puts `={glob A}` into the oracles' judgments; after a `wp` or `sim n m` the postcondition
-  reads `glob A` over the written memory and `stmt_inline` on it does not end (40M heartbeats,
-  "timeout at `whnf`" inside `simp`).  Write the invariant in two parts,
-  `equiv_call (_ : ={x₁, …} ∧ ={y₁, …})`: the general form, EC's oracle judgments
-  (`SHA3OSecurity` `rw_ideal_2`, GAP 5).  Where the oracle is closed by `sim`, the one-part
-  form is fine.
+* **`equiv_call (_ : ={x₁, …})` on a declared adversary** gives EC's oracle judgments,
+  `={arg, x₁, …} ==> ={res, x₁, …}`, without `={glob A}` (since 2026-11-21; before, the
+  postconditions read `glob A` over written memories and `stmt_inline` did not end: invariants
+  were split in two parts, `SHA3OSecurity` GAP 5).  Write EC's set as it is.  With another
+  declared module's `glob` in the set, the oracles keep that region, `glob A` with it.
 * **A call keeps the other variables only if the callee's footprint is known at the call's
   spelling**: after `equiv_call H` the goals `X.get g₁ = X.get g₂` for arbitrary final `g₁`,
   `g₂` mean the frame was empty.  State `@[fp_bound] theorem … : FVP.fvP (SORO.RF_T.get

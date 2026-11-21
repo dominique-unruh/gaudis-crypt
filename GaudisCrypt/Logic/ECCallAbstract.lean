@@ -20,6 +20,10 @@ each `equiv[ O₁.f ~ O₂.f : ={arg, glob A, X} ==> ={res, glob A, X} ]`), then
 calls (`pre`).  The representation of `A` comes from its declaration and the oracles' module type
 `T.ext`; `A`'s disjointness from `X` and the oracles' countable arguments are discharged as for
 `hoare_call (: inv)`.  `glob A` may be written or left out: it is always part of the invariant.
+
+On a call `A(O₁) ~ A(O₂)` of a declared module, `Logic/ECCallUpto.lean`'s rule for the same
+syntax comes first: EC's oracle judgments, without `glob A` (the oracles' writes keep it).  The
+rule here is the fallback, and the rule for another declared module's `glob` in the set.
 -/
 
 namespace GaudisCrypt

@@ -375,32 +375,39 @@ section
 
 declare module A <: ADV {-cCount, -cFlag}
 
--- `call (_ : ={glob A, x})`: the oracles' judgments, then the code before
+-- `call (_ : ={glob A, x})`: the oracles' judgments, EC's `={arg, x} ==> ={res, x}` (without
+-- `={glob A}`: their writes keep it), then the code before
 /--
 trace: case oracle
 A : ADV
 inst✝ : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
 R : ℤ → ℤ → Prop
-⊢ prhlProc
-    (fun a₁ g₁ a₂ g₂ ↦
-      a₁ = a₂ ∧ (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ cCount.get g₁ = cCount.get g₂)
-    Inc.get.procedure Inc2.get.procedure fun r₁ g₁ r₂ g₂ ↦
-    r₁ = r₂ ∧ (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ cCount.get g₁ = cCount.get g₂
+⊢ prhlProc (fun a₁ g₁ a₂ g₂ ↦ a₁ = a₂ ∧ cCount.get g₁ = cCount.get g₂) Inc.get.procedure Inc2.get.procedure
+    fun r₁ g₁ r₂ g₂ ↦ r₁ = r₂ ∧ cCount.get g₁ = cCount.get g₂
 
 case pre
 A : ADV
 inst✝ : Module.Declared A (cCount.footprint ⊔ cFlag.footprint)
 R : ℤ → ℤ → Prop
-⊢ equiv[ ={glob A, cCount} ==>
-      globInvF cCount (FVP.fvP A) Eq §allGlobals{1} §allGlobals{2} ∧
-        ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
-          r₁ = r₂ ∧ globInvF cCount (FVP.fvP A) Eq g₁ g₂ → R r₁ r₂ ]
-      {
-      cFlag <- true;
-} ~
-    {
-      cFlag <- true;
-}
+⊢ prhlStmt
+    (fun σ₁ σ₂ ↦
+      (FVP.fvP A).touched_getter.get σ₁.globals = (FVP.fvP A).touched_getter.get σ₂.globals ∧
+        cCount.get σ₁.globals = cCount.get σ₂.globals)
+    (GaudiProg[
+        cFlag <- true;
+  ])
+    (GaudiProg[
+        cFlag <- true;
+  ])
+    fun σ₁ σ₂ ↦
+    (() = () ∧
+        (FVP.fvP A).touched_getter.get σ₁.globals = (FVP.fvP A).touched_getter.get σ₂.globals ∧
+          cCount.get σ₁.globals = cCount.get σ₂.globals) ∧
+      ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
+        r₁ = r₂ ∧
+            (FVP.fvP A).touched_getter.get g₁ = (FVP.fvP A).touched_getter.get g₂ ∧ cCount.get g₁ = cCount.get g₂ →
+          R ((localVarLens "r" ℤ).get ((liftLens (localVarLens "r" ℤ)).set r₁ (ProgramState.globalL.set g₁ σ₁)))
+            ((localVarLens "r" ℤ).get ((liftLens (localVarLens "r" ℤ)).set r₂ (ProgramState.globalL.set g₂ σ₂)))
 ---
 warning: declaration uses `sorry`
 ---

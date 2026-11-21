@@ -630,6 +630,12 @@ Nothing was changed in the tactics for this stretch; these are the items for the
    judgments too (the abstract rule's invariant without the `glob A` part, which the rule
    already keeps by the adversary's restriction), or `wp` simplifies a `glob A` read over a
    write outside `A` (`touched_set_of_le_compl`, by `fp_disjoint`).
+   **Done 2026-11-21** (the first): on a call `A(O₁) ~ A(O₂)` of a declared module, the `={…}`
+   form goes to the general form's rule (`Logic/ECCallUpto.lean`, `equivCallInvAndCore`):
+   EC's oracle judgments, `glob A` kept by the oracles' writes.  The old region rule stays for
+   another declared module's `glob` in the set and as the fallback.  Full build unchanged in
+   time; Gconcl's six `equiv_auto; auto_close` became EC's `auto`; `rw_ideal_2`'s invariants
+   are EC's single sets again.
 2. **Names across the two sides** (`eq_eager_ideal2`): `§x0{2}` is "Unknown identifier" when
    `x0` is also a variable of the other side, or of the precondition, at another type, and
    `splitwhile{1} 1 : i < k` cannot name `k` once no statement mentions it.  Written with the

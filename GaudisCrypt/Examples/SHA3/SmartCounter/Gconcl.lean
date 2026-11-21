@@ -407,7 +407,7 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     sim 1 1
     equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
       C.queries})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     -- EC: if=> //;2:by sim.
     equiv_proc; stmt_if
     · auto_close
@@ -496,7 +496,7 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     sim 1 1
     equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
       C.queries})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     -- EC: if=> //;2:sim.
     equiv_proc; stmt_if
     · auto_close
@@ -544,7 +544,7 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     sim 2 2
     equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
       C.queries})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     equiv_proc; stmt_inline*; sim
   -- EC: last by auto.
   · equiv_auto; auto_close
@@ -565,7 +565,7 @@ theorem G3_G4 : equiv[ G3(D, F.RO.asRO).distinguish ~ G4(D, F.RO.asRO).distingui
     on_goals 2 => equiv_auto
     sim 1 1
     equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     -- EC: if => //;2:sim.
     equiv_proc; stmt_if
     · auto_close
@@ -591,7 +591,7 @@ theorem G3_G4 : equiv[ G3(D, F.RO.asRO).distinguish ~ G4(D, F.RO.asRO).distingui
     on_goals 2 => equiv_auto
     sim 1 1
     equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     -- EC: if => //;2:sim.
     equiv_proc; stmt_if
     · auto_close
@@ -618,7 +618,7 @@ theorem G3_G4 : equiv[ G3(D, F.RO.asRO).distinguish ~ G4(D, F.RO.asRO).distingui
     on_goals 2 => equiv_auto
     sim 2 2
     equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     -- EC: sp;sim; while(={i,p,F.RO.m})=>//.
     equiv_proc; stmt_sp; sim
     equiv_while (={i, p, F.RO.m})

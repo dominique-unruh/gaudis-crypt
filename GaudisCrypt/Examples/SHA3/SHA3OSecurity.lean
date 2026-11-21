@@ -66,11 +66,9 @@ Translation:
   the memories' equation, taken out by hand (GAP 7 of `SHA3Security.lean`).  Where the two sides'
   initializations are the same, `ec_auto` derives the memories' equality itself (`subst_states`,
   2026-11-19: the three `RO_LRO_D` steps); elsewhere still by hand;
-* GAP 5: `equiv_call (_ : ={x₁, …})` on the adversary puts `={glob A}` into the oracles'
-  judgments (EC's do not have it), and the `wp`s below then carry `glob A` read over written
-  memories, on which `inline` does not end (40M heartbeats).  Where the oracles' proofs are
-  long, the invariant is written in two parts, `(_ : ={x₁, …} ∧ ={y₁, …})`: the general form,
-  with EC's oracle judgments;
+* GAP 5 (closed 2026-11-21): `equiv_call (_ : ={x₁, …})` on the adversary put `={glob A}` into
+  the oracles' judgments (EC's do not have it), on which `inline` did not end; it now gives EC's
+  oracle judgments, so the invariants are EC's single equality sets;
 * a call behind the module type's record (`(SORO.RF_T.get RFList)`) keeps the other variables
   only with its footprint stated at that spelling (`fvP_RF_T_get_RFList`, `fvP_SORO_Bounder`,
   `fvP_RFWhile`: EC reads them off the code);
@@ -1728,9 +1726,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
       · equiv_call rw_RF_List_While; ec_auto
       · ec_auto
     -- EC: call(: ={glob SORO.Bounder, glob RFList, glob OSimulator, glob OPC, glob Log}); auto.
-    --     (GAP 5: the invariant in two parts — the form `(_ : ={x₁, …})` puts `={glob A}` into
-    --     the oracles' judgments, where the steps below do not end)
-    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m} ∧ ={Simulator.m, Simulator.mi,
+    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m, Simulator.m, Simulator.mi,
       Simulator.paths, Gconcl_list.BIRO2.IRO.mp, Counter.c, Log.m})
     -- EC: - proc; sp; if; auto.
     · equiv_proc; stmt_sp
@@ -3034,8 +3030,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
       · ec_auto
     -- EC: call(: ={glob SORO.Bounder, glob RFList, glob OSimulator, glob OPC, glob Log,
     --       glob Dist_of_P2Adv}); auto.
-    --     (GAP 5: the invariant in two parts)
-    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m, Dist_of_P2Adv.m} ∧ ={Simulator.m,
+    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m, Dist_of_P2Adv.m, Simulator.m,
       Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp, Counter.c, Log.m})
     -- EC: - proc; sp; if; auto.
     · equiv_proc; stmt_sp
@@ -4273,8 +4268,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
       · equiv_call rw_RF_List_While; ec_auto
       · ec_auto
     -- EC: call(: ={glob SORO.Bounder, glob RFList, glob OSimulator, glob OPC, glob Log}); auto.
-    --     (GAP 5: the invariant in two parts)
-    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m} ∧ ={Simulator.m,
+    equiv_call (_ : ={SORO.Bounder.bounder, RFList.m, Simulator.m,
       Simulator.mi, Simulator.paths, Gconcl_list.BIRO2.IRO.mp, Counter.c, Log.m})
     -- EC: - proc; sp; if; auto.
     · equiv_proc; stmt_sp

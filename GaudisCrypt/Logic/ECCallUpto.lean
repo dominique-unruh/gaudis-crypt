@@ -756,6 +756,50 @@ elab_rules (kind := equivCallInvAnd) : tactic
   | `(tactic| equiv_call (_ : ={ $xs,* } ∧ $rest)) => do
     equivCallInvAndCore (← `(={ $xs,* } ∧ $rest))
 
+/-- The declared module `D` of the left side's last statement, a call of `D(O)` (`D` a local),
+if it is one; the goal left as it is. -/
+def declaredCallee? : TacticM (Option Lean.Expr) := do
+  let s ← saveState
+  try
+    let g ← HoareSplit.hoareSplit 1 (← getMainGoal)
+    let r ← g.withContext do
+      let ty ← instantiateMVars (← g.getType)
+      let st ← TacticMisc.openStmt (ty.getArg! 1)
+      let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then
+          TacticMisc.openStmt (st.getArg! 2) else pure st
+      let some c := last.find? (·.isAppOfArity ``GaudisCrypt.Module.app 6) | return none
+      let D := c.getArg! 4
+      return if D.isFVar then some D else none
+    s.restore
+    return r
+  catch _ =>
+    s.restore
+    return none
+
+/-- **EC's `call (_: ={glob A, x₁, …})` on the adversary `A(O₁) ~ A(O₂)`**: EC's oracle
+judgments, `={arg, x₁, …} ==> ={res, x₁, …}`, without `={glob A}` (the oracles' writes keep it),
+as `equiv_call (_ : ={x₁, …} ∧ …)` does (`equivCallInvAndCore`).  `glob A` of the callee may be
+written or left out.  With another declared module's `glob` (a region), or where that rule does
+not apply: the region rule of `Logic/ECCallAbstract.lean` (`glob A` in the oracles' judgments). -/
+elab_rules (kind := equivCallInv) : tactic
+  | `(tactic| equiv_call (_ : ={ $xs:term,* })) => withMainContext do
+    let some D ← declaredCallee? | throwUnsupportedSyntax
+    let mut items : Array Term := #[]
+    for x in xs.getElems do
+      match x with
+      | `(glob $a:ident) =>
+        match (← getLCtx).findFromUserName? a.getId with
+        | some d => unless d.toExpr == D do throwUnsupportedSyntax
+        | none => items := items.push x
+      | _ => items := items.push x
+    if items.isEmpty then throwUnsupportedSyntax
+    let sep : Syntax.TSepArray `term "," := .ofElems items
+    let s ← saveState
+    try equivCallInvAndCore (← `(={ $sep,* }))
+    catch _ =>
+      s.restore
+      throwUnsupportedSyntax
+
 /-- Do both sides of the relational goal end with a call of an applied declared module
 (`D(O₁) ~ D(O₂)`, `D` a local)? -/
 def lastCallsDeclared : TacticM Bool := withMainContext do
