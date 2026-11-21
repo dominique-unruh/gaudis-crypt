@@ -3,6 +3,7 @@ import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.FrameTactics
 import GaudisCrypt.Logic.ModuleFootprint
+import GaudisCrypt.Logic.ECCallEquiv
 
 /-!
 # EasyCrypt's up-to-bad abstract call `call (_: bad, I, J)` — the rule
@@ -775,6 +776,19 @@ def declaredCallee? : TacticM (Option Lean.Expr) := do
   catch _ =>
     s.restore
     return none
+
+/-- **EC's `call (: ={x₁, …} /\ I)` on concrete callees** (no declared module's call last): the
+callees' judgment `={arg, x₁, …} ∧ I ==> ={res, x₁, …} ∧ I` a goal, then the code before, as EC's
+(`equiv_call (_ : P ==> Q)`, `Logic/ECCallEquiv.lean`).  On a declared module's call: the rule
+above. -/
+elab_rules (kind := equivCallInvAnd) : tactic
+  | `(tactic| equiv_call (_ : ={ $xs,* } ∧ $rest)) => withMainContext do
+    if (← declaredCallee?).isSome then throwUnsupportedSyntax
+    -- (`arg`, `res` unhygienic: the names the conditions give a procedure's argument and result)
+    let argI := mkIdent `arg
+    let resI := mkIdent `res
+    evalTactic (← `(tactic|
+      equiv_call (_ : ={$argI, $xs,*} ∧ $rest ==> ={$resI, $xs,*} ∧ $rest)))
 
 /-- **EC's `call (_: ={glob A, x₁, …})` on the adversary `A(O₁) ~ A(O₂)`**: EC's oracle
 judgments, `={arg, x₁, …} ==> ={res, x₁, …}`, without `={glob A}` (the oracles' writes keep it),

@@ -1161,11 +1161,10 @@ set_option ec.strict true
 * GAP 4 (closed 2026-11-21): `equiv_conseq`'s frame took a call of a procedure that writes
   nothing (`F.LRO.sample`, EC's `proc sample(x) = {}`) as writing its module's variables; the
   frame is now by writes, and EC's order (`conseq`, then `inline*`) is kept.
-* GAP 5: EC's `call (: I)` on two different concrete procedures (`S(IF').f ~ S(Valid2).f`) has no
-  one-condition form: `equiv_call (_ : ={arg, …} ==> ={res, …})` with the invariant's variables,
-  then `equiv_proc` (EC's form opens the callees).  `equiv_call (_ : ={glob IF})` on the same
-  concrete callee falls back to the frameless rule (no footprint bound for `IF`'s `init`):
-  `={F.RO.m}`.
+* GAP 5 (closed 2026-11-21): EC's `call (: I)` on two different concrete procedures
+  (`S(IF').f ~ S(Valid2).f`) is `equiv_call (_ : ={x…} ∧ I)` (their judgment a goal), then
+  `equiv_proc` (EC's form opens the callees).  `equiv_call (_ : ={glob IF})` on the same concrete
+  callee falls back to the frameless rule (no footprint bound for `IF`'s `init`): `={F.RO.m}`.
 * GAP 6 (closed 2026-11-21): the frame of `equiv_call (_ : P ==> Q)` was the callee module's
   (`S(F)`), not the procedure's: `S(F).fi` does not call `F`, but the call lost the oracles'
   maps.  The frame is now by writes.
@@ -1688,9 +1687,8 @@ set_option maxHeartbeats 4000000 in
 /-- EC's `local equiv Ideal_equiv_valid (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S}) :
 L(D,F.LRO).distinguish ~ L2(D,F.LRO).distinguish : ={glob D} ==> ={glob D, res}`.
 
-Deviations: EC's `call (: I)` on two different concrete procedures is `equiv_call (_ : ={arg, …}
-==> ={res, …})` followed by `equiv_proc` (EC's form opens the callees itself); GAPs 3 and 4 of
-the file header. -/
+Deviations: after EC's `call (: I)` on two different concrete procedures, `equiv_proc` (EC's
+form opens the callees itself); GAP 3 of the file header. -/
 theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     equiv[ L(D, SLCommon.F.LRO).distinguish ~ L2(D, SLCommon.F.LRO).distinguish :
       ={glob D} ==> ={glob D, res} ] := by
@@ -1706,8 +1704,7 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     on_goals 2 => ec_auto
     ec_auto
     -- EC: call(: ={glob S,glob F.RO});auto.
-    equiv_call (_ : ={arg, S.m, S.mi, S.paths, SLCommon.F.RO.m} ==>
-      ={res, S.m, S.mi, S.paths, SLCommon.F.RO.m})
+    equiv_call (_ : ={S.m, S.mi, S.paths, SLCommon.F.RO.m})
     on_goals 2 => ec_auto
     --     (EC's `call (: I)` opens the callees)
     equiv_proc
@@ -1722,7 +1719,7 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     --     (EC's `auto` on the branch: nothing to do here)
     stmt_sp
     -- EC: call(: ={glob F.RO});2:auto;2:smt().
-    equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+    equiv_call (_ : ={SLCommon.F.RO.m})
     on_goals 2 => (ec_auto; ec_close)
     --     (EC's `call (: I)` opens the callees)
     equiv_proc
@@ -1746,8 +1743,7 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
   on_goals 2 => ec_auto
   --     (EC's `auto` on the branch: nothing to do here)
   stmt_sp
-  equiv_call (_ : ={arg, SLCommon.F.RO.m, S.m, S.mi, S.paths} ==>
-    ={res, SLCommon.F.RO.m, S.m, S.mi, S.paths})
+  equiv_call (_ : ={SLCommon.F.RO.m, S.m, S.mi, S.paths})
   on_goals 2 => (ec_auto; ec_close)
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
@@ -1765,7 +1761,7 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     on_goals 2 => (ec_auto; ec_close)
     --     (EC's `auto` on the branch: nothing to do here)
     -- EC: call(: ={glob IF});auto.
-    equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+    equiv_call (_ : ={SLCommon.F.RO.m})
     on_goals 2 => (ec_auto; ec_close)
     --     (EC's `call (: I)` opens the callees)
     equiv_proc
@@ -1786,7 +1782,7 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
       ec_auto
     ec_auto
   -- EC: call(: ={glob IF});auto.
-  equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+  equiv_call (_ : ={SLCommon.F.RO.m})
   on_goals 2 => ec_auto
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
@@ -1812,8 +1808,8 @@ set_option maxHeartbeats 4000000 in
 /-- EC's `local equiv ideal_equiv2 (D <: DISTINGUISHER{-SLCommon.C, -C, -IF, -S}) :
 L2(D,F.RO).distinguish ~ SLCommon.IdealIndif(IF,S,A(D)).main : ={glob D} ==> ={glob D, res}`.
 
-Deviations: GAP 5 of the file header (EC's `call (: I)` on two concrete procedures).  EC's
-`smt(parse_valid parseK formatK)` are closed without the lemmas. -/
+Deviations: after EC's `call (: I)` on two concrete procedures, `equiv_proc` (EC's form opens
+them).  EC's `smt(parse_valid parseK formatK)` are closed without the lemmas. -/
 theorem ideal_equiv2 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     equiv[ L2(D, SLCommon.F.RO.asRO).distinguish ~ SLCommon.IdealIndif(IF, S, A(D)).main :
       ={glob D} ==> ={glob D, res} ] := by
@@ -1829,8 +1825,7 @@ theorem ideal_equiv2 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     on_goals 2 => ec_auto
     ec_auto
     -- EC: call(: ={glob F.RO, glob S});auto.
-    equiv_call (_ : ={arg, SLCommon.F.RO.m, S.m, S.mi, S.paths} ==>
-      ={res, SLCommon.F.RO.m, S.m, S.mi, S.paths})
+    equiv_call (_ : ={SLCommon.F.RO.m, S.m, S.mi, S.paths})
     on_goals 2 => ec_auto
     --     (EC's `call (: I)` opens the callees)
     equiv_proc
@@ -1844,7 +1839,7 @@ theorem ideal_equiv2 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     on_goals 2 => ec_auto
     ec_auto
     -- EC: call(: ={glob F.RO});2:auto.
-    equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+    equiv_call (_ : ={SLCommon.F.RO.m})
     on_goals 2 => ec_auto
     --     (EC's `call (: I)` opens the callees)
     equiv_proc
@@ -1860,7 +1855,7 @@ theorem ideal_equiv2 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
   --     (EC's `auto` on the branch: nothing to do here)
   stmt_sp
   -- EC: call(: ={glob F.RO});auto;sp;if;auto;inline*;auto;sp.
-  equiv_call (_ : ={arg, SLCommon.F.RO.m} ==> ={res, SLCommon.F.RO.m})
+  equiv_call (_ : ={SLCommon.F.RO.m})
   on_goals 2 => (ec_auto; ec_close)
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
@@ -1924,9 +1919,7 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
     · ec_close
     on_goals 2 => ec_auto
     ec_auto
-    --     (GAP 5: two different concrete callees, EC's `call (: ={glob S})` in its two-condition
-    --     form; the frame keeps the oracles' maps, which `S(F).fi` does not write)
-    equiv_call (_ : ={arg, S.m, S.mi, S.paths} ==> ={res, S.m, S.mi, S.paths})
+    equiv_call (_ : ={S.m, S.mi, S.paths})
     on_goals 2 => ec_auto
     --     (EC's `call (: I)` opens the callees)
     equiv_proc; sim
@@ -2119,9 +2112,8 @@ theorem Ideal_equiv3 : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO
   · ec_close
   on_goals 2 => ec_auto
   ec_auto
-  equiv_call (_ : ={arg, S.m, S.mi, S.paths} ∧
-      inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ==>
-    ={res, S.m, S.mi, S.paths} ∧ inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
+  equiv_call (_ : ={S.m, S.mi, S.paths} ∧
+    inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2})
   on_goals 2 => ec_auto
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
@@ -2333,7 +2325,7 @@ theorem equiv_L3_L4 :
     · ec_close
     on_goals 2 => ec_auto
     --     (EC's `auto`: nothing to do here)
-    equiv_call (_ : ={arg, SLCommon.F.RO.m, F2.RO.m} ==> ={res, SLCommon.F.RO.m, F2.RO.m})
+    equiv_call (_ : ={SLCommon.F.RO.m, F2.RO.m})
     on_goals 2 => (ec_auto; ec_close)
     --     (EC's `call (: I)` opens the callees)
     equiv_proc; stmt_sp; stmt_if
@@ -2554,8 +2546,7 @@ theorem equiv_L3_L4 :
   · ec_close
   on_goals 2 => ec_auto
   ec_auto
-  equiv_call (_ : ={arg, S.m, S.mi, S.paths, SLCommon.F.RO.m, F2.RO.m} ==>
-    ={res, S.m, S.mi, S.paths, SLCommon.F.RO.m, F2.RO.m})
+  equiv_call (_ : ={S.m, S.mi, S.paths, SLCommon.F.RO.m, F2.RO.m})
   on_goals 2 => ec_auto
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
@@ -2570,7 +2561,7 @@ theorem equiv_L3_L4 :
   --     (EC's `auto`: nothing to do here)
   stmt_sp
   -- EC: call(: ={glob F.RO, glob F2.RO});auto;last smt().
-  equiv_call (_ : ={arg, SLCommon.F.RO.m, F2.RO.m} ==> ={res, SLCommon.F.RO.m, F2.RO.m})
+  equiv_call (_ : ={SLCommon.F.RO.m, F2.RO.m})
   on_goals 2 => (ec_auto; ec_close)
   --     (EC's `call (: I)` opens the callees)
   equiv_proc
@@ -2720,7 +2711,8 @@ set_option maxHeartbeats 16000000 in
 -BIRO.IRO, -BIRO2.IRO}) : L4(D,F.LRO,F2.LRO).distinguish ~
 IdealIndif(BIRO.IRO,SimLast(S),DRestr(D)).main : ={glob D} ==> ={glob D, res}`.
 
-Deviations: GAP 5 of the file header.  What EC's `smt(parseK)`, `smt(parse_twice)` read off
+Deviations: `equiv_proc` after EC's `call (: I)` on two concrete procedures (EC's form opens
+them).  What EC's `smt(parseK)`, `smt(parse_twice)` read off
 `INV_L4_ideal` is stated once at the top (`hdom`, `hget` for a valid prefix; `hpt`, `hdom'`,
 `hget'` for an invalid one) and applied by hand at EC's `progress` goals, with EC's `lemma5`,
 `lemma5bis`. -/
@@ -2776,10 +2768,8 @@ theorem equiv_L4_ideal :
     · ec_close
     on_goals 2 => ec_auto
     ec_auto
-    equiv_call (_ : ={arg, S.m, S.mi, S.paths} ∧
-        INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ==>
-      ={res, S.m, S.mi, S.paths} ∧
-        INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
+    equiv_call (_ : ={S.m, S.mi, S.paths} ∧
+      INV_L4_ideal §SLCommon.F.RO.m{1} §BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2})
     on_goals 2 => ec_auto
     --     (EC's `call (: I)` opens the callees)
     equiv_proc
@@ -5179,11 +5169,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   -- EC: call(: ={BIRO.IRO.mp} /\ ={m,mi,paths}(S,Simulator) /\
   --         BIRO2.IRO.mp{1} = IRO2.RO.m{2} /\
   --         incl Simulator.unvalid_map{2} BIRO2.IRO.mp{1});auto.
-  --     (GAP 5: EC's `call (: I)` on two different concrete procedures opens the callees)
-  equiv_call (_ : ={arg, BIRO.IRO.mp} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
-    §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
-    SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1} ==>
-    ={res, BIRO.IRO.mp} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
+  equiv_call (_ : ={BIRO.IRO.mp} ∧ §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
     §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
     SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
   rotate_left
@@ -5370,10 +5356,7 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   ec_auto
   -- EC: call(: ={BIRO.IRO.mp,Simulator.m,Simulator.mi,Simulator.paths} /\
   --         Simulator.unvalid_map{1} = IRO2.RO.m{2}); auto.
-  --     (GAP 5: EC's `call (: I)` on two different concrete procedures opens the callees)
-  equiv_call (_ : ={arg, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
-    §Simulator.unvalid_map{1} = §IRO2.RO.m{2} ==>
-    ={res, BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
+  equiv_call (_ : ={BIRO.IRO.mp, Simulator.m, Simulator.mi, Simulator.paths} ∧
     §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
   rotate_left
   · ec_auto

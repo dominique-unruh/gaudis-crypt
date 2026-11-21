@@ -455,6 +455,9 @@ first needs a full rebuild, so they go together):
    `X.f.procedure` fitting `equiv[ X.f ~ … ]`; `={bs}` in a condition of `equiv_trans` when
    the goal's two sides have a `bs` of different types; `sim` through an inlined call that
    copies its parameters and has a loop; `omega` on a guard's read against the invariant's.
+   **EC's `call (: ={x…} /\ I)` on two different concrete callees done 2026-11-21**
+   (`Logic/ECCallUpto.lean`): their judgment as a goal; Gconcl_list GAP 5, 18 sites in EC's
+   one condition.  Golden test in `ECCallsTest` (`Once(Inc) ~ Once(Inc2)`).
    **The strict `auto`'s recursion depth done 2026-11-21**: a closing attempt that hits a
    runtime limit (`maxRecDepth` in `simp_all`) is caught (`tryCatchRuntimeEx`; `try` does not
    catch it) and leaves the goal (Sponge GAP 6, SHA3Security GAP 5).  Golden test in

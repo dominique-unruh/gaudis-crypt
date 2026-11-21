@@ -748,4 +748,13 @@ example : equiv[ Once(Peek).main ~ Once(Peek).main :
   case post => auto_close
   sim
 
+-- `call (: ={cCount} /\ I)` on two different concrete callees (`Inc`, `Inc2`): their judgment
+-- `={arg, cCount} ∧ I ==> ={res, cCount} ∧ I` a goal (EC's), then the code before
+example : equiv[ Once(Inc).main ~ Once(Inc2).main :
+    ={arg, cCount} ∧ §cFlag{1} = §cFlag{2} ==> ={res, cCount} ∧ §cFlag{1} = §cFlag{2} ] := by
+  equiv_proc
+  equiv_call (_ : ={cCount} ∧ §cFlag{1} = §cFlag{2})
+  · equiv_proc; equiv_auto; auto_close
+  · equiv_auto
+
 end GaudisCrypt.ECCallsTest
