@@ -64,9 +64,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   `simp_reads_all` / `touched_set_of_le_compl`); GAP 14 of `SmartCounter/Gconcl_list.lean`.
 * GAP 8: `conseq (: _ ==> Q)` in front of the adversary's call does not keep `DPre.h`, which the
   adversary does not write (EC's does): `DPre.h{1} = ha` goes through the call's invariant.
-* GAP 5: the strict `auto` runs out of recursion depth on a goal with quantified invariant
-  conjuncts over a map being set (GAP 6 of `Sponge.lean`): `rnd`, the plain `skip` and
-  `progress` (or EC's argument by hand) instead.
+* GAP 5 (closed 2026-11-21): the strict `auto` ran out of recursion depth (its closing
+  `simp_all`) on a goal with quantified invariant conjuncts over a map being set; a closing
+  attempt that hits a runtime limit now leaves the goal, as EC's `auto` does.
 -/
 
 section FirstPort
@@ -839,13 +839,11 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
       · stmt_sp; stmt_wp
         stmt_rcondt{2} 1
         · intro σ₁
-          --     (GAP 5: the strict `auto` runs out of recursion depth on
-          --     this one-sided goal; the plain `skip`, and EC's argument by hand)
+          ec_auto
           --     - have[]h1 [] h2 h3 := H1.
           --       have:=h2 x0{hr}; rewrite H2/= negb_exists/= =>/(_ (size bs0{hr})).
           --       rewrite size_ge0 H9/=; apply absurd =>/= h.
           --       by have //=:= H5 _ _ h.
-          hoare_skip
           rintro i n0 x1 IRO_mp bs0 x2 n1
             ⟨⟨⟨h0, -, -, rfl, -, -, hs, hnd, -, -, h5, -, -, -⟩, -, hlt⟩, hx⟩
           have e := Prod.mk.inj hx
@@ -856,10 +854,9 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
           · exact hnd (hs.2.1 _ ⟨i, h0, of_decide_eq_true hlt, h⟩)
           · exact lt_irrefl _ h
         -- EC: wp; rnd; auto; progress.
-        --     (GAP 5 again: `rnd`, the plain `skip` and `progress` for `auto; progress`)
         --     - smt(size_ge0).
         --     - smt().
-        stmt_wp; equiv_rnd; equiv_skip; ec_progress
+        stmt_wp; equiv_rnd; ec_auto; ec_progress
         -- EC: - by rewrite size_cat/=.
         · rw [size_cat]; rfl
         -- EC: - by rewrite mem_set; left; rewrite H3.

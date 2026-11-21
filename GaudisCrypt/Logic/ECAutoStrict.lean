@@ -67,8 +67,11 @@ elab "ec_auto" : tactic => do
   -- the code used up: the strict `skip`
   if ← codeIsSkip (← getMainGoal) then
     liftMetaTactic1 fun g => some <$> ReadNorm.ecSkip g
-    -- what EC's `auto` closes by itself (closed, or left as `ec_skip` left it)
-    evalTactic (← `(tactic| try (intros; first
+    -- what EC's `auto` closes by itself (closed, or left as `ec_skip` left it; also when an
+    -- attempt runs into a runtime limit, maximum recursion depth in `simp_all` on quantified
+    -- facts about a map being set, which `try` does not catch)
+    let s ← saveState
+    tryCatchRuntimeEx (evalTactic (← `(tactic| (intros; first
       | rfl
       | trivial
       | exact le_rfl
@@ -78,7 +81,8 @@ elab "ec_auto" : tactic => do
       -- the states before the same initializations on both sides, equal (EC's memories after
       -- `sp`: `={glob D}` for any `D`): `subst_states`, then the states are one
       | (casesm* _ ∧ _, Exists _; subst_states; (try subst_vars);
-         first | rfl | (clear_decl_hyps; simp_all; done)))))
+         first | rfl | (clear_decl_hyps; simp_all; done))))))
+      fun _ => s.restore
 
 open Lean Meta Elab Tactic in
 /-- **`ec_intro`**: introduce the values a strict `skip` generalized (the goal's leading binders

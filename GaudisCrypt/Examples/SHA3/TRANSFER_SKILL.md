@@ -573,10 +573,7 @@ Document each in the docstring when it applies.
 * **`call L` where `L` is `true ==> ={res}`** in code that still has other state:
   `equiv_call (_ : True ==> ={res})`; goals `callee` (`exact L`), then the code before.
 * **`while{i} I V` whose invariant reads an unmodified variable the postcondition does not**:
-  the exit goal frames only the postcondition's reads, so the variable's final value is not
-  tied to the initial one.  Add the missing fact to the preceding `conseq`'s postcondition
-  (marked as a gap) rather than changing the invariant: with an invariant that reads the other
-  memory the strict `auto` on the loop body runs out of recursion depth (`stmt_wp; hoare_skip`).
+  since 2026-11-21 the exit goal frames the invariant's reads too; write EC's invariant as is.
 * **`elim n'` on a procedure judgment** (`move: ge0_n'; elim n'=> [| n' ge0_n' IH]` after
   `proc`): `equiv_proc` first, then `induction n', ge0_n' using Int.leInduction with | base => …
   | succ n' ge0_n' IH => …`.  `IH` is about the two bodies, so EC's `conseq IH=> //` is
@@ -591,6 +588,10 @@ Document each in the docstring when it applies.
   in a Hoare goal (`rcondf` side goal): `hoare_call (: True ==> True)`, goals `spec`
   (`hoare_proc; ec_auto`) and the code before.
 * **`(bs, i) <@ M.f(…)` in `transitivity` code**: `bs, i <- call (M.f).procedure (…);`.
+* **The strict `auto` and "maximum recursion depth"**: since 2026-11-21 a closing attempt of
+  `ec_auto` that runs into a runtime limit (its `simp_all` on quantified facts about a map being
+  set) leaves the goal as `ec_skip` left it, as EC's `auto` leaves what it cannot close: write
+  EC's `auto; progress` and the argument after it.  The entries below are from before.
 * **A leaf where the strict `auto`/`equiv_skip` fail with "maximum recursion depth"** on a
   `skip ~ skip` goal (seen with `bs{1} = take n1 bs{2}` next to `={bs}`): don't raise limits;
   `refine prhlStmt_skip ?_`, `rintro σ₁ σ₂ ⟨…⟩` and build the conjunction with lemmas that work

@@ -72,8 +72,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   first port's own procedures are equal to them only by a rewrite.)
 * GAP 5: `equiv_conseq H` leaves its two implications when the goal's conditions are not
   literally `H`'s (EC closes them): `conseq_side`.
-* GAP 6: the strict `auto` runs out of recursion depth on the body of a one-sided loop whose
-  invariant reads the other memory: `stmt_wp; hoare_skip`.
+* GAP 6 (closed 2026-11-21): the strict `auto` ran out of recursion depth (in its closing
+  `simp_all`) on the body of a one-sided loop whose invariant reads the other memory; a closing
+  attempt that hits a runtime limit now leaves the goal as EC's `auto` does.
 * GAP 7 (closed 2026-11-21): the exit goal of a one-sided loop framed what the postcondition
   reads, not what the invariant reads (`xs{1}` in `next_block_split_BlockSpongeTrans`, added to
   EC's `conseq` there); its frame now has both.
@@ -2113,9 +2114,7 @@ theorem next_block_split_BlockSpongeTrans (i2 : ℤ) :
       intro σ₂
       ec_auto
     · intro σ₂ z
-      --     (GAP 6: the invariant reads the right memory; the strict `auto` loops on it, so
-      --     `wp` and the plain `skip`)
-      stmt_wp; hoare_skip
+      ec_auto
       rintro i m bs xs mp ⟨⟨h1, h2, h3, hsz, hm, hbs, hd, ei⟩, hlt, hz⟩
       simp only [decide_eq_true_eq] at hlt
       subst h3

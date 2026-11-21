@@ -286,4 +286,24 @@ example : (∀ a : ℤ, a = a) ∧ hoare[ P §x ==> P §x ] {
   refine ⟨?_, ?_⟩
   on_goals 1, 2 => ec_auto
 
+/-! ## `ec_auto`: a closing attempt that runs into a runtime limit leaves the goal -/
+
+-- `simp_all` on `x = f x` rewrites without end (maximum recursion depth, which `try` does not
+-- catch); EC's `auto` leaves what it cannot close, and so does `ec_auto`: the goal as `ec_skip`
+-- left it
+/--
+trace: P Q : ℤ → Prop
+f : ℕ → ℕ
+R : ℕ → Prop
+⊢ ∀ (x : ℕ), x = f x → R x
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+set_option maxRecDepth 200 in
+example (f : ℕ → ℕ) (R : ℕ → Prop) : hoare[ §x = f §x ==> R §x ] { var x : ℕ; skip; } := by
+  ec_auto
+  trace_state
+  sorry
+
 end GaudisCrypt.ECProgressTest

@@ -69,6 +69,13 @@ theorem Module.Proc.frame_lens_writes {sig : ProcedureSignature} {M : Module.Pro
     M.Frame fun g g' => X.get g' = X.get g :=
   fun a g => Procedure.satisfies_of_writesKeep X.get M.procedure hp a g
 
+/-- `set_option ec.frameWrites false`: frames by footprint only (a call keeps a variable outside
+the callee's footprint), without EC's frame by writes. -/
+register_option ec.frameWrites : Bool := {
+  defValue := true
+  descr := "call/conseq frames: also keep what the callee does not write (EC's frame by writes)"
+}
+
 namespace ECCallEquiv
 
 open Lean Meta Elab Tactic
@@ -95,6 +102,7 @@ def writesKeepProof (ty : Lean.Expr) : MetaM Lean.Expr := do
 /-- `Module.Proc.frame_lens_writes` for `M` and the lens `X`, when every write of `M`'s body
 keeps `X` (`writesKeepProof`); the state is restored if not. -/
 def frameLensWrites? (M X : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  unless ec.frameWrites.get (← getOptions) do return none
   let s ← saveState
   try
     let c ← mkConstWithFreshMVarLevels ``Module.Proc.frame_lens_writes

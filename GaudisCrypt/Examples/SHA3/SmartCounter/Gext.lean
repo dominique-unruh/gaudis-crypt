@@ -459,8 +459,8 @@ set_option linter.dupNamespace false
   `exists x0, P[x0/x] /\ x = e[x0/x]` and `equiv_elim*` (`Logic/ECSp.lean`, `Logic/ECElim.lean`).
 * (GAP 4, fixed: a procedure's parameter, `x` of `S.f`, is a name of the conditions after `proc`
   — `FrameVar.nameable`: a binder `x` elsewhere in the goal no longer hides it.)
-* GAP 5: a call's frame (`equiv_call`) keeps only variables outside the callee's footprint;
-  EC's keeps what the callee does not write (`RRO.allKnown` reads `FRO.m`): read/write sets.
+* GAP 5 (closed 2026-11-21): a call's frame (`equiv_call`) kept only variables outside the
+  callee's footprint; it is now by writes, as EC's (`RRO.allKnown` reads `FRO.m`).
 * (GAP 7, fixed: the local `h` in `G1_G2`'s `M.f` is a name of the conditions — as GAP 4.)
 * (GAP 6, fixed: `smt_close [size_ge0]` closes `0 ≤ size p` — when `grind` fails, the lemmas'
   instances at the goal's terms are added, `ec_instances`.)
@@ -1274,9 +1274,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         --       inline RRO.allKnown;sp 1 1;if=>//.
         --       by wp;call RROset_inv_lt;auto.
         --     (GAP 2: inline by index)
-        --     (GAP 5: EC's `call (_: ={FRO.m})` on `RRO.allKnown` frames `FRO.m`, which it only
-        --     reads; our frame needs what is outside the callee's whole footprint: inlined)
-        · stmt_inline 3; stmt_inline 2; stmt_wp
+        · stmt_inline 3; stmt_wp; equiv_call (_ : ={FRO.m})
           stmt_inline 0; stmt_sp 1 1; stmt_if
           · auto_close
           --     (`in_dom_with` and `RRO.queried`'s `is_` unfolded: EC's `auto` sees through them)
@@ -1352,8 +1350,8 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         -- EC: + inline RRO.queried; auto;call (_: ={FRO.m});1:by sim.
         --       inline RRO.allKnown;sp 1 1;if=>//.
         --       by wp;call RROset_inv_lt;auto.
-        --     (GAP 5: the second `RRO.allKnown` inlined; GAP 2: by index)
-        · stmt_inline 3; stmt_inline 2; equiv_auto
+        --     (GAP 2: inline by index)
+        · stmt_inline 3; equiv_auto; equiv_call (_ : ={FRO.m})
           stmt_inline 0; stmt_sp 1 1; stmt_if
           · auto_close
           · stmt_wp; equiv_call RROset_inv_lt; equiv_auto

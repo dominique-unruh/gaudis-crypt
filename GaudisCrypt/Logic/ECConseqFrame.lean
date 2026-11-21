@@ -296,6 +296,7 @@ partial def keepsOf (s x : Lean.Expr) : MetaM Lean.Expr := do
       try byRule ``Stmt.Keeps.call_global #[(`L, x.appArg!)]
       catch _ =>
         -- EC's frame by writes: the callee does not write it
+        unless ec.frameWrites.get (← getOptions) do throwError "keeps: the call"
         byRule ``Stmt.Keeps.call_writes #[(`L, x.appArg!)]
   | _ => throwError "keeps: no rule for{indentExpr s}"
 
