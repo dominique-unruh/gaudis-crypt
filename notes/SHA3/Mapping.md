@@ -815,7 +815,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace
 | 1946 | module | `Simulator` | | the first port's | def |
 | 2017 | local clone | `IRO2` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` (`global_var`s) | def |
 | 2025, 2081 | local modules | `Simu`, `L` | section Simplify_Simulator. | the first port's `Simu`; `Simplify_Simulator.L` (alias) | def |
-| 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` (EC's script; inline fact `parse_format_of_eq_parse`; the valid query's loops by invariant, GAP 16; "the last query is sampled" by a loop invariant instead of EC's `splitwhile`/`seq` on a Hoare triple, GAP 9) | done |
+| 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` (EC's script; inline fact `parse_format_of_eq_parse`; the valid query's loops by EC's `sim`; "the last query is sampled" by a loop invariant instead of EC's `splitwhile`/`seq` on a Hoare triple, GAP 9) | done |
 | 2155 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` | done |
 | 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_Simulator.Simplify_simulator` (EC's two lines; `RO_LRO_D` at the first port's module `L D`, `LF`, with two bridges from the alias `L`, E5) | done |
 | 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (EC's two lines; `D` with a region, E14) | done |

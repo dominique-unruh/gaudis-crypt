@@ -518,25 +518,22 @@ theorem SHA3OIndiff (m : VariableAssignment) :
             -- EC: * if; auto=> />.
             --       conseq(:_==> ={IRO.mp} /\ bs0{1} = bs{2})=> />; sim=> />.
             --       by move=> &1 &2 <- /> <- />.
-            --     (GAP 2: `sim` through the loop is the `while` rule, the variables equal)
             · stmt_sp
               stmt_if
               · ec_close
               · stmt_wp
                 equiv_conseq (: _ ==> ={IRO.mp} ∧ §bs{1} = §bs{2})
                 · ec_close
-                equiv_while (={IRO.mp, i, n, x2, bs})
-                · stmt_sp; stmt_if
-                  · ec_close
-                  · ec_auto
-                  · ec_auto
-                ec_auto; ec_close
+                sim; ec_close
               · ec_auto; ec_close
             -- EC: by if; auto=> />; sim=> &1 &2 /> <- /> <- /= ->.
             · stmt_sp
               stmt_if
               · ec_close
               · stmt_wp
+                --     (GAP 2: `sim` stops at the loop: the relation after it mixes `x0{1}` and
+                --     `x1{2}` in terms, not equalities, which EC's `sim` leaves as its goal: the
+                --     `while` rule with EC's equality set)
                 equiv_while (={Gconcl_list.BIRO2.IRO.mp, i0, n1, x4, bs0})
                 · stmt_sp; stmt_if
                   · ec_close
@@ -578,16 +575,8 @@ theorem SHA3OIndiff (m : VariableAssignment) :
         · equiv_conseq (: _ ==> §bs{1} = §bs0{2} ∧ ={IRO.mp, Simulator.m, Simulator.mi,
             Simulator.paths, Gconcl_list.BIRO2.IRO.mp})
           · ec_close
-          --     (GAP 2: `sim` through the loop is the `while` rule; the two sides' `x1`, `x2` have
-          --     different types elsewhere in the procedures and are named by their slots)
-          equiv_while (={IRO.mp, i} ∧
-            §(localVarLens "x1" (List Bool)){1} = §(localVarLens "x2" (List Bool)){2} ∧
-            §n{1} = §n0{2} ∧ §bs{1} = §bs0{2})
-          · stmt_sp; stmt_if
-            · ec_close
-            · ec_auto
-            · ec_auto
-          ec_auto
+          --     (`sim` leaves the precondition's implication, which EC's closes itself)
+          sim; ec_close
         · ec_auto; ec_close
       · ec_auto
     --     (EC's `auto` after the call; GAP 14 of `SmartCounter/Gconcl_list.lean`: `glob Dist`

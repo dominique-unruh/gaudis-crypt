@@ -1197,8 +1197,8 @@ set_option ec.strict true
 * GAP 15: EC's `conseq` without a specification (`conseq=> />`: the postcondition without what
   the precondition gives on unwritten variables) has no automatic form: the postcondition is
   written out.
-* GAP 16: inlining names the two sides' locals differently (`i`/`i0`), and `sim` does not match
-  them: the loop by its invariant.
+* GAP 16 (closed 2026-11-21): inlining names the two sides' locals differently (`i`/`i0`), as
+  EC's does; `sim` relates them by position (EC's equality set of pairs).
 * GAP 17 (closed 2026-11-20): EC's theory `AdvAbsVal` is `Lib/EC/AdvAbsVal.lean`; `neg_D_concl`
   is EC's script.
 * After `sp`, a goal prints as the plain `prhlStmt` term until the next tactic (the conditions
@@ -5136,10 +5136,10 @@ res ] = Pr [ L(IRO2.RO).distinguish() @ &m : res ]`.
 
 The proof is EC's, with these differences.  The fact EC derives inline three times (the query
 parsed on the left formats back to the list parsed on the right) is `parse_format_of_eq_parse`.
-The two loops of the valid query are related by their invariant (GAP 16).  In the invalid query,
-EC shows that the last query is already sampled by splitting off the loop's last iteration
-(`splitwhile`, `rcondt`, `rcondf`, `seq` on a Hoare triple); there is no `seq` on a Hoare triple
-here (GAP 9), and the loop is given the invariant "the query before `i` is sampled" directly.
+In the invalid query, EC shows that the last query is already sampled by splitting off the
+loop's last iteration (`splitwhile`, `rcondt`, `rcondf`, `seq` on a Hoare triple); there is no
+`seq` on a Hoare triple here (GAP 9), and the loop is given the invariant "the query before `i`
+is sampled" directly.
 The invariant of the main loop carries what the loops do not write (GAP 15). -/
 theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO, -C, -S,
       -BIRO2.IRO, -IRO2.RO.m}), ∀ m : VariableAssignment,
@@ -5236,28 +5236,10 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
     rotate_left
     · ec_auto; ec_close
     --   by conseq(:_ ==> ={bs, BIRO.IRO.mp})=> />; sim=> />; smt(parseK formatK).
-    --     (GAP 16: the two sides' locals are named differently, the loop by its invariant)
-    equiv_while (={BIRO.IRO.mp, bs, n} ∧ §i{1} = §i0{2} ∧
-      §x1{1} = §(localVarLens "x0" (List block)){2} ∧ §x{1} = §x{2} ∧
-      §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
-      §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
-      SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
-    · stmt_sp; stmt_if
-      · ec_close
-      all_goals ec_auto
-    · ec_auto
-      ec_prep
-      have h := parse_format_of_eq_parse ‹(_, _) = parse _›
-      have h1 := ‹(_ : List block) = (parse (format _ _)).1›
-      have h2 := ‹(_ : List block) = (parse (rcons _ _)).1›
-      have h3 := ‹(_ : ℤ) = (parse (format _ _)).2›
-      have h4 := ‹(_ : ℤ) = (parse (rcons _ _)).2›
-      rw [h] at h1 h3
-      have e1 := h1.trans h2.symm
-      have e2 := h3.trans h4.symm
-      refine ⟨⟨⟨e2, e1, ‹SLCommon.incl _ _›⟩, by rw [e2]⟩, fun τ₁ τ₂ _ _ hI _ _ => ?_⟩
-      obtain ⟨⟨hmp, hbs, -⟩, -, -, hx, hrest⟩ := hI
-      exact ⟨⟨hmp, by rw [hbs], hx⟩, hrest⟩
+    equiv_conseq (: _ ==> ={bs, BIRO.IRO.mp})
+    · ec_close
+    sim
+    smt_close [parseK, formatK]
   -- EC: sp; rcondt{1} 1; 1: auto; if{2}; last first.
   stmt_sp
   stmt_rcondt{1} 1
@@ -5427,20 +5409,8 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   equiv_conseq (: ={q, k, BIRO.IRO.mp} ∧ §Simulator.unvalid_map{1} = §IRO2.RO.m{2} ==> _)
   case pre => ec_close
   -- EC: inline*; if; 1: auto; 1: sim.
-  --     (GAP 16: inlining names the two sides' locals differently (`i`/`i0`, `r0`/`r`), and
-  --     `sim` does not match them: the loop by its invariant)
   stmt_inline*; stmt_if; on_goals 1 => ec_close
-  · stmt_wp; stmt_sp; stmt_if
-    · ec_close
-    rotate_left
-    · ec_auto
-    equiv_while (={BIRO.IRO.mp, bs, n} ∧ §i{1} = §i0{2} ∧
-      §(localVarLens "x" (List block)){1} = §(localVarLens "x" (List block)){2} ∧
-      §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
-    · stmt_sp; stmt_if
-      · ec_close
-      all_goals ec_auto
-    · ec_auto
+  on_goals 1 => sim
   -- EC: if; 1,3: auto; sp.
   stmt_if
   · ec_close

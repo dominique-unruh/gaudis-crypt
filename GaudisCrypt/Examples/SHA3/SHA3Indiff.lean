@@ -269,9 +269,9 @@ set_option ec.strict true
   parameters spelled differently): the inliner applies `SimLast`'s `apply_simp` there only at
   default transparency, by `set_option inline.defEqApply true` (always on, it inlines further than
   the first port's proofs expect).
-* GAP 2: our inliner renames a callee's locals per side (`x2, n0` against `x0, n` in
-  `equiv_sim_f`'s IRO loops), so `sim` cannot relate loops by name where EC's does: `while` with
-  the renamed variables' equalities.
+* GAP 2 (closed 2026-11-21): our inliner renames a callee's locals per side (`x2, n0` against
+  `x0, n` in `equiv_sim_f`'s IRO loops), as EC's does; `sim` relates them by position (EC's
+  equality set of pairs), so `equiv_sim_f` is EC's `last sim; smt(…)`.
 * GAP 6 (closed 2026-11-17): `LowerDist(D, F, P)` passes `P`, `BlockSponge`'s primitive, to the
   bit sponge's `D` (one module type in EC); `equiv_proc` opens its procedures as EC's `proc`.
 * GAP 1: inline by name: EC's paths over `Perm` (`BlockSponge.FC(BlockSponge.Sponge(Perm)).f`) do
@@ -502,18 +502,9 @@ theorem equiv_sim_f : ∀ (F <: DFUNCTIONALITY {-Gconcl.S, -Simulator}),
   stmt_if
   · equiv_auto
     smt_close [BlockSponge.parseK, BlockSponge.formatK]
-  --     (GAP 2: `last sim` — our inliner names the IRO's locals differently on the two sides,
-  --     `x2, n0` against `x0, n`, so `sim` cannot relate the loops by name: EC's `while` with the
-  --     renamed variables' equalities, the bodies by `sim`)
   on_goals -1 =>
-    stmt_wp; stmt_sp; stmt_if
-    · auto_close
-    · equiv_while (§x2{1} = §(localVarLens "x0" (List block)){2} ∧ §n0{1} = §n{2} ∧
-          ={i, bs, Gconcl_list.BIRO2.IRO.mp})
-      · sim
-      · equiv_auto
-        smt_close [BlockSponge.parseK, BlockSponge.formatK]
-    · equiv_auto
+    sim
+    smt_close [BlockSponge.parseK, BlockSponge.formatK]
   -- EC: auto; rcondt {1} 5.
   stmt_wp; stmt_rcondt{1} 5
   -- EC: + by auto; call (: true); auto.

@@ -429,6 +429,15 @@ first needs a full rebuild, so they go together):
    hand-closed without it).  (GAP 13 needed no step: `phoare_auto` and one rewrite.)
 7. `smt_close`'s unknown free variable in `ec_instances` (GAP 2).
 8. `sim` over differently named locals (GAP 16); pair states equal by components (GAP 8).
+   **First half done 2026-11-21**: `sim`'s third loop attempt pairs the locals at corresponding
+   positions of the two loops (`loopInvPairs`, EC's equality set of pairs; an EC probe showed
+   EC's inliner also renames per side and its `sim` relates them).  The invariant is an
+   equality set (pairs, the same-name variables the loops need, the equalities of the relation
+   after them), not that relation.  Closed: Gconcl_list GAP 16 (both sites), SHA3Indiff GAP 2,
+   two of SHA3_OIndiff's three.  Open: a relation after the loops that relates differently
+   named variables through terms (`f x0{1} = f x1{2}`, SHA3_OIndiff's third site), which EC's
+   `sim` leaves as its goal.  Also fixed: the `sim` elab ran outside the goal's context
+   (`withMainContext`), so a relation mentioning intro'd locals failed silently.
 9. EC's theory `AdvAbsVal` (`Neg_main`, `Neg_A`, `Neg_A_Pr`, `Neg_A_Pr_minus`): a small library
    file; needs `proc *` and `Pr[mu_not]` (GAP 17).  **Done 2026-11-20** (`Lib/EC/AdvAbsVal.lean`;
    `proc *` is `equiv_proc_to_stmt`, `Pr[mu_not]` is `Pr_mu_not`; on the way: procedure modules

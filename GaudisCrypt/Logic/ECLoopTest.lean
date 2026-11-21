@@ -98,4 +98,118 @@ example : equiv[ ={n} ==> ={s} ] {
     } := by
   sim
 
+module SimAdd {
+  proc add (a : ℕ, b : ℕ) : ℕ {
+    var c : ℕ;
+    c <- $a + $b;
+    return $c
+  };
+}
+
+module SimSum {
+  proc run (n : ℕ) : ℕ {
+    var i : ℕ, s : ℕ;
+    i <- 0;
+    s <- 0;
+    while (decide (§i < §n)) { s <- call SimAdd.add ($s, $i); i <- §i + 1; }
+    return $s
+  };
+}
+
+/-- The same through `inline*`: a callee with a loop whose body calls another procedure, inlined
+under callers with different locals (on the left its `i` becomes `i0`, and the inner call's
+temporaries are named differently on the two sides, in the frame resets of the bodies). -/
+example : equiv[ ={n} ==> ={r} ] {
+      var i : ℕ, c : ℕ, n : ℕ, r : ℕ;
+      i <- 7;
+      c <- 1;
+      r <- call SimSum.run.procedure ($n);
+    } ~ {
+      var n : ℕ, r : ℕ;
+      r <- call SimSum.run.procedure ($n);
+    } := by
+  stmt_inline*
+  sim
+
+/-- The pairs where a name means different variables on the two sides (`n0` the left's bound, the
+right's temporary), after a tuple assignment and inside `if (true)` (what an inlined `IRO.f`
+leaves); the temporaries the bodies write before reading them are not paired. -/
+example : equiv[ ={q, k} ==> ={bs} ] {
+      var q : List ℕ, k : ℕ, xn : List ℕ × ℕ, x2 : List ℕ, n0 : ℕ, i : ℕ, bs : List ℕ,
+        x3 : List ℕ, n1 : ℕ;
+      xn <- (§q, §k);
+      x2, n0 <- §xn;
+      i <- 0;
+      bs <- [];
+      if (true) {
+        while (decide (§i < §n0)) {
+          x3, n1 <- (§x2, §i);
+          bs <- §bs ++ [§n1];
+          i <- §i + 1;
+        }
+      }
+    } ~ {
+      var q : List ℕ, k : ℕ, xn : List ℕ × ℕ, x0 : List ℕ, n : ℕ, i : ℕ, bs : List ℕ,
+        x1 : List ℕ, n0 : ℕ;
+      xn <- (§q, §k);
+      x0, n <- §xn;
+      i <- 0;
+      bs <- [];
+      if (true) {
+        while (decide (§i < §n)) {
+          x1, n0 <- (§x0, §i);
+          bs <- §bs ++ [§n0];
+          i <- §i + 1;
+        }
+      }
+    } := by
+  sim
+
+/-- `sim` in the goal's context: a relation that mentions a local the proof introduced (`c`, as
+`intro F _` introduces a module) through a conditional on both sides. -/
+example : ∀ c : ℕ, equiv[ ={b} ∧ §n{1} = c ==> ={s} ] {
+      var b : Bool, n : ℕ, s : Bool;
+      if (§b) { s <$ SubProbability.uniform; } else { s <- true; }
+    } ~ {
+      var b : Bool, n : ℕ, s : Bool;
+      if (§b) { s <$ SubProbability.uniform; } else { s <- true; }
+    } := by
+  intro c
+  sim
+
+/-- The same with a sampling after the loops: the relation after them reads `∀ a ∈ d.support, …`;
+the invariant is EC's equality set, the equalities that relation contains, not the relation. -/
+example : equiv[ ={q, k} ==> ={bs, y} ] {
+      var q : List ℕ, k : ℕ, xn : List ℕ × ℕ, x2 : List ℕ, n0 : ℕ, i : ℕ, bs : List ℕ,
+        x3 : List ℕ, n1 : ℕ, y : Bool;
+      xn <- (§q, §k);
+      x2, n0 <- §xn;
+      i <- 0;
+      bs <- [];
+      if (true) {
+        while (decide (§i < §n0)) {
+          x3, n1 <- (§x2, §i);
+          bs <- §bs ++ [§n1];
+          i <- §i + 1;
+        }
+      }
+      y <$ SubProbability.uniform;
+    } ~ {
+      var q : List ℕ, k : ℕ, xn : List ℕ × ℕ, x0 : List ℕ, n : ℕ, i : ℕ, bs : List ℕ,
+        x1 : List ℕ, n0 : ℕ, y : Bool;
+      xn <- (§q, §k);
+      x0, n <- §xn;
+      i <- 0;
+      bs <- [];
+      if (true) {
+        while (decide (§i < §n)) {
+          x1, n0 <- (§x0, §i);
+          bs <- §bs ++ [§n0];
+          i <- §i + 1;
+        }
+      }
+      y <$ SubProbability.uniform;
+    } := by
+  sim
+
 end GaudisCrypt.ECLoopTest

@@ -493,9 +493,15 @@ Document each in the docstring when it applies.
   writes (`Logic/GlobWrites.lean`: `fp_writes` finds an assignment, `globTuples` rewrites
   `={glob M}` both ways; SHA3Indiff GAP 3).  Not yet for a functor (`G2(DRestr(D))` before its
   oracle is applied: Gext GAP 8), nor for a variable `M` only reads.
-* **Inlined callees' locals are renamed per side** (`x3, n0` against `x0, n`): `sim` relates
-  loops by name, so it stops at loops of such callees; `equiv_while (§x3{1} = §(localVarLens "x0"
-  T){2} ∧ …)` with the bodies by `sim` (SHA3Indiff GAP 2).
+* **Inlined callees' locals are renamed per side** (`x3, n0` against `x0, n`), as in EC: `sim`
+  pairs the locals at corresponding positions of two loops (EC's equality set of pairs), so EC's
+  `sim` stays `sim` (since 2026-11-21).  What it leaves is EC's: the precondition's implication
+  (`ec_close`, or `smt_close [lemmas]` for EC's `sim; smt(lemmas)`).  It still stops where the
+  relation after the loops relates differently named variables through terms (`f x0{1} =
+  f x1{2}`): there `equiv_while` with EC's equality set (SHA3_OIndiff GAP 2).
+* **A probe that leaves a goal behind** (`sim` then `trace_state`, nothing closing the rest)
+  fails as "don't know how to synthesize placeholder for argument `h`" at the tactic that
+  created the goal (`equiv_conseq`, the rule's argument), not at the probe.
 * **`byequiv`'s precondition through `sp`**: the two memories' equation with the initializations
   written over them; `glob D`'s equality by hand, `congrArg` of `glob D`'s getter then
   `simp (disch := fp_disjoint) only [touched_set_of_le_compl]` (SHA3Indiff GAP 4).

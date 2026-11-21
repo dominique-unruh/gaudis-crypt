@@ -474,7 +474,23 @@ def loopInv (B : Lean.Expr) (loops : Array Lean.Expr) : MetaM Lean.Expr := do
     for x in gs do
       eqs := eqs.push (← mkEq (← get x (← mkAppM ``ProgramState.globals #[σ₁]))
         (← get x (← mkAppM ``ProgramState.globals #[σ₂])))
-    let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 B σ₁ σ₂).headBeta
+    -- EC's equality set, not `B` itself: the equalities `B` contains (under its `∀`s and `∧`s), a
+    -- term of the left state against one of the right (`B` after a sampling reads `∀ a ∈ d.support,
+    -- …`, which a body would have to re-establish; the equalities give `B` at the exit)
+    let Bσ ← instantiateMVars (mkApp2 B σ₁ σ₂).headBeta
+    let atoms ← IO.mkRef (#[] : Array Lean.Expr)
+    Meta.forEachExpr Bσ fun e => do
+      let some (_, l, r) := e.eq? | return
+      if l.hasLooseBVars || r.hasLooseBVars then return
+      let l1 := l.containsFVar σ₁.fvarId!
+      let l2 := l.containsFVar σ₂.fvarId!
+      let r1 := r.containsFVar σ₁.fvarId!
+      let r2 := r.containsFVar σ₂.fvarId!
+      unless l1 && !l2 && r2 && !r1 do return
+      unless (← atoms.get).contains e do atoms.modify (·.push e)
+    let atoms ← atoms.get
+    let some last := (eqs ++ atoms).back? | throwError "sim: no equalities for the loops"
+    let body ← (eqs ++ atoms).pop.foldrM (fun e acc => mkAppM ``And #[e, acc]) last
     mkLambdaFVars #[σ₁, σ₂] body
 
 /-- EC's `sim` invariant of two loops as an **equality set**: the variables the relation `B` after
@@ -575,6 +591,12 @@ statements differ in more than their locals' names. -/
 partial def alignLocals (a b : Lean.Expr) (acc : Array (Lean.Expr × Lean.Expr)) :
     MetaM (Option (Array (Lean.Expr × Lean.Expr))) := do
   if a == b then return some acc
+  -- an inlined call's frame reset names its temporaries, which differ with the names: not
+  -- compared (the temporaries are dead at the loops' head, left out of the pairs)
+  if a.isAppOf ``resetSetter && b.isAppOf ``resetSetter then return some acc
+  -- proofs (a tuple assignment's disjointness of its locals, which names them) are irrelevant
+  if !a.hasLooseBVars && !b.hasLooseBVars then
+    if (← isProof a) && (← isProof b) then return some acc
   if isLocalLens a && isLocalLens b && !a.hasLooseBVars && !b.hasLooseBVars then
     let ka ← lensKey a
     let kb ← lensKey b
@@ -612,25 +634,66 @@ private def resetNames (ss : List Lean.Expr) : MetaM (Array String) := do
           if let .lit (.strVal str) := t then resets.modify (·.push str)
   resets.get
 
-/-- EC's `sim` invariant of two loops with **pairs**: `loopInv`'s, and the locals the loops use at
-corresponding positions under different names equal (`alignLocals`), but those the bodies reset
-(an inlined call's temporaries, dead at the loops' head). -/
+/-- EC's `sim` invariant of two loops with **pairs**, an equality set as EC's: the locals the
+loops use at corresponding positions under different names equal (`alignLocals`; not an inlined
+call's temporaries, which the bodies reset or write before reading), the variables both loops
+need under the same name, and the equalities the relation `B` after the loops contains. -/
 def loopInvPairs (B : Lean.Expr) (l₁ l₂ : Lean.Expr) : MetaM Lean.Expr := do
   let some pairs ← alignLocals (← instantiateMVars l₁) (← instantiateMVars l₂) #[]
     | throwError "sim: the loops differ in more than their locals' names"
-  let resets ← resetNames [l₁, l₂]
-  let reset (x : Lean.Expr) : Bool := (x.find? fun a =>
-    match a with | .lit (.strVal str) => resets.contains str | _ => false).isSome
-  let pairs := pairs.filter fun (x, y) => !reset x && !reset y
+  -- each side's own temporaries (the same name may be a temporary on one side only)
+  let resets₁ ← resetNames [l₁]
+  let resets₂ ← resetNames [l₂]
+  let reset (rs : Array String) (x : Lean.Expr) : Bool := (x.find? fun a =>
+    match a with | .lit (.strVal str) => rs.contains str | _ => false).isSome
+  let pairs := pairs.filter fun (x, y) => !reset resets₁ x && !reset resets₂ y
+  -- and only what the loops need at their head (EC's equality set, `eqBack` on each side: not a
+  -- temporary the body writes before reading it)
+  let SB ← varsOf #[B]
+  let need₁ ← eqBack l₁ SB
+  let need₂ ← eqBack l₂ SB
+  let pairs ← pairs.filterM fun (x, y) =>
+    return (← containsVar need₁.1 x) && (← containsVar need₂.1 y)
   if pairs.isEmpty then throwError "sim: no locals named differently in the loops"
-  let base ← loopInv B #[l₁, l₂]
+  -- `loopInv`'s equalities of a variable with itself, but for a local of a pair on either side
+  -- (the same name may be another variable on the other side: the left's bound `n0`, the right's
+  -- temporary `n0`)
+  let (ls₁, gs₁) ← varsOf #[l₁]
+  let (ls₂, gs₂) ← varsOf #[l₂]
+  let (nl, ng) ← vsUnion need₁ need₂
+  let lefts ← pairs.mapM fun (x, _) => lensKey x
+  let rights ← pairs.mapM fun (_, y) => lensKey y
+  let ls ← ls₁.filterM fun x => do
+    let k ← lensKey x
+    return (← containsVar ls₂ x) && (← containsVar nl x) && !lefts.contains k && !rights.contains k
+  let gs ← gs₁.filterM fun x => return (← containsVar gs₂ x) && (← containsVar ng x)
   let ps := mkConst ``ProgramState
   withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
     let get (x st : Lean.Expr) : MetaM Lean.Expr := do
       mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], st]
     let mut eqs : Array Lean.Expr := #[]
     for (x, y) in pairs do eqs := eqs.push (← mkEq (← get x σ₁) (← get y σ₂))
-    let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 base σ₁ σ₂).headBeta
+    for x in ls do eqs := eqs.push (← mkEq (← get x σ₁) (← get x σ₂))
+    for x in gs do
+      eqs := eqs.push (← mkEq (← get x (← mkAppM ``ProgramState.globals #[σ₁]))
+        (← get x (← mkAppM ``ProgramState.globals #[σ₂])))
+    -- EC's equality set, not `B` itself: the equalities `B` contains (under its `∀`s and `∧`s), a
+    -- term of the left state against one of the right (`B` after a sampling reads `∀ a ∈ d.support,
+    -- …`, which a body would have to re-establish; the equalities give `B` at the exit)
+    let Bσ ← instantiateMVars (mkApp2 B σ₁ σ₂).headBeta
+    let atoms ← IO.mkRef (#[] : Array Lean.Expr)
+    Meta.forEachExpr Bσ fun e => do
+      let some (_, l, r) := e.eq? | return
+      if l.hasLooseBVars || r.hasLooseBVars then return
+      let l1 := l.containsFVar σ₁.fvarId!
+      let l2 := l.containsFVar σ₂.fvarId!
+      let r1 := r.containsFVar σ₁.fvarId!
+      let r2 := r.containsFVar σ₂.fvarId!
+      unless l1 && !l2 && r2 && !r1 do return
+      unless (← atoms.get).contains e do atoms.modify (·.push e)
+    let atoms ← atoms.get
+    let some last := (eqs ++ atoms).back? | throwError "sim: no equalities for the loops"
+    let body ← (eqs ++ atoms).pop.foldrM (fun e acc => mkAppM ``And #[e, acc]) last
     mkLambdaFVars #[σ₁, σ₂] body
 
 /-- `auto_close` (`Logic/ECClose.lean`, which imports this file) on `g`, when the environment has
@@ -812,7 +875,8 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       -- what `sim` leaves of the bodies (a relation between different variables, `glob A` past
       -- writes): `auto_close`
       let rb ← rb.flatMapM autoCloseIfAvailable
-      unless rb.isEmpty do throwError "sim: the loops' bodies"
+      if let some r := rb.head? then
+        throwError "sim: the loops' bodies:{indentExpr (← instantiateMVars (← r.getType))}"
       for m in [gGuard, gExit] do
         let m ← generalizeReadsRelOr "sim" m
         let r ← closeImp m
@@ -878,7 +942,7 @@ elab "hoare_inline" "*" : tactic => liftMetaTactic1 fun g => some <$> inlineAllS
 
 open Lean Elab Tactic ECSim in
 /-- **EC's `sim`**: see the module docstring. -/
-elab "sim" : tactic => do
+elab "sim" : tactic => withMainContext do
   let g ← ECProc.accessorNorm (← getMainGoal)
   let s ← saveState
   let gs ← sim g
