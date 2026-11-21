@@ -567,8 +567,7 @@ theorem equiv_sponge_perm (c' : ℤ) (m : List Bool) :
   · hoare_auto
   stmt_wp; stmt_sp
   -- EC: call(: ={glob Perm} /\ invm Perm.m{1} Perm.mi{1})=>/=; auto; inline*.
-  equiv_call (_ : ={arg, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1} ==>
-    ={res, Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1})
+  equiv_call (_ : ={Perm.m, Perm.mi} ∧ invm §Perm.m{1} §Perm.mi{1})
   · equiv_proc
     stmt_inline*
     -- EC: while(={i, n, sa, sc, z, glob Perm} /\ invm Perm.m{1} Perm.mi{1}); auto.
