@@ -64,6 +64,8 @@ elab "ec_auto" : tactic => do
     liftMetaTactic1 fun g => do return some (← splitPairReads (← wpAll g))
   else throwError "ec_auto: not a Hoare, phoare or relational judgment about statements:\
     {indentExpr ty}"
+  -- the samplings' mass where the distribution is lossless (`ec_lossless`)
+  evalTactic (← `(tactic| try lossless_simp))
   -- the code used up: the strict `skip`
   if ← codeIsSkip (← getMainGoal) then
     liftMetaTactic1 fun g => some <$> ReadNorm.ecSkip g

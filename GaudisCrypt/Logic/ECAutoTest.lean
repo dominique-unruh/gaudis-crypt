@@ -156,4 +156,24 @@ example : equiv[ ={x} ==> §y{1} ≤ §y{2} ] {
     } := by
   equiv_auto
 
+/-! ## Lossless distributions (`@[ec_lossless]`) -/
+
+/-- A distribution of the test, lossless. -/
+noncomputable def dzero : SubProbability ℕ := pure 0
+
+/-- `dzero` is lossless, for EC's `auto`. -/
+@[ec_lossless] theorem dzero_ll : dzero.expected (fun _ => (1 : ENNReal)) = 1 := by
+  simp [dzero, expected_pure]
+
+-- a one-sided sampling of a lossless distribution: EC's `auto` takes it as one that happens, and
+-- so does `equiv_auto` (its mass by the `@[ec_lossless]` fact)
+example : equiv[ ={y} ==> ={y} ] {
+      var x : ℕ, y : ℕ;
+      x <$ dzero;
+    } ~ {
+      var y : ℕ;
+      skip;
+    } := by
+  equiv_auto
+
 end GaudisCrypt.ECAutoTest

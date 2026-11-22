@@ -256,7 +256,7 @@ theorem rng_restr {«from» «to» φ : Type} [DecidableEq «from»] [DecidableE
     exact ⟨z, by rw [FMap.restrP, hz]; simp⟩
 
 /-- `cdistr` is lossless (`DCapacity.dunifin_ll`), as an expectation. -/
-theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
+@[ec_lossless] theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
   (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll
 
 /-- A write at a fresh handle keeps `inv_ext`. -/
@@ -639,11 +639,11 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
         --     + rewrite /inv_ext1=>/H{H}[->//|[|[[x1 x2] h [Hx Hh]]]]. … (the witness at `hy2`
         --       hits `G1.bext`'s update, any other stays)
         --     by move:H5 H2;rewrite /in_dom_with mem_set /#.
-        --     (the old port's `inv_ext1_hit`, `cdistr_expected_one`)
+        --     (the old port's `inv_ext1_hit`)
         equiv_auto; auto_prep
-        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨
+        refine fun a _ => ⟨
           GaudisCrypt.SHA3.Gext.inv_ext1_hit ‹_› (by simp [FMap.fdom_set]) (fun z hz => ?_) _,
-          fun h hd => ?_⟩⟩
+          fun h hd => ?_⟩
         · simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
           tauto
         · rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
@@ -707,9 +707,9 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
         --     + rewrite /inv_ext1=>/H{H}[->//|[|[[x1 x2] h [Hx Hh]]]]. …
         --     by move:H5 H1;rewrite /in_dom_with mem_set /#.
         equiv_auto; auto_prep
-        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨
+        refine fun a _ => ⟨
           GaudisCrypt.SHA3.Gext.inv_ext1_hit ‹_› (by simp [FMap.fdom_set]) (fun z hz => ?_) _,
-          fun h hd => ?_⟩⟩
+          fun h hd => ?_⟩
         · simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
           tauto
         · rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
@@ -1308,9 +1308,9 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
             Option.getD_some]
           have hin := ‹_ = true → FMap.in_dom_with _ _ _›
             ((Bool.and_eq_true _ _).mp ‹(decide _ && _) = true›).2
-          exact ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun _ _ =>
+          exact fun _ _ =>
             ⟨⟨trivial, trivial, trivial, trivial, GaudisCrypt.SHA3.Gext.bext_eq _ _ _ _ _⟩,
-              ext_hit hin ‹_›⟩⟩
+              ext_hit hin ‹_›⟩
         -- EC: by call RROset_inv_lt;auto;smt w=size_set_le.
         · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
           --     (EC's `smt w=size_set_le`: the step `inv_lt.step` with `size_set_le` at `inv_le`)
@@ -1383,9 +1383,9 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
             Option.getD_some]
           have hin := ‹_ = true → FMap.in_dom_with _ _ _›
             ((Bool.and_eq_true _ _).mp ‹(decide _ && _) = true›).2
-          exact ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun _ _ =>
+          exact fun _ _ =>
             ⟨⟨trivial, trivial, trivial, trivial, GaudisCrypt.SHA3.Gext.bext_eq _ _ _ _ _⟩,
-              ext_hit hin ‹_›⟩⟩
+              ext_hit hin ‹_›⟩
         -- EC: by call RROset_inv_lt;auto;smt w=size_set_le.
         · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
           --     (EC's `smt w=size_set_le`: `inv_lt.step` with `size_set_le`)

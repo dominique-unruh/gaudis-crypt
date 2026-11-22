@@ -701,6 +701,9 @@ Document each in the docstring when it applies.
   (`X.set _ (… g₁) = Y.set _ (… g₂)`) and past other modules' writes; no `congrArg … ‹… = _›`.
   A pair taken apart at `x <- (sa, sc)` is put back together by `ec_prep` (no `Prod.ext ‹…›`);
   hand proofs that name such a pair's left copy (`x0₁`) see the right one (`x0₂`).
+* **Lossless distributions**: tag each `d.expected (fun _ => 1) = 1` fact `@[ec_lossless]` (EC's
+  `dunifin_ll` and the like); `auto` then takes a sampling of `d` as EC's does, and a hand proof
+  after `auto` does not supply the fact (`refine ⟨d_ll, …⟩` is now `refine …`).
 * **A fixed gap's workarounds outlive the fix**: when a tactic learns to handle a case, grep the
   ports for the hand steps that stood in for it (their `-- GAP n` comments, the lemmas they used)
   and try deleting them.  On 2026-11-21, 36 `simp only [ODPRIMITIVE_f_mk]` / `simp only [PSome,

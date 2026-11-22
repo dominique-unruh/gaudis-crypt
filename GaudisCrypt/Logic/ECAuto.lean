@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.PHoareWp
 import GaudisCrypt.Logic.GlobWrites
+import GaudisCrypt.Logic.ECLossless
 
 /-!
 # EasyCrypt's `auto` and `rnd` steps for `hoare` and `phoare`
@@ -172,11 +173,19 @@ open Lean Elab Tactic in
 /-- **EC's `={glob C}` as `={C.c, C.queries}`** in a closer: see `ECAuto.globReads`. -/
 elab "glob_reads" : tactic => do replaceMainGoal [← ECAuto.globReads (← getMainGoal)]
 
+/-- The samplings' mass where the distribution is lossless (`@[ec_lossless]`, EC's `auto`), in the
+goal, and nothing else: the other reductions of `simp` (projections, `β`, `ζ`, …) are off
+(`Simp.neutralConfig`), so that the goal keeps the form the hand proofs after `auto` read. -/
+macro "lossless_simp" : tactic => `(tactic|
+  simp (config := Lean.Meta.Simp.neutralConfig) only [ec_lossless])
+
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a `phoare` statement judgment: wp back to the last call, then `skip` if
 the code is used up, the trivial goals (`1 = 1`) closed. -/
 elab "phoare_auto" : tactic => do
   liftMetaTactic1 fun g => do return some (← splitPairReads (← wpAll g))
+  -- the samplings' mass where the distribution is lossless (`ec_lossless`)
+  evalTactic (← `(tactic| try lossless_simp))
   evalTactic (← `(tactic| try phoare_skip))
   -- what EC's `auto` closes by itself: `1 = 1`, `x ≤ x` under the binders
   evalTactic (← `(tactic| try (intros; first | rfl | exact le_rfl)))
@@ -193,6 +202,8 @@ macro "equiv_auto" : tactic => `(tactic| (
     | (equiv_rnd{1}; try stmt_wp)
     | (equiv_rnd{2}; try stmt_wp)))
   (try equiv_skip_ec)
+  -- the samplings' mass where the distribution is lossless (`ec_lossless`)
+  (try lossless_simp)
   (try ((try simp_reads); intros; first
     | rfl
     | trivial

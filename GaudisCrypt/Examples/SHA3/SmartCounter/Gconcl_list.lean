@@ -304,7 +304,7 @@ theorem get_eq_some_oget {m : FMap (List block) block} {x : List block} (h : FMa
 
 omit [BlockSponge.Params] [Params] in
 /-- `bdistr` is lossless, as an expectation. -/
-theorem bdistr_expected_one : bdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
+@[ec_lossless] theorem bdistr_expected_one : bdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
   (is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll
 
 omit [BlockSponge.Params] [Params] in
@@ -1146,8 +1146,9 @@ set_option ec.strict true
   `x0 <- (bl, nb)`: our closer does not chain the two tuple equations (EC's `auto`):
   `simp_reads_all; smt_close []`.
 * GAP 2: EC's `auto` takes a one-sided sampling of a lossless distribution (`r <$ dout`) as
-  lossless; ours leaves `bdistr`'s mass (`bdistr_expected_one`), and `smt_close` with it as a hint
-  fails on an unknown free variable (an `ec_instances` bug): `simp only [bdistr_expected_one]`.
+  lossless; ours does since 2026-11-22 (`@[ec_lossless]`: `bdistr_expected_one`,
+  `cdistr_expected_one`).  Left: a `conseq`'s postcondition closed by `ec_progress` (EC's `smt`
+  with `dunifin_ll`) keeps `bdistr`'s mass: `simp only [bdistr_expected_one]` (two places).
 * (GAP 3, fixed: after `sp`, `hoare_auto`'s `skip` simplifies the reads through writes before it
   generalizes the reads, so a test's reads and the precondition's are the same values.)
 * EC's `have := prefix_le1 …` side goals (`move=> /> &hr …`): by hand, the hypotheses by
@@ -1188,9 +1189,8 @@ set_option ec.strict true
 * GAP 12: `phoare_call` on an abstract module has the rule for lossless oracles (EC's
   `call (: true)`), not the one with an invariant (`call (: invm Perm.m Perm.mi)`,
   `Real_lossless`).  Hand-closed: `Perm.f`, `Perm.fi` are lossless in every state here.
-* GAP 13: in a `phoare … = 1` goal, EC's `auto` passes a sampling of a lossless distribution
-  behind a loop.  `phoare_auto` passes it too, and leaves its expectation of `1` in the
-  postcondition: `simp only [cdistr_expected_one]` before `phoare_while` (`Ideal_lossless`).
+* GAP 13 (closed 2026-11-22): in a `phoare … = 1` goal, `phoare_auto` left a sampling's
+  expectation of `1` in the postcondition; it reads it off now (`@[ec_lossless]`).
 * GAP 14 (closed 2026-11-21): after `auto`'s `skip`, `glob D` read past initializations outside
   `D` was not rewritten (`sp` does it); the strict `auto` rewrites it now
   (`touched_set_of_le_compl` by `fp_disjoint`).
@@ -1399,7 +1399,7 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
       --     (GAP 2: EC's `auto` knows `r <$ dout` lossless; ours leaves `bdistr`'s mass, and
       --     `smt_close` with it as a hint fails on an unknown free variable: `simp` first.  EC's
       --     `smt` selects `domE`, `valid_spec` and `<=`'s definition itself)
-      · equiv_auto; simp only [bdistr_expected_one] at *
+      · equiv_auto
         smt_close [size_ge0, «<=», FMap.domE, valid_spec]
       -- EC: if {1}; first last.
       --     + by auto=> |> &1 &2; smt(prefix_ge0).
@@ -2366,7 +2366,7 @@ theorem equiv_L3_L4 :
       --       smt(DBlock.dunifin_ll nseq0 cats0 parse_valid);progress.
       --     (EC's `r3`, `x9` on the left and `r2`, `x4` on the right are our `r0`, `x2`)
       equiv_conseq (: _ ==> ={SLCommon.F.RO.m} ∧ §r0{1} = §r0{2} ∧ §x2{1} = §x2{2})
-      --     (GAP 2: `rnd{1}`'s mass of `bdistr`)
+      --     (GAP 2: `rnd{1}`'s mass of `bdistr`, in a postcondition `ec_progress` closes)
       case post =>
         ec_progress
         simp only [bdistr_expected_one]
@@ -4772,7 +4772,7 @@ end Real_Ideal
 
 EC's section, complete.  Three deviations, each at its lemma: `Real_lossless` calls `D` with
 lossless oracles where EC keeps the invariant `invm Perm.m Perm.mi` (GAP 12); in
-`Ideal_lossless` the sampling behind a loop is passed by `phoare_auto` and one rewrite (GAP 13);
+`Ideal_lossless` the sampling behind a loop is passed by `phoare_auto`;
 `neg_D_concl` is EC's script with `AdvAbsVal`'s `Neg_A_Pr_minus`.  The section's `D` has
 a region for `glob D` (exception E14): `concl` is applied to `Neg_D(D)` here, and
 `Inefficient_Real_Ideal` to a distinguisher built from a declared one in `SHA3Indiff`. -/
@@ -4906,7 +4906,7 @@ theorem variant_decr {i n : ℤ} {z : ℕ} (hi : decide (i < n) = true) (hz : (n
   omega
 
 /-- EC's `DCapacity.dunifin_ll`, as the expectation of `1`. -/
-theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
+@[ec_lossless] theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
   (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll
 
 set_option maxHeartbeats 4000000 in
@@ -4947,12 +4947,8 @@ theorem Ideal_lossless :
     · stmt_wp; stmt_sp; stmt_if
       · stmt_wp; stmt_if
         · stmt_sp; stmt_if
-          --     (GAP 13: EC's `auto` passes the code after the loop, with its sampling; here
-          --     `phoare_auto` does, and leaves the sampling's expectation of `1`, rewritten to
-          --     `1` before the loop)
           · stmt_sp; stmt_if
             · phoare_auto
-              simp only [cdistr_expected_one]
               phoare_while True ((§n - §i).toNat)
               · intro z; stmt_sp; stmt_if
                 · phoare_auto
@@ -4963,11 +4959,8 @@ theorem Ideal_lossless :
                   exact indicatorE_of (variant_decr hi hz)
               · phoare_auto; smt_close
             · phoare_auto
-              intros
-              simp only [cdistr_expected_one]
           · stmt_sp; stmt_if
             · phoare_auto
-              simp only [cdistr_expected_one]
               phoare_while True ((§n1 - §i0).toNat)
               · intro z; stmt_sp; stmt_if
                 · phoare_auto
@@ -4978,19 +4971,13 @@ theorem Ideal_lossless :
                   exact indicatorE_of (variant_decr hi hz)
               · phoare_auto; smt_close
             · phoare_auto
-              intros
-              simp only [cdistr_expected_one]
         · phoare_auto
-          intros
-          simp only [cdistr_expected_one, bdistr_expected_one]
       · phoare_auto
     · phoare_auto
   -- EC: + by proc;inline*;sp;if;auto;sp;if;auto;smt(DBlock.dunifin_ll DCapacity.dunifin_ll).
   · phoare_proc; phoare_inline*; stmt_sp; stmt_if
     · stmt_wp; stmt_sp; stmt_if
       · phoare_auto
-        intros
-        simp only [cdistr_expected_one, bdistr_expected_one]
       · phoare_auto
     · phoare_auto
 
@@ -5295,7 +5282,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
       · intro σ₁; ec_auto
       ec_auto
       ec_prep
-      refine ⟨bdistr_expected_one, fun a _ => ⟨‹_›, by omega, fun _ => ?_, ‹_›⟩⟩
+      refine ⟨‹_›, by omega, fun _ => ?_, ‹_›⟩
       simp only [Int.add_sub_cancel, last_rcons]
   -- EC: auto=> /> &1 &2 h1 h2 [#] q_L k_L h3 h4 h5 h6 h7 h8 h9 h10;split.
   --     + have:= h1; rewrite -h3 => [#] />; have:= h4; rewrite -h2 => [#] />.
@@ -5314,7 +5301,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
     by rw [h3]⟩, fun τ₁ τ₂ _ _ hI _ hk => ?_⟩
   obtain ⟨hk0, hik, -, -, -, hl, hmp, hincl, hb, hx, hm, hmi, hp⟩ := hI
   have e : (localVarLens "i" ℤ).get τ₂ = (localVarLens "k" ℤ).get τ₂ := le_antisymm hik hk
-  refine ⟨bdistr_expected_one, fun a _ => ⟨⟨hb, ?_, hx⟩, hm, hmi, hp, hmp, hincl⟩⟩
+  refine fun a _ => ⟨⟨hb, ?_, hx⟩, hm, hmi, hp, hmp, hincl⟩
   rw [← e]
   exact hl (by rw [e]; exact hk0)
 
