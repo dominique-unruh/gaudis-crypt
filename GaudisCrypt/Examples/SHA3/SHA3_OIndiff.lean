@@ -483,8 +483,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
     stmt_inline*
     stmt_wp
     -- EC: call(: ={glob IRO, glob Simulator, glob Counter} /\ ={c}(Counter,Cntr)); auto.
-    equiv_call (_ : ={IRO.mp, Simulator.m, Simulator.mi, Simulator.paths,
-        Gconcl_list.BIRO2.IRO.mp, Counter.c} ∧ §Counter.c{1} = §Cntr.c{2})
+    equiv_call (_ : ={glob IRO, glob Simulator, glob Counter} ∧ §Counter.c{1} = §Cntr.c{2})
     -- EC: - proc; inline*; auto; sp; if; auto; sp.
     · equiv_proc; stmt_inline*; stmt_sp
       stmt_if
@@ -552,8 +551,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
         stmt_if
         · ec_close
         -- EC: by conseq(:_==> bs{1} = bs0{2} /\ ={IRO.mp, glob Simulator})=> />; sim.
-        · equiv_conseq (: _ ==> §bs{1} = §bs0{2} ∧ ={IRO.mp, Simulator.m, Simulator.mi,
-            Simulator.paths, Gconcl_list.BIRO2.IRO.mp})
+        · equiv_conseq (: _ ==> §bs{1} = §bs0{2} ∧ ={IRO.mp, glob Simulator})
           · ec_close
           --     (`sim` leaves the precondition's implication, which EC's closes itself)
           sim; ec_close
