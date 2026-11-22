@@ -553,8 +553,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
         -- EC: by conseq(:_==> bs{1} = bs0{2} /\ ={IRO.mp, glob Simulator})=> />; sim.
         · equiv_conseq (: _ ==> §bs{1} = §bs0{2} ∧ ={IRO.mp, glob Simulator})
           · ec_close
-          --     (`sim` leaves the precondition's implication, which EC's closes itself)
-          sim; ec_close
+          sim
         · ec_auto; ec_close
       · ec_auto
     --     (EC's `auto` after the call)

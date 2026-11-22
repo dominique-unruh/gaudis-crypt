@@ -1218,6 +1218,15 @@ Document each in the docstring when it applies.
   (`fp_le` on the callee).  A `sim` goal asking `globals₁ = globals₂` means no bound was found.
   Calls of *different* concrete procedures and two loops after `inline*`: `sim` handles them
   (Gconcl GAP 1, 5).
+* **`sim` through loops with calls** (2026-11-22): EC's `conseq (: _ ==> ={z0, glob Perm}); sim`
+  over two loops that call the permutation is ours as written.  A call's result is not in the
+  loops' equality set (EC's backward analysis: the result replaced by the arguments and the
+  callee's globals), callees named through a port's alias on one side are paired by
+  definition, and what `sim` leaves of the precondition goes to `auto_close`.  The footprint of
+  a callee is found for `(M.p).procedure` (and inlined callees), not for the declaration
+  `M.p.procedure` written in a statement.  A test of `sim` through loops needs a statement after
+  them: with no progress, `sim` retries with all calls inlined, which can pass without the
+  feature under test.
 * **One-sided `while{i}`**: `equiv_while{1} (I) (V)` (both in parentheses), with EC's frame of
   what the loop keeps, so EC's `I` as is (`true`).  Its goals: `lossless`
   (`while_ll_phoare; intro σ₂; phoare_auto`), `variant` (`intro σ₂ k; hoare_auto`), the code

@@ -94,8 +94,10 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 12 (closed 2026-11-21): the strict `auto` and `equiv_skip` ran out of recursion depth on a
   goal whose conditions have `bs{1} = take n1 bs{2}` next to `={bs}`; EC's `skip; smt(take_size)`
   since the closers' runtime limits are caught (2026-11-21).
-* GAP 13: `sim` does not pass an inlined call that copies its parameters and has a loop
-  (`inline HybridIROEagerTrans.next_block; sim`): the `while` rule, as in the loop lemma.
+* GAP 13 (closed 2026-11-22): `sim` did not pass an inlined call that copies its parameters and
+  has a loop (`inline HybridIROEagerTrans.next_block; sim`): the loops' callee is named through
+  the port's alias on one side, and `sim`'s pairs of locals now compare such callees by
+  definition.
 * A middle program of `transitivity` is over the variables the goal mentions, not the whole
   memory: where EC's condition names a variable that neither side reads any more
   (`n{2} = n1 %/ r`), the conjunct is dropped; an inlined parameter keeps its name when the
@@ -3299,15 +3301,8 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
     · rintro τ₁ τ τ₂ ⟨⟨-, -, -, hmp⟩, hbs⟩ ⟨kbs, kei⟩
       exact ⟨by rw [hbs, kbs], by rw [hmp]; exact kei⟩
     -- EC: inline HybridIROEagerTrans.next_block; sim.
-    --     (`sim` does not pass the inlined call's copies of the parameters: EC's `while` rule,
-    --     as in `HybridIROEagerTrans_BlockSpongeTrans_loop`)
-    · stmt_inline{2} (HybridIROEagerTrans.next_block); stmt_sp; stmt_wp
-      equiv_while (§xs{1} = §xs0{2} ∧ §i{1} = §i0{2} ∧ §m{1} = §m0{2} ∧ §bs{1} = §bs0{2} ∧
-        ={HybridIROEager.mp})
-      · stmt_wp
-        equiv_call (_ : ={HybridIROEager.mp})
-        ec_auto
-      ec_auto
+    · stmt_inline{2} (HybridIROEagerTrans.next_block)
+      sim
     -- EC: (transitivity{2}
     --        { (bs, i) <@ BlockSpongeTrans.next_block(x, i, bs);
     --        }

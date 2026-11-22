@@ -548,7 +548,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
     · stmt_inline*
       stmt_rcondt{2} 3
       · ec_auto
-      sim; auto_close
+      sim
     · equiv_skip; auto_close
     · auto_close
   -- `P.fi`
@@ -556,7 +556,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
     · stmt_inline*
       stmt_rcondt{2} 3
       · ec_auto
-      sim; auto_close
+      sim
     · equiv_skip; auto_close
     · auto_close
   -- `F.f`
@@ -699,13 +699,13 @@ theorem Real_GReal' (m : VariableAssignment) :
       FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧ all_prefixes §Redo.prefixes{1})
   -- `P.f`
   · equiv_proc; stmt_inline*; stmt_sp; equiv_if
-    · sim; auto_close
-    · sim; auto_close
+    · sim
+    · sim
     · auto_close
   -- `P.fi`
   · equiv_proc; stmt_inline*; stmt_sp; equiv_if
-    · sim; auto_close
-    · sim; auto_close
+    · sim
+    · sim
     · auto_close
   -- `F.f`
   · equiv_proc; stmt_inline*; stmt_sp; equiv_if{2}

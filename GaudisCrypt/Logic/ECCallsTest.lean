@@ -835,4 +835,48 @@ example : equiv[ Run(Peek, A).main ~ Run(Peek, A).main :
 
 end
 
+/-- `Inc.get` touches `cCount` only (EC reads it off the code). -/
+@[fp_bound] theorem fvP_Inc_get : FVP.fvP Inc.get ≤ cCount.footprint := by fp_module cCount
+
+-- EC's `sim` through two loops that call a concrete procedure: the call's result `z`, written
+-- before it is read, is not in the loops' equality set (EC's backward analysis replaces it by
+-- the call's argument and the callee's globals), so `={z}` is not asked before the loops.  (The
+-- assignment after the loops is `sim`'s progress, so it does not retry with the calls inlined.)
+example : equiv[ ={i, s, cCount} ==> ={s, cCount} ] {
+      var i : ℤ, s : ℤ, z : ℤ;
+      while (decide (§i < 5)) {
+        z <- call (Inc.get).procedure (§i); s <- §s + §z; i <- §i + 1;
+      }
+      s <- §s + 1;
+    } ~ {
+      var i : ℤ, s : ℤ, z : ℤ;
+      while (decide (§i < 5)) {
+        z <- call (Inc.get).procedure (§i); s <- §s + §z; i <- §i + 1;
+      }
+      s <- §s + 1;
+    } := by
+  sim
+
+/-- A reducible alias of `Inc.get` (as a later port names an earlier port's procedure). -/
+noncomputable abbrev IncGetAlias := Inc.get
+
+-- EC's `sim` through two loops whose locals are named differently (`i` against `i0`) and whose
+-- callee is named through a reducible alias on one side: the pairs, the callees the same by
+-- definition.  (The assignment after the loops is `sim`'s progress, so it does not retry with
+-- the calls inlined.)
+example : equiv[ ={n, s, cCount} ==> ={s, cCount} ] {
+      var i : ℤ, n : ℤ, s : ℤ, z : ℤ;
+      i <- 0;
+      while (decide (§i < §n)) { z <- call (Inc.get).procedure (§i); s <- §s + §z; i <- §i + 1; }
+      s <- §s + 1;
+    } ~ {
+      var i0 : ℤ, n : ℤ, s : ℤ, z : ℤ;
+      i0 <- 0;
+      while (decide (§i0 < §n)) {
+        z <- call IncGetAlias.procedure (§i0); s <- §s + §z; i0 <- §i0 + 1;
+      }
+      s <- §s + 1;
+    } := by
+  sim
+
 end GaudisCrypt.ECCallsTest

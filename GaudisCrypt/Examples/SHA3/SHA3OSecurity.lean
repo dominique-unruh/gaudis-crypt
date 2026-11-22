@@ -99,9 +99,10 @@ Translation:
   PSome(Perm))`) has them behind the clone's projections and coercions, which `inline` does not
   open: `OPRIMITIVE_coe_eq`, `OSponge_app`, `PSome_Perm_init` (all by `rfl`) put them at the
   sponge's module types first;
-* GAP 7: `sim` does not end on two loops that call the permutation after a `conseq` that keeps
-  `glob Perm` (it does where only locals are kept): the `while` rule and `call (_ : ={glob
-  Perm})`;
+* GAP 7 (closed 2026-11-22): `sim` did not end on two loops that call the permutation after a
+  `conseq` that keeps `glob Perm`: a call's result is now replaced in `sim`'s equality set by
+  the call's arguments and the callee's globals (EC's backward analysis), and what `sim` leaves
+  of the precondition is closed by `auto_close`;
 * EC's chains `inline{1} 1; inline{2} 1; sp` down to the adversary's call are
   `repeat stmt_inline{1} 0; repeat stmt_inline{2} 0; stmt_sp`; `sim n n` in front of a call or a
   conditional is `stmt_wp` (`sim n n` where a sampling is left);
@@ -2336,8 +2337,6 @@ theorem rw_real (m : VariableAssignment) :
     · ec_auto
   -- EC: - proc; inline*; sp; if; auto; sp=> />.
   --       by conseq(:_==> ={z0, glob Perm})=> />; sim.
-  --     (GAP 7: `sim` does not end on the two loops here; the `while` rule, the permutation's
-  --     calls by `call (_ : ={glob Perm})`)
   · equiv_proc
     stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
     stmt_if
@@ -2345,16 +2344,9 @@ theorem rw_real (m : VariableAssignment) :
     · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
       stmt_inline{2} 0; stmt_inline{2} 0
       stmt_sp; stmt_wp
-      equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+      equiv_conseq (: _ ==> ={z0, glob Perm})
       · ec_close
-      equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
-      · stmt_sp; stmt_if
-        · ec_close
-        · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
-        · ec_auto; ec_close
-      equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-      · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
-      ec_auto
+      sim
     · ec_auto
   -- EC: by auto.
   ec_auto; ec_progress
@@ -3617,23 +3609,17 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
       --     by conseq(:_==>  m1{1} = Dist_of_P2Adv.m{2} /\ m2{1} = m'{2} /\
       --       of_list (oget (Some (take n{1} z0{1}))) =
       --       of_list (oget (Some (take n{2} z0{2}))) /\ ={Perm.mi, Perm.m})=> //=; sim.
-      --     (GAP 7: the `while` rule, the permutation's calls by `call (_ : ={glob Perm})`)
+      --     (EC's postcondition as the equalities the loops need, `={z0, glob Perm}`; the rest
+      --     follows before them, `ec_close`)
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
         stmt_if
         · ec_close
         · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
           stmt_inline{2} 0; stmt_inline{2} 0
           stmt_sp; stmt_wp
-          equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+          equiv_conseq (: _ ==> ={z0, glob Perm})
           · ec_close
-          equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
-          · stmt_sp; stmt_if
-            · ec_close
-            · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
-            · ec_auto; ec_close
-          equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-          · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
-          ec_auto
+          sim
         · ec_auto
     stmt_inline*
     stmt_sp
@@ -3660,8 +3646,6 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
       · ec_auto
     -- EC: - proc; inline*; sp; if; auto; sp=> />.
     --       by conseq(:_==> ={z0, glob Perm})=> />; sim.
-    --     (GAP 7: `sim` does not end on the two loops here; the `while` rule, the permutation's
-    --     calls by `call (_ : ={glob Perm})`)
     · equiv_proc
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
       stmt_if
@@ -3669,16 +3653,9 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
       · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
         stmt_inline{2} 0; stmt_inline{2} 0
         stmt_sp; stmt_wp
-        equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+        equiv_conseq (: _ ==> ={z0, glob Perm})
         · ec_close
-        equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
-        · stmt_sp; stmt_if
-          · ec_close
-          · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
-          · ec_auto; ec_close
-        equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-        · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
-        ec_auto
+        sim
       · ec_auto
     -- EC: by auto; smt().
     ec_auto; ec_progress
@@ -4781,23 +4758,17 @@ theorem rw_real (m : VariableAssignment) :
     -- EC: inline*; sp; if; auto; swap{1} 9; auto; sp=> /=.
     --     by conseq(:_==>  ={m1, m2} /\ of_list (oget (Some (take n{1} z0{1}))) =
     --       of_list (oget (Some (take n{2} z0{2}))) /\ ={Perm.mi, Perm.m})=> //=; sim.
-    --     (GAP 7: the `while` rule, the permutation's calls by `call (_ : ={glob Perm})`)
+    --     (EC's postcondition as the equalities the loops need, `={z0, glob Perm}`; the rest
+    --     follows before them, `ec_close`)
     · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
       stmt_if
       · ec_close
       · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
         stmt_inline{2} 0; stmt_inline{2} 0
         stmt_sp; stmt_wp
-        equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+        equiv_conseq (: _ ==> ={z0, glob Perm})
         · ec_close
-        equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
-        · stmt_sp; stmt_if
-          · ec_close
-          · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
-          · ec_auto; ec_close
-        equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-        · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
-        ec_auto
+        sim
       · ec_auto
   stmt_inline*
   stmt_sp
@@ -4823,8 +4794,6 @@ theorem rw_real (m : VariableAssignment) :
     · ec_auto
   -- EC: - proc; inline*; sp; if; auto; sp=> />.
   --       by conseq(:_==> ={z0, glob Perm})=> />; sim.
-  --     (GAP 7: `sim` does not end on the two loops here; the `while` rule, the permutation's
-  --     calls by `call (_ : ={glob Perm})`)
   · equiv_proc
     stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
     stmt_if
@@ -4832,16 +4801,9 @@ theorem rw_real (m : VariableAssignment) :
     · stmt_inline{1} 0; stmt_inline{1} 0; stmt_inline{1} 0
       stmt_inline{2} 0; stmt_inline{2} 0
       stmt_sp; stmt_wp
-      equiv_conseq (: _ ==> ={z0, n, Perm.m, Perm.mi})
+      equiv_conseq (: _ ==> ={z0, glob Perm})
       · ec_close
-      equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
-      · stmt_sp; stmt_if
-        · ec_close
-        · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
-        · ec_auto; ec_close
-      equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-      · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
-      ec_auto
+      sim
     · ec_auto
   -- EC: by auto; smt().
   ec_auto; ec_progress

@@ -473,6 +473,17 @@ partial def eqBack (s : Lean.Expr) (S : VarSet) : MetaM VarSet := do
   | some ``StmtWithHoles.sample | some ``StmtWithHoles.assign =>
     let W ← varsOf #[last 2]
     if ← vsMeets W S then vsUnion (← vsDiff S W) (← varsOf #[last 1]) else return S
+  | some ``StmtWithHoles.call' =>
+    -- a concrete call `x <@ f(args)`: its result replaced by its arguments and the globals the
+    -- callee mentions (its locals are its own frame's)
+    let W ← varsOf #[last 7]
+    let (_, gB) ← varsOf #[last 3, last 2]
+    vsUnion (← vsUnion (← vsDiff S W) (← varsOf #[last 1])) (#[], gB)
+  | some ``StmtWithHoles.call | some ``Stmt.call =>
+    -- the same, the callee a `Procedure` (`x <@ p(args)`): the globals it mentions as written
+    let W ← varsOf #[last 3]
+    let (_, gB) ← varsOf #[last 2]
+    vsUnion (← vsUnion (← vsDiff S W) (← varsOf #[last 1])) (#[], gB)
   | _ => vsUnion S (← varsOf #[s])
 
 /-- EC's `sim` invariant of two loops: the relation `B` after them, and the variables both loops
@@ -672,10 +683,26 @@ partial def alignLocals (a b : Lean.Expr) (acc : Array (Lean.Expr × Lean.Expr))
       let ky ← lensKey y
       if kx == ka || ky == kb then return if kx == ka && ky == kb then some acc else none
     return some (acc.push (a, b))
+  -- where the terms differ otherwise: closed terms without locals (a callee named through an
+  -- alias on one side, `Pilot.HybridIROEager.fill_in` against the first port's, or one side's
+  -- `.procedure` normalized to the procedure's declaration) are compared by definition, within
+  -- a budget (as `callGlob`'s callees)
+  let closedEq : MetaM (Option (Array (Lean.Expr × Lean.Expr))) := do
+    if a.hasLooseBVars || b.hasLooseBVars then return none
+    if (a.find? isLocalLens).isSome || (b.find? isLocalLens).isSome then return none
+    let same ← tryCatchRuntimeEx
+      (withCurrHeartbeats <|
+        withTheReader Core.Context (fun c => { c with maxHeartbeats := 50000 * 1000 }) do
+          withNewMCtxDepth (isDefEq a b))
+      (fun _ => pure false)
+    return if same then some acc else none
   match a, b with
   | .app f₁ x₁, .app f₂ x₂ =>
-    let some acc ← alignLocals f₁ f₂ acc | return none
-    alignLocals x₁ x₂ acc
+    let r ← do
+      let some acc ← alignLocals f₁ f₂ acc | pure none
+      alignLocals x₁ x₂ acc
+    if r.isSome then return r
+    closedEq
   | .lam _ t₁ b₁ _, .lam _ t₂ b₂ _ | .forallE _ t₁ b₁ _, .forallE _ t₂ b₂ _ =>
     let some acc ← alignLocals t₁ t₂ acc | return none
     alignLocals b₁ b₂ acc
@@ -686,7 +713,7 @@ partial def alignLocals (a b : Lean.Expr) (acc : Array (Lean.Expr × Lean.Expr))
   | .mdata _ x, _ => alignLocals x b acc
   | _, .mdata _ y => alignLocals a y acc
   | .proj _ i₁ x₁, .proj _ i₂ x₂ => if i₁ == i₂ then alignLocals x₁ x₂ acc else return none
-  | _, _ => return none
+  | _, _ => closedEq
 
 /-- The strings the `reset_vars` of `ss` name (an inlined call's temporaries). -/
 private def resetNames (ss : List Lean.Expr) : MetaM (Array String) := do
@@ -808,7 +835,9 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     if debug.sim.get (← getOptions) then
       IO.eprintln s!"sim (skip): precondition not open: {← ppExpr pre}"
     let g ← equivSkip g
-    closeImp g
+    -- what `closeImp` leaves (the inlined calls' copies of parameters, pairs): `auto_close`, as
+    -- for the loops' bodies
+    (← closeImp g).flatMapM autoCloseIfAvailable
   | .cond, .cond =>
     let s ← saveState
     let g₀ := g

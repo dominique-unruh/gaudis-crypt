@@ -423,7 +423,7 @@ theorem Pr_restr (m : VariableAssignment) :
     · exact D_ll
     -- `P.f`
     · equiv_proc; stmt_sp; equiv_if{1}
-      · sim; auto_close
+      · sim
       · stmt_wp; equiv_call{2} f_ll / C.c; equiv_skip; auto_close
     · phoare_proc; stmt_sp; stmt_if
       · phoare_auto; phoare_call f_ll; phoare_auto
@@ -432,7 +432,7 @@ theorem Pr_restr (m : VariableAssignment) :
     · phoare_proc; stmt_wp; phoare_call f_ll; phoare_auto
     -- `P.fi`
     · equiv_proc; stmt_sp; equiv_if{1}
-      · sim; auto_close
+      · sim
       · stmt_wp; equiv_call{2} fi_ll / C.c; equiv_skip; auto_close
     · phoare_proc; stmt_sp; stmt_if
       · phoare_auto; phoare_call fi_ll; phoare_auto
@@ -442,7 +442,7 @@ theorem Pr_restr (m : VariableAssignment) :
     -- `CO(P).f`
     · equiv_proc; stmt_sp; equiv_if
       · equiv_if{1}
-        · sim; auto_close
+        · sim
         · stmt_wp; equiv_call{2} CO_ll / C.c; stmt_wp; equiv_skip; auto_close
       · equiv_auto
       · auto_close

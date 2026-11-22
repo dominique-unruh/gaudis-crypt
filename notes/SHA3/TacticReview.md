@@ -1005,3 +1005,23 @@ all.  The time is our tactics' failure paths:
   320 → 406 s.  `fp_module` now bounds a closed sub-module below the root by its own bound (the
   bound hook, cached per file: `FpModule.subBound`), unfolding only where that bound does not
   fit.  Gconcl_list 304 s; full build 33.2 min, as before the change.
+
+### `sim` through loops with calls (2026-11-22)
+
+SHA3OSecurity GAP 7 (five sites) and Sponge GAP 13 closed in EC's script (`conseq; sim`,
+`inline …; sim`), three changes to `Logic/ECSim.lean`:
+* `eqBack` (EC's backward equality sets) had no case for calls: a call counted as reading
+  everything it mentions, its result too, so a local written by a call before it is read
+  (`z1 <@ Poget(PSome(Perm)).f(…)`) was asked equal before the loops.  Calls now replace their
+  result by their arguments and the callee's globals (`call'`, `call`, `Stmt.call`).
+* `alignLocals` (the pairs of differently named locals of two loops) compared the loops
+  syntactically; a callee named through the port's alias on one side
+  (`Pilot.HybridIROEager.fill_in` against the first port's) made the loops "differ".  Closed
+  subterms without locals that differ are now compared by definition (50M-heartbeat budget).
+* At the end of the code, `sim` closed the implication left with `closeImp` only; it now tries
+  `auto_close` on what that leaves, as for the loops' bodies.  The closer after `sim` went at
+  11 sites (SLCommon 3, ConcreteF 6, first-port proofs; Gconcl_list 1 and SHA3_OIndiff 1, now
+  EC's bare `sim`).
+Not done: SHA3_OIndiff GAP 2 is a difference of script shape (EC writes the `while`s there);
+Sponge GAP 15 (an abstract call whose equality set mixes a `glob` and a variable) and
+SHA3OSecurity GAP 10 remain.

@@ -5144,7 +5144,6 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
     sim (_ : §S.m{1} = §Simulator.m{2} ∧ §S.mi{1} = §Simulator.mi{2} ∧
       §S.paths{1} = §Simulator.paths{2} ∧ §BIRO2.IRO.mp{1} = §IRO2.RO.m{2} ∧
       SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
-    ec_close
   -- EC: + by auto.
   · ec_auto; ec_close
   -- EC: proc; sp; if; auto.
