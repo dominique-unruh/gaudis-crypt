@@ -98,6 +98,13 @@ def splitPairEq (g : MVarId) : MetaM (Option MVarId) := g.withContext do
     return some (← g.clear d.fvarId)
   return none
 
+/-- The facts `mem_eq_reads` read off so far, shared by the tactic runs of a file: for a memories'
+equation (its type) and a read `G`, the fact's type.  `ec_progress` runs `ec_prep` again on each
+part of the goal it splits, where the fact read off before is still in the context: it is copied
+then, not read off again (`simp` by `fp_disjoint`, seconds each). -/
+initialize memEqReadCache : IO.Ref (Std.HashMap (Lean.Expr × Lean.Expr) Lean.Expr) ←
+  IO.mkRef {}
+
 end GaudisCrypt.ECProgress
 
 open Lean Elab Tactic in
@@ -167,7 +174,22 @@ elab "mem_eq_reads" : tactic => withMainContext do
   let simps : Array Ident := GaudisCrypt.PRHLWp.relSimpDecls.toArray.map mkIdent
   let mut added := false
   for pf in eqs do
+    let eqTy ← instantiateMVars (← inferType pf)
     for G in Gs do
+      -- read off before, the fact still in the context: a copy of it (as reading it off again
+      -- would give, under the same name)
+      if let some T := (← GaudisCrypt.ECProgress.memEqReadCache.get)[(eqTy, G)]? then
+        let copied ← withMainContext do
+          for d in ← getLCtx do
+            if d.isImplementationDetail then continue
+            unless (← instantiateMVars d.type) == T do continue
+            let (_, g') ← (← (← getMainGoal).assert d.userName T d.toExpr).intro1P
+            replaceMainGoal [g']
+            return true
+          return false
+        if copied then
+          added := true
+          continue
       let s ← saveState
       try
         let f ← mkAppM ``GaudisCrypt.Getter.get #[G]
@@ -180,10 +202,14 @@ elab "mem_eq_reads" : tactic => withMainContext do
         -- kept only as `G.get x = G.get y`, two memories' reads
         let ok ← withMainContext do
           let some d := (← getLCtx).lastDecl | return false
-          let some (_, l, r) := (← instantiateMVars d.type).eq? | return false
-          return l.isAppOfArity ``GaudisCrypt.Getter.get 4 &&
+          let T ← instantiateMVars d.type
+          let some (_, l, r) := T.eq? | return false
+          let ok := l.isAppOfArity ``GaudisCrypt.Getter.get 4 &&
             r.isAppOfArity ``GaudisCrypt.Getter.get 4 && l.appArg!.isFVar &&
             r.appArg!.isFVar && l.appArg! != r.appArg!
+          if ok && !T.hasMVar then
+            GaudisCrypt.ECProgress.memEqReadCache.modify (·.insert (eqTy, G) T)
+          return ok
         if ok then added := true else s.restore
       catch _ => s.restore
   unless added do throwError "mem_eq_reads: nothing read off"

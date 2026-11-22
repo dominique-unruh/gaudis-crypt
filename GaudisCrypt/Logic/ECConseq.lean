@@ -301,10 +301,11 @@ elab "equiv_conseq " H:term:max : tactic => withMainContext do
   else if ty.isAppOfArity ``prhlStmt 4 then
     refineTagged (← `(prhlStmt_conseq $H ?pre ?post)) [`pre, `post]
   else throwError "equiv_conseq: not a relational judgment"
-  -- the side goals that are logic alone
+  -- the side goals that are logic alone (`simp_all` without a declared module's restrictions,
+  -- `clear_decl_hyps`: on them a failing `simp_all` takes seconds)
   let closer ← `(tactic| first
-    | (intros; simp_all; done)
-    | (intros; casesm* _ ∧ _; subst_vars; simp_all; done)
+    | (clear_decl_hyps; intros; simp_all; done)
+    | (clear_decl_hyps; intros; casesm* _ ∧ _; subst_vars; simp_all; done)
     -- a procedure's: equal arguments give equal parameters (the conditions' `have`s of them)
     | (intro a₁ g₁ a₂ g₂ h; obtain ⟨e, h⟩ := h; subst e; intros; exact ⟨⟨rfl, rfl⟩, h⟩))
   let mut left := []

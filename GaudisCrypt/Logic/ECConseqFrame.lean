@@ -319,8 +319,15 @@ def callAppWrites (goal s L : Lean.Expr) : MetaM Lean.Expr := do
           setGoals (gs.filter (· != g))
           return g
         let gd ← take `hdisj
-        let [] ← evalTacticAt (← `(tactic| ((try simp only [Footprint.lens_pair]); fp_disjoint)))
-          gd | throwError "keeps: the adversary touches the variable"
+        -- within a budget: where it holds, `fp_disjoint` takes a tenth of a second; where the
+        -- adversary does touch the variable, it took up to 19 s to fail (`SHA3OSecurity`)
+        let [] ← tryCatchRuntimeEx
+            (withCurrHeartbeats <|
+              withTheReader Core.Context (fun c => { c with maxHeartbeats := 20000 * 1000 }) do
+                evalTacticAt (← `(tactic| ((try simp only [Footprint.lens_pair]); fp_disjoint)))
+                  gd)
+            (fun _ => throwError "keeps: the adversary touches the variable")
+          | throwError "keeps: the adversary touches the variable"
         let gc ← take `hc
         for g in ← ECCall.splitHoles gc procs.size do
           let [] ← evalTacticAt (← `(tactic| first
