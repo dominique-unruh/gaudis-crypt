@@ -1142,9 +1142,8 @@ end FirstPort
 set_option ec.strict true
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: `ideal_equiv`'s F.f guard `valid p{1} = valid p{2}` after `sp` over `p, n <- x0` and
-  `x0 <- (bl, nb)`: our closer does not chain the two tuple equations (EC's `auto`):
-  `simp_reads_all; smt_close []`.
+* GAP 1 (closed 2026-11-22): `ideal_equiv`'s F.f guard `valid p{1} = valid p{2}` after `sp` over
+  `p, n <- x0` and `x0 <- (bl, nb)`; EC's `auto` closes it, and so does ours now.
 * GAP 2: EC's `auto` takes a one-sided sampling of a lossless distribution (`r <$ dout`) as
   lossless; ours does since 2026-11-22 (`@[ec_lossless]`: `bdistr_expected_one`,
   `cdistr_expected_one`).  Left: a `conseq`'s postcondition closed by `ec_progress` (EC's `smt`
@@ -1375,12 +1374,10 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     all_goals equiv_auto
   -- EC: proc;inline*;sp;if;auto;swap 6;auto;sp;if;auto;2:smt(size_ge0).
   · equiv_proc; stmt_inline*; stmt_sp; stmt_if
-    --     (GAP 1: EC's `auto` on the guard; our closer does not use `(bl, nb) = x`)
-    · intro σ₁ σ₂ h; simp_reads_all; smt_close []
+    · ec_auto
     on_goals 2 => equiv_auto
     equiv_auto; stmt_swap 6; equiv_auto; stmt_sp; stmt_if
-    --     (GAP 1: EC's `auto` on the guard; our closer loses `(p, n) = x0`, `x0 = (bl, nb)`)
-    · intro σ₁ σ₂ h; simp_reads_all; smt_close []
+    · ec_auto
     on_goals 2 => (equiv_auto; smt_close [size_ge0])
     --     (EC's `auto` on the branch: nothing to do here)
     -- EC: case(0 < n{1});last first.

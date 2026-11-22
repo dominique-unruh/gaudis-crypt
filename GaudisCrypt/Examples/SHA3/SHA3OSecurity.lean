@@ -89,9 +89,8 @@ Translation:
 * GAP 10: `sim / Dist_of_P2Adv.m` (EC's `sim` between the game and `TOTO`, which sets
   `Dist_of_P2Adv.m` first) leaves the last implication, the reads through the calls' writes:
   one `simp` by hand;
-* GAP 11: `sp` over `Dist_of_P2Adv.m <- m` states its fact at a spelling the closers do not
-  identify with the later read of `Dist_of_P2Adv.m`: the assignment is left to the `auto`
-  after the call;
+* GAP 11 (closed 2026-11-22): `sp` over `Dist_of_P2Adv.m <- m` stated its fact at a spelling the
+  closers did not identify with the later read; EC's `sp` and `auto` go through now;
 * EC's `bypr` (pHL) is the new `bypr` (`Logic/ByPr.lean`); `byphoare`'s bound is a real, whose
   `0 ≤ x` is a side goal EC does not have;
 * `Countable f_out` (from `to_list_inj`) is the side condition of
@@ -3721,14 +3720,13 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
   rw [h]; clear h
   -- EC: byphoare(: arg = mess ==>_)=>//=; proc; sp.
   --     (GAP 9: the parameter's name is not known for `TOTO(A).main`, nor for the clone's game
-  --     below: the judgments written out, with their bound.  EC's `sp` is left to the `auto`
-  --     after the call: GAP 11)
+  --     below: the judgments written out, with their bound)
   byphoare (?j : phoare[ TOTO(A).main (m) : §m = mess ==> §res ] ≤ (ENNReal.ofReal
       (((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) / ((2 ^ (r + c + 1).toNat : ℤ) : ℝ) +
         ((4 * SHA3Indiff.limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) +
       ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out)))
   case j =>
-    phoare_proc
+    phoare_proc; stmt_sp
     -- EC: call(: arg = mess /\ mess = Dist_of_P2Adv.m ==> res); auto.
     phoare_call (?spec : phoare[ SH.SecondPreimage(A, OSponge, PSome(Perm)).main (m1) :
       §m1 = mess ∧ mess = §Dist_of_P2Adv.m ==> §res ] ≤ (ENNReal.ofReal
@@ -3768,9 +3766,7 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
           · stmt_sp; stmt_wp; phoare_call Hf; phoare_auto
           · stmt_sp; phoare_call Hf; phoare_auto
     -- EC: (the `auto` of `call(…); auto`)
-    phoare_auto
-    intro m1 h
-    rw [if_pos ⟨h, h.symm⟩]
+    phoare_auto; ec_close
   --     (`byphoare`'s bound is a real: it is not negative)
   case hx =>
     have h1 : (0 : ℝ) ≤ ((SHA3Indiff.limit ^ 2 - SHA3Indiff.limit : ℤ) : ℝ) := by
