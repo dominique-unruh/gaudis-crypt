@@ -1156,8 +1156,9 @@ set_option ec.strict true
   context's, and `omega` then sees two atoms: name it instead.
 * EC's `smt` selects its lemmas (`domE`, `mem_set`, `valid_spec`, the definition of `<=`) itself:
   our `smt_close` lists them (deviation, not a gap).
-* GAP 3: `glob M` of a concrete module in the `={…}` of `equiv_while`'s invariant stays a region
-  (`FVP.fvP IF`), where EC reads the module's variables: the variables are written out.
+* GAP 3: `glob M` of a module over an oracle (`glob IF`) in the `={…}` of `equiv_while`'s
+  invariant stays a region, where EC reads the module's variables: the variable is written out.
+  (`glob S` of a concrete module is EC's since 2026-11-12, `Logic/GlobWrites.lean`.)
 * GAP 4 (closed 2026-11-21): `equiv_conseq`'s frame took a call of a procedure that writes
   nothing (`F.LRO.sample`, EC's `proc sample(x) = {}`) as writing its module's variables; the
   frame is now by writes, and EC's order (`conseq`, then `inline*`) is kept.
@@ -1751,8 +1752,9 @@ theorem Ideal_equiv_valid : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
   on_goals 2 => ec_auto
   --     (EC's `auto` on the branch: nothing to do here)
   -- EC: while(={glob S,glob IF,lres,i,n,p,b}).
-  --     (GAP 3: `glob S`, `glob IF` in `while`'s `={…}` stay regions: their variables)
-  equiv_while (={S.m, S.mi, S.paths, SLCommon.F.RO.m, lres, i, n, p, b})
+  --     (GAP 3: `glob IF`, a module over an oracle, stays a region in `while`'s `={…}`: its
+  --     variable `F.RO.m`)
+  equiv_while (={glob S, SLCommon.F.RO.m, lres, i, n, p, b})
   -- EC: + sp;if;auto.
   · stmt_sp; stmt_if
     · ec_close

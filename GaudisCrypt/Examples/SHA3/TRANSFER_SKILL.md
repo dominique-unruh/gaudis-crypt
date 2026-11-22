@@ -704,6 +704,11 @@ Document each in the docstring when it applies.
 * **Lossless distributions**: tag each `d.expected (fun _ => 1) = 1` fact `@[ec_lossless]` (EC's
   `dunifin_ll` and the like); `auto` then takes a sampling of `d` as EC's does, and a hand proof
   after `auto` does not supply the fact (`refine ⟨d_ll, …⟩` is now `refine …`).
+* **`={glob M}` of a concrete module is EC's**: write `={glob Perm}`, `={glob S}` as EC does, in
+  `call`, `conseq` and `while` (`Logic/GlobWrites.lean` reads the module's variables off its
+  code).  Two exceptions seen on 2026-11-22: the invariant of a loop whose body the closers must
+  take apart variable by variable (SHA3_OIndiff's `Sponge.f` loops, Gconcl_list's permutation
+  steps) keeps the variables; a module over an oracle (`glob IF`) stays a region (GAP 3).
 * **A fixed gap's workarounds outlive the fix**: when a tactic learns to handle a case, grep the
   ports for the hand steps that stood in for it (their `-- GAP n` comments, the lemmas they used)
   and try deleting them.  On 2026-11-21, 36 `simp only [ODPRIMITIVE_f_mk]` / `simp only [PSome,

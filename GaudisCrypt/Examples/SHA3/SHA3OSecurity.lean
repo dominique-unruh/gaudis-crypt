@@ -2315,7 +2315,7 @@ theorem rw_real (m : VariableAssignment) :
   stmt_inline*
   stmt_swap{1} 4; stmt_sp
   -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
-  equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+  equiv_call (_ : ={glob Perm} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
   -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
   · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
@@ -2350,10 +2350,10 @@ theorem rw_real (m : VariableAssignment) :
       equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
       · stmt_sp; stmt_if
         · ec_close
-        · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+        · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
         · ec_auto; ec_close
       equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-      · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+      · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
       ec_auto
     · ec_auto
   -- EC: by auto.
@@ -3600,7 +3600,7 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
       --       hash1{1} = hash{2} /\ ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2});
       --       last first.
       equiv_seq 1 1 : (§m1{1} = §Dist_of_P2Adv.m{2} ∧ §m2{1} = §m'{2} ∧
-        §hash1{1} = §hash{2} ∧ ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+        §hash1{1} = §hash{2} ∧ ={glob Perm} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
       swap
       -- EC: + inline*; sp; if; auto; sp=> /=; sim.
       · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
@@ -3629,16 +3629,16 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
           equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
           · stmt_sp; stmt_if
             · ec_close
-            · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+            · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
             · ec_auto; ec_close
           equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-          · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+          · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
           ec_auto
         · ec_auto
     stmt_inline*
     stmt_sp
     -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
-    equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2} ∧
+    equiv_call (_ : ={glob Perm} ∧ §SH.Bounder.bounder{1} = §Counter.c{2} ∧
       §Dist_of_P2Adv.m{2} = mess)
     -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
     · equiv_proc; stmt_inline*; stmt_sp
@@ -3674,10 +3674,10 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
         equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
         · stmt_sp; stmt_if
           · ec_close
-          · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+          · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
           · ec_auto; ec_close
         equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-        · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+        · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
         ec_auto
       · ec_auto
     -- EC: by auto; smt().
@@ -4765,7 +4765,7 @@ theorem rw_real (m : VariableAssignment) :
     -- EC: seq 1 1 : (={m1, m2, hash1, glob Perm} /\ Bounder.bounder{1} = Counter.c{2});
     --       last first.
     equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ §m2{1} = §m20{2} ∧ §hash1{1} = §hash10{2} ∧
-      ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+      ={glob Perm} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
     swap
     -- EC: + inline*; sp; if; auto; sp=> /=; sim.
     · stmt_inline{1} 0; stmt_inline{2} 0; stmt_inline{2} 0; stmt_sp
@@ -4793,16 +4793,16 @@ theorem rw_real (m : VariableAssignment) :
         equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
         · stmt_sp; stmt_if
           · ec_close
-          · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+          · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
           · ec_auto; ec_close
         equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-        · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+        · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
         ec_auto
       · ec_auto
   stmt_inline*
   stmt_sp
   -- EC: + call(: ={glob Perm} /\ Bounder.bounder{1} = Counter.c{2})=> //=.
-  equiv_call (_ : ={Perm.m, Perm.mi} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
+  equiv_call (_ : ={glob Perm} ∧ §SH.Bounder.bounder{1} = §Counter.c{2})
   -- EC: - by proc; inline*; sp; if; auto; 2:sim=> />; 1: smt().
   · equiv_proc; stmt_inline*; stmt_sp
     stmt_if
@@ -4837,10 +4837,10 @@ theorem rw_real (m : VariableAssignment) :
       equiv_while (={i, n, z0, sa, sc, Perm.m, Perm.mi})
       · stmt_sp; stmt_if
         · ec_close
-        · equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto; ec_close
+        · equiv_call (_ : ={glob Perm}); ec_auto; ec_close
         · ec_auto; ec_close
       equiv_while (={xs, i, n, z0, sa, sc, Perm.m, Perm.mi})
-      · stmt_wp; equiv_call (_ : ={Perm.m, Perm.mi}); ec_auto
+      · stmt_wp; equiv_call (_ : ={glob Perm}); ec_auto
       ec_auto
     · ec_auto
   -- EC: by auto; smt().

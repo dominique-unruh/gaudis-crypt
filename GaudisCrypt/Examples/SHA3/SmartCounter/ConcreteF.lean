@@ -718,7 +718,7 @@ theorem Real_GReal' (m : VariableAssignment) :
       stmt_alias{2} 1 query = §C.queries
       stmt_sp 0 1
       equiv_conseq (: _ ==> §sa{1} = §sa0{2} ∧ §p{1} = §p0{2} ∧
-          ={Perm.m, Perm.mi, Redo.prefixes, i} ∧
+          ={glob Perm, Redo.prefixes, i} ∧
           §C.c{1} = §C.c{2} - size §p0{2} + §i{2} ∧ §i{2} = size §p0{2} ∧
           FMap.get §Redo.prefixes{2} (take §i{2} §p0{2}) = some (§sa0{2}, §sc{2}) ∧
           (∀ l, FMap.dom §pref{2} l → FMap.get §pref{2} l = FMap.get §Redo.prefixes{2} l) ∧
@@ -807,13 +807,13 @@ theorem Real_GReal' (m : VariableAssignment) :
     · stmt_wp
       equiv_conseq (: _ ==> §sa{1} = (oget (FMap.get §Redo.prefixes{1} (take §i{1} §p{1}))).1 ∧
           §i{1} = size §p{1} ∧ FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧
-          ={Perm.m, Perm.mi, Redo.prefixes, C.c})
+          ={glob Perm, Redo.prefixes, C.c})
       · auto_progress
         all_goals first
           | smt_close [take_size]
           | smt_close [take_size, prefix_inv]
           | smt_close [all_prefixes]
-      equiv_while{1} (={Perm.m, Perm.mi, Redo.prefixes, C.c} ∧ FMap.dom §C.queries{2} §p{1} ∧
+      equiv_while{1} (={glob Perm, Redo.prefixes, C.c} ∧ FMap.dom §C.queries{2} §p{1} ∧
           prefix_inv §C.queries{2} §Redo.prefixes{1} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size §p{1} ∧
           FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧
           (§sa{1}, §sc{1}) = oget (FMap.get §Redo.prefixes{1} (take §i{1} §p{1})) ∧

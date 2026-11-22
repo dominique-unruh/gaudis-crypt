@@ -403,7 +403,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
     stmt_inline*
     stmt_wp
     -- EC: call(: ={glob Perm, glob Counter} /\ ={c}(Counter,Cntr))=>/>; auto.
-    equiv_call (_ : ={Perm.m, Perm.mi, Counter.c} ∧ §Counter.c{1} = §Cntr.c{2})
+    equiv_call (_ : ={glob Perm, Counter.c} ∧ §Counter.c{1} = §Cntr.c{2})
     -- EC: - proc; inline*; sp; auto; if; 1, 3: auto; sp.
     --       by rcondt{2} 1; 1: auto; sp; if; auto.
     · equiv_proc; stmt_inline*; stmt_sp
@@ -443,7 +443,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
         · hoare_auto
         stmt_wp; stmt_sp
         -- EC: conseq(:_==> ={glob Perm} /\ n{1} = n0{2} /\ z0{1} = z1{2})=> />; sim.
-        equiv_conseq (: _ ==> ={Perm.m, Perm.mi} ∧ §n{1} = §n0{2} ∧
+        equiv_conseq (: _ ==> ={glob Perm} ∧ §n{1} = §n0{2} ∧
           §z0{1} = §(localVarLens "z1" (List Bool)){2})
         · ec_close
         -- EC: while(={glob Perm, sa, sc, i} /\ (n,z0){1} = (n0,z1){2}); auto.
@@ -460,7 +460,7 @@ theorem SHA3OIndiff (m : VariableAssignment) :
               ec_close
           · ec_auto; ec_close
         -- EC: conseq(:_==> ={glob Perm, sa, sc})=> />; sim.
-        equiv_conseq (: _ ==> ={Perm.m, Perm.mi, sa, sc})
+        equiv_conseq (: _ ==> ={glob Perm, sa, sc})
         · ec_close
         -- EC: by while(={glob Perm, sa, sc, xs}); auto; sp; if; auto=> />.
         equiv_while (={Perm.m, Perm.mi, sa, sc, xs})

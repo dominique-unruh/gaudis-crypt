@@ -346,13 +346,13 @@ theorem drestr_commute1 (m : VariableAssignment) :
         () @ &m : §res ] := by
   -- EC: byequiv=> //; proc.
   byequiv; equiv_proc
-  -- EC: seq 2 2 : (={glob Dist} /\ ={Perm.m, Perm.mi} ); first sim.
+  -- EC: seq 2 2 : (={glob Dist} /\ ={glob Perm} ); first sim.
   equiv_seq 2 2 : (={glob Dist, Perm.m, Perm.mi})
   · sim
   -- EC: inline*; wp; sp.
   stmt_inline*; stmt_wp; stmt_sp
-  -- EC: call (_ : ={c}(Cntr, BlockSponge.C) /\ ={Perm.m, Perm.mi}).
-  equiv_call (_ : ={Perm.m, Perm.mi} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
+  -- EC: call (_ : ={c}(Cntr, BlockSponge.C) /\ ={glob Perm}).
+  equiv_call (_ : ={glob Perm} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
   -- EC: proc; sp; if=> //; sp; sim.
   · equiv_proc; stmt_sp; stmt_if
     · auto_close
@@ -375,7 +375,7 @@ theorem drestr_commute1 (m : VariableAssignment) :
     · smt_close [size_pad2blocks]
     -- EC: seq 1 1 :
     --   (={n} /\ nb{2} = (n{2} + r - 1) %/ r /\ bl{2} = pad2blocks bs{1} /\
-    --    Cntr.c{1} = BlockSponge.C.c{2} /\ ={Perm.m, Perm.mi}).
+    --    Cntr.c{1} = BlockSponge.C.c{2} /\ ={glob Perm}).
     --   auto; progress; by rewrite size_pad2blocks.
     · equiv_seq 1 1 : (={n, Perm.m, Perm.mi} ∧ §nb{2} = (§n{2} + r - 1) / r ∧
           §bl{2} = pad2blocks §bs{1} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
@@ -386,9 +386,9 @@ theorem drestr_commute1 (m : VariableAssignment) :
       stmt_inline{1} 0
       -- EC: wp; sp.
       stmt_wp; stmt_sp
-      -- EC: call (_ : ={Perm.m, Perm.mi}); first sim.
+      -- EC: call (_ : ={glob Perm}); first sim.
       --     (the callees' judgment, EC's `first sim`, closed by `equiv_call`: the same procedure)
-      equiv_call (_ : ={Perm.m, Perm.mi})
+      equiv_call (_ : ={glob Perm})
       -- EC: auto.
       equiv_auto
     -- EC: auto; progress; by rewrite blocks2bits_nil.
