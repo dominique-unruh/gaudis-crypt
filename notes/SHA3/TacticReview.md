@@ -481,6 +481,10 @@ first needs a full rebuild, so they go together):
    (`Setter.throwaway_set`, in `ReadNorm` only: the older tactics' hand proofs in `PROM` keep
    it).  Closed: SHA3Security GAP 2, 7; SHA3OSecurity GAP 4; Sponge GAP 3, 12; Gconcl_list
    GAP 14; ~60 hand steps gone.  Tests in `ECProgressTest`, `ECCallsTest`.
+   **`equiv_conseq H` closes its logic side goals done 2026-11-22**: `pre`/`post` closed when they
+   are logic alone (`simp_all`; equal arguments give equal parameters), else left; errors in the
+   attempt are exceptions, a closed goal has no `sorry`.  Sponge GAP 5 closed (`conseq_side`
+   gone).  Test in `ECConseqTest`.
    **Lossless distributions done 2026-11-22**: `@[ec_lossless]` facts `d.expected (fun _ => 1) = 1`
    (`Logic/ECLossless.lean`) are read by `phoare_auto`, `equiv_auto` and the strict `ec_auto` after
    samplings (`lossless_simp`: only those rewrites, `Simp.neutralConfig`; in `ec_prep` it broke

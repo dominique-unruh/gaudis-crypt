@@ -130,4 +130,21 @@ example : equiv[ ={x} ∧ §y{2} = 2 ==> §z{1} + 2 = §z{2} ] {
   equiv_skip
   auto_close
 
+-- EC's `conseq H` with conditions that are `H`'s up to logic: the two implications closed
+-- (`equiv_conseq H` leaves them only when they are not logic alone)
+example (H : equiv[ ={x} ==> ={x} ] {
+      var x : ℤ;
+      x <- §x + 1;
+    } ~ {
+      var x : ℤ;
+      x <- §x + 1;
+    }) : equiv[ ={x} ∧ True ==> ={x} ∨ False ] {
+      var x : ℤ;
+      x <- §x + 1;
+    } ~ {
+      var x : ℤ;
+      x <- §x + 1;
+    } := by
+  equiv_conseq H
+
 end GaudisCrypt.ECConseqTest

@@ -292,7 +292,8 @@ elab "equiv_exists" "*" ts:term,+ : tactic => do
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
 /-- **EC's `conseq H`** on a relational judgment: the judgment `H` (about the same statements or
 procedures) for the goal's; goals `pre` (the goal's precondition implies `H`'s) and `post`
-(`H`'s postcondition implies the goal's). -/
+(`H`'s postcondition implies the goal's), each closed when it is a matter of logic (the
+conditions the same up to equal arguments: as EC's `conseq H` closes them), else left. -/
 elab "equiv_conseq " H:term:max : tactic => withMainContext do
   let ty ← instantiateMVars (← getMainTarget)
   if ty.isAppOfArity ``prhlProc 6 then
@@ -300,3 +301,27 @@ elab "equiv_conseq " H:term:max : tactic => withMainContext do
   else if ty.isAppOfArity ``prhlStmt 4 then
     refineTagged (← `(prhlStmt_conseq $H ?pre ?post)) [`pre, `post]
   else throwError "equiv_conseq: not a relational judgment"
+  -- the side goals that are logic alone
+  let closer ← `(tactic| first
+    | (intros; simp_all; done)
+    | (intros; casesm* _ ∧ _; subst_vars; simp_all; done)
+    -- a procedure's: equal arguments give equal parameters (the conditions' `have`s of them)
+    | (intro a₁ g₁ a₂ g₂ h; obtain ⟨e, h⟩ := h; subst e; intros; exact ⟨⟨rfl, rfl⟩, h⟩))
+  let mut left := []
+  for g in ← getGoals do
+    let tag := (← g.getTag).eraseMacroScopes
+    unless tag == `pre || tag == `post do left := left ++ [g]; continue
+    let s ← saveState
+    -- (an error is an exception, and a goal closed only without one, without `sorry`)
+    let log ← Core.getMessageLog
+    Core.resetMessageLog
+    let closed ← try
+        let rest ← Term.withoutErrToSorry (evalTacticAt closer g)
+        let pf ← instantiateMVars (mkMVar g)
+        pure (rest.isEmpty && !(← Core.getMessageLog).hasErrors && !pf.hasSorry)
+      catch _ => pure false
+    Core.setMessageLog log
+    if closed then continue
+    s.restore
+    left := left ++ [g]
+  setGoals left

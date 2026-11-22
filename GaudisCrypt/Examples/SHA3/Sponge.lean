@@ -70,8 +70,8 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   `D` to `f`: one more goal, for `init`.  (`HybridIROLazy.init`, `.f` are declared as the module
   type's procedures of `HybridIROLazy`, the form in which a call of an oracle names them; the
   first port's own procedures are equal to them only by a rewrite.)
-* GAP 5: `equiv_conseq H` leaves its two implications when the goal's conditions are not
-  literally `H`'s (EC closes them): `conseq_side`.
+* GAP 5 (closed 2026-11-22): `equiv_conseq H` left its two implications when the goal's
+  conditions are not literally `H`'s; it closes them now when they are logic alone, as EC's.
 * GAP 6 (closed 2026-11-21): the strict `auto` ran out of recursion depth (in its closing
   `simp_all`) on the body of a one-sided loop whose invariant reads the other memory; a closing
   attempt that hits a runtime limit now leaves the goal as EC's `auto` does.
@@ -1214,13 +1214,6 @@ export GaudisCrypt.SHA3.Sponge.HybridIRO.ERO (dout RO_T RO_Distinguisher RO.m FR
 end ERO
 
 set_option hygiene false in
-/-- The two implications `equiv_conseq H` leaves when the goal's conditions are not literally
-`H`'s (EC's `conseq H` closes them itself): equal arguments give equal parameters; the rest by
-simplification.  (GAP 5.) -/
-local macro "conseq_side" : tactic => `(tactic| first
-  | (rintro a₁ g₁ a₂ g₂ ⟨rfl, h⟩; intros; exact ⟨⟨rfl, rfl⟩, h⟩)
-  | (intros; simp_all; done))
-
 section
 
 -- (the local clone `ERO`'s variables are fresh for `D` in EC; here `D`'s restriction names them)
@@ -1411,9 +1404,9 @@ theorem Exper_HybridIROLazy_LRO (m : VariableAssignment) :
   --     (GAP 4: the rule asks all of `HYBRID_IRO`'s procedures, EC's `{HI.f}` only `f`: one
   --     more goal, for `init`)
   equiv_call (_ : §HybridIROLazy.mp{1} = §ERO.RO.m{2})
-  · equiv_conseq HybridIROLazy_HIRO_LRO_init <;> conseq_side
+  · equiv_conseq HybridIROLazy_HIRO_LRO_init
   -- EC: conseq HybridIROLazy_HIRO_LRO_f.
-  · equiv_conseq HybridIROLazy_HIRO_LRO_f <;> conseq_side
+  · equiv_conseq HybridIROLazy_HIRO_LRO_f
   -- EC: auto.
   ec_auto
 
@@ -1428,9 +1421,9 @@ theorem Exper_RO_HybridIROEager (m : VariableAssignment) :
   -- EC: seq 1 1 : (={glob D} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); first auto.
   --     call (_ : ERO.RO.m{1} = HybridIROEager.mp{2}).
   equiv_call (_ : §ERO.RO.m{1} = §HybridIROEager.mp{2})
-  · equiv_conseq HIRO_RO_HybridIROEager_init <;> conseq_side
+  · equiv_conseq HIRO_RO_HybridIROEager_init
   -- EC: conseq HIRO_RO_HybridIROEager_f.
-  · equiv_conseq HIRO_RO_HybridIROEager_f <;> conseq_side
+  · equiv_conseq HIRO_RO_HybridIROEager_f
   -- EC: auto.
   ec_auto
 
@@ -2567,8 +2560,6 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
           exact ⟨k1, k2.symm.trans h2 |>.symm, h1 ▸ k3, h1 ▸ k4, h3 ▸ k5⟩
         -- EC: conseq IH=> //.
         · equiv_conseq IH
-          · ec_close
-          · ec_close
         -- EC: while
         --       (={xs, bs, i, BlockSponge.BIRO.IRO.mp} /\ n{1} = n' /\ n{2} = n' + 1).
         --     wp. call (_ : ={BlockSponge.BIRO.IRO.mp}). if=> //; wp; rnd; auto.
