@@ -67,6 +67,16 @@ elab "ec_auto" : tactic => do
   -- the code used up: the strict `skip`
   if ← codeIsSkip (← getMainGoal) then
     liftMetaTactic1 fun g => some <$> ReadNorm.ecSkip g
+    -- `glob A` read past writes outside it (EC's `auto` reads `glob` off the code: the
+    -- initializations of other modules' variables leave it alone): `touched_set_of_le_compl`
+    let globPastWrite ← withMainContext do
+      let ty ← instantiateMVars (← getMainTarget)
+      return (ty.find? fun e => e.isAppOfArity ``GaudisCrypt.Getter.get 4 &&
+        (e.getArg! 2).isAppOf ``GaudisCrypt.Footprint.touched_getter &&
+        (e.getArg! 3).isAppOf ``GaudisCrypt.Setter.set).isSome
+    if globPastWrite then
+      evalTactic (← `(tactic|
+        try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]))
     -- what EC's `auto` closes by itself (closed, or left as `ec_skip` left it; also when an
     -- attempt runs into a runtime limit, maximum recursion depth in `simp_all` on quantified
     -- facts about a map being set, which `try` does not catch)

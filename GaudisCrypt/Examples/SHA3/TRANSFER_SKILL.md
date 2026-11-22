@@ -696,6 +696,11 @@ Document each in the docstring when it applies.
   that worked.  Never `simp_all` on a goal after `sp`: it can eat the whole budget.  An operator
   that EC's `auto` unfolds (`increase_counter`) is unfolded once after `inline*`
   (`simp only [increase_counter]`); the closers do not unfold definitions.
+* **No hand steps for the memories after `sp` through initializations** (since 2026-11-22):
+  `ec_auto; ec_progress` reads `glob A` and other variables off the two memories' equation
+  (`X.set _ (… g₁) = Y.set _ (… g₂)`) and past other modules' writes; no `congrArg … ‹… = _›`.
+  A pair taken apart at `x <- (sa, sc)` is put back together by `ec_prep` (no `Prod.ext ‹…›`);
+  hand proofs that name such a pair's left copy (`x0₁`) see the right one (`x0₂`).
 * **A fixed gap's workarounds outlive the fix**: when a tactic learns to handle a case, grep the
   ports for the hand steps that stood in for it (their `-- GAP n` comments, the lemmas they used)
   and try deleting them.  On 2026-11-21, 36 `simp only [ODPRIMITIVE_f_mk]` / `simp only [PSome,

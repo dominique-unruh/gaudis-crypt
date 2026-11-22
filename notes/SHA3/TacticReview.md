@@ -473,6 +473,14 @@ first needs a full rebuild, so they go together):
    procedure's writes keep it (`Stmt.Keeps.call_app_writes` from `Module.hoare_app_inv`;
    `ECConseqFrame.callAppWrites`).  For SHA3Security and SHA3OSecurity GAP 8.  Golden test in
    `ECCallsTest` (`Run(Peek, A)`, with and without `ec.frameWrites`).
+   **Closer batch from the gap triage done 2026-11-22**: `ec_progress` reads the memories'
+   equation `sp` leaves (`X.set v (… x) = Y.set w (… y)`) for a read of both memories
+   (`mem_eq_read`; `mem_eq_reads` in `ec_prep` before the reads become values); `ec_prep` puts a
+   pair back together from its components (`pair_ext_hyps`); the strict `auto` reads `glob A`
+   past other modules' writes (`touched_set_of_le_compl`) and through a discarded result
+   (`Setter.throwaway_set`, in `ReadNorm` only: the older tactics' hand proofs in `PROM` keep
+   it).  Closed: SHA3Security GAP 2, 7; SHA3OSecurity GAP 4; Sponge GAP 3, 12; Gconcl_list
+   GAP 14; ~60 hand steps gone.  Tests in `ECProgressTest`, `ECCallsTest`.
    **`sim` through loops with EC's exit frame done 2026-11-21**: a fourth loop attempt, the
    equality set of what the loops write (`loopInvEqWritten`) under `prhlStmt_seq_while_ec`'s
    frames (`ECSim.simWhileHook`, set by `Logic/ECWhileRel.lean`): the relation after the loops may

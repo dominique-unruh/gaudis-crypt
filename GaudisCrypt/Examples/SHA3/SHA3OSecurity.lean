@@ -62,10 +62,9 @@ Translation:
   first port's module type constructor, which the clone `SH`'s projections did not see through;
   `proc` and `inline*` open it since 2026-11-17 (procedures across clones' module types), and the
   hand `simp only [ODPRIMITIVE_f_mk]` lines left over from before went on 2026-11-21;
-* GAP 4: after `sp` through a game's initializations, `glob A` is equal in the two memories by
-  the memories' equation, taken out by hand (GAP 7 of `SHA3Security.lean`).  Where the two sides'
-  initializations are the same, `ec_auto` derives the memories' equality itself (`subst_states`,
-  2026-11-19: the three `RO_LRO_D` steps); elsewhere still by hand;
+* GAP 4 (closed 2026-11-21): after `sp` through a game's initializations, `glob A` is equal in
+  the two memories by the memories' equation, which was taken out by hand; `ec_progress` reads it
+  off now (`mem_eq_read`), and `ec_auto` reads `glob A` past other modules' writes;
 * GAP 5 (closed 2026-11-21): `equiv_call (_ : ={x₁, …})` on the adversary put `={glob A}` into
   the oracles' judgments (EC's do not have it), on which `inline` did not end; it now gives EC's
   oracle judgments, so the invariants are EC's single equality sets;
@@ -1115,8 +1114,8 @@ theorem eq_extend :
     ec_auto; ec_progress
     · exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
     · have h0 : (0 : ℤ) < size_out := GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0
-      have h2 := ‹size_out < xn0₁.2›
-      simp [h0, show (0 : ℤ) < xn0₁.2 by omega]
+      have h2 := ‹size_out < xk₂.2›
+      simp [h0, show (0 : ℤ) < xk₂.2 by omega]
 
 /-- EC's `local lemma of_listK l : of_list (to_list l) = Some l`. -/
 theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
@@ -1576,11 +1575,7 @@ theorem eager_ideal (m : VariableAssignment) :
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       equiv_call eq_eager_ideal
       ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
   -- EC: have->:
   --       Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
   --         OSimulator(ExtendSample(FSome(BIRO.IRO))),
@@ -1653,11 +1648,7 @@ theorem eager_ideal (m : VariableAssignment) :
       stmt_wp
       equiv_call eq_eager_ideal2
       ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
   rw [h1, h2]
   -- EC: rewrite eq_sym; byequiv=> //=; proc.
   symm
@@ -1906,9 +1897,6 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
       · ec_auto
     ec_auto; ec_progress
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
     · have hd := ‹(IRO.mp.get globals₁).dom (x, j)›
       rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
       exact absurd hd (FMap.mem_empty _)
@@ -2103,11 +2091,8 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         omega
     · ec_auto
   -- EC: + by inline*; auto; smt(mem_empty).
-  --     (GAP 4: `glob A` past the initializations' writes; `inv` of the empty maps)
+  --     (`inv` of the empty maps)
   ec_auto; ec_progress
-  · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
   all_goals first
     | (have hd := ‹(IRO.mp.get globals₁).dom (l, i)›
        rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
@@ -2273,11 +2258,7 @@ theorem rw_ideal (m : VariableAssignment) :
       · ec_auto
     · ec_auto
   -- EC: by auto=> />; smt(dout_ll).
-  --     (GAP 4: `glob A` past the initializations' writes)
   ec_auto; ec_progress
-  have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-  exact h
 
 /-- EC's `local lemma leq_ideal &m`. -/
 theorem leq_ideal (m : VariableAssignment) :
@@ -2377,11 +2358,7 @@ theorem rw_real (m : VariableAssignment) :
       ec_auto
     · ec_auto
   -- EC: by auto.
-  --     (GAP 4: `glob A` past the initializations' writes)
   ec_auto; ec_progress
-  have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-  exact h
 
 set_option maxHeartbeats 40000000 in
 -- one declaration: EC's restriction checks and the losslessness of `Dist_of_P1Adv(A)`
@@ -2832,16 +2809,7 @@ theorem eager_ideal (m : VariableAssignment) :
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       equiv_call eq_eager_ideal
       ec_auto
-    --     (GAP 4: `Dist_of_P2Adv.m` and `glob A` past the initializations' writes, from the two
-    --     memories' equation)
     ec_auto; ec_progress
-    · have h := congrArg Dist_of_P2Adv.m.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
-    · have h := congrArg Dist_of_P2Adv.m.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
   -- EC: have->:
   --       Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
   --         OSimulator(ExtendSample(FSome(BIRO.IRO))),
@@ -2927,16 +2895,7 @@ theorem eager_ideal (m : VariableAssignment) :
       stmt_wp
       equiv_call eq_eager_ideal2
       ec_auto
-    --     (GAP 4: `Dist_of_P2Adv.m` and `glob A` past the initializations' writes, from the two
-    --     memories' equation)
     ec_auto; ec_progress
-    · have h := congrArg Dist_of_P2Adv.m.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
-    · have h := congrArg Dist_of_P2Adv.m.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
   rw [h1, h2]
   -- EC: rewrite eq_sym; byequiv=> //=; proc.
   symm
@@ -3144,15 +3103,7 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
         exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
       · ec_auto
     -- EC: + smt(mem_empty).
-    --     (GAP 4: `Dist_of_P2Adv.m` and `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    · have h := congrArg Dist_of_P2Adv.m.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
-    · have h := congrArg Dist_of_P2Adv.m.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
     · have hd := ‹(IRO.mp.get globals₁).dom (x, j)›
       rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
       exact absurd hd (FMap.mem_empty _)
@@ -3411,11 +3362,8 @@ theorem rw_ideal_2 (m : VariableAssignment) (mess : List Bool) :
           omega
       · ec_auto
     -- EC: + by move=> |>; smt(mem_empty).
-    --     (GAP 4: `glob A` past the initializations' writes; `inv` of the empty maps)
+    --     (`inv` of the empty maps)
     ec_auto; ec_progress
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
     all_goals first
       | (have hd := ‹(IRO.mp.get globals₁).dom (l, i)›
          rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
@@ -3594,11 +3542,8 @@ theorem rw_ideal (m : VariableAssignment) (mess : List Bool) :
             rw [hv]; rfl
       · ec_auto
     · ec_auto
-  -- EC: (the `auto` of `call(…); auto`; GAP 4: `glob A` past the initializations' writes)
+  -- EC: (the `auto` of `call(…); auto`)
   ec_auto; ec_progress
-  have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-  exact h
 
 /-- EC's `local lemma leq_ideal &m mess`. -/
 theorem leq_ideal (m : VariableAssignment) (mess : List Bool) :
@@ -3737,11 +3682,7 @@ theorem rw_real (m : VariableAssignment) (mess : List Bool) :
         ec_auto
       · ec_auto
     -- EC: by auto; smt().
-    --     (GAP 4: `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
 
 set_option maxHeartbeats 40000000 in
 -- one declaration: EC's restriction checks and the losslessness of `Dist_of_P2Adv(A)`
@@ -4067,12 +4008,7 @@ theorem eager_ideal (m : VariableAssignment) :
       stmt_inline{1} 0; stmt_inline{2} 0; stmt_sp; stmt_wp
       equiv_call eq_eager_ideal
       ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
-    all_goals
-      have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
   -- EC: have->:
   --       Pr[SHA3_OIndiff.OIndif.OIndif(ExtendSample(FSome(BIRO.IRO)),
   --         OSimulator(ExtendSample(FSome(BIRO.IRO))),
@@ -4158,12 +4094,7 @@ theorem eager_ideal (m : VariableAssignment) :
       stmt_wp
       equiv_call eq_eager_ideal2
       ec_auto
-    --     (GAP 4: `glob A` past the initializations' writes, from the two memories' equation)
     ec_auto; ec_progress
-    all_goals
-      have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
   rw [h1, h2]
   -- EC: rewrite eq_sym; byequiv=> //=; proc.
   symm
@@ -4365,11 +4296,7 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         exact GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0.le
       · ec_auto
     -- EC: + smt(mem_empty).
-    --     (GAP 4: `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
     · have hd := ‹(IRO.mp.get globals₁).dom (x, j)›
       rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
       exact absurd hd (FMap.mem_empty _)
@@ -4617,11 +4544,8 @@ theorem rw_ideal_2 (m : VariableAssignment) :
         omega
     · ec_auto
   -- EC: + by move=> |>; smt(mem_empty).
-  --     (GAP 4: `glob A` past the initializations' writes; `inv` of the empty maps)
+  --     (`inv` of the empty maps)
   ec_auto; ec_progress
-  · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
   all_goals first
     | (have hd := ‹(IRO.mp.get globals₁).dom (l, i)›
        rw [‹IRO.mp.get globals₁ = FMap.empty›] at hd
@@ -4796,11 +4720,8 @@ theorem rw_ideal (m : VariableAssignment) :
             rw [hv]; rfl
       · ec_auto
     · ec_auto
-  -- EC: (the `auto` of `call(…); auto`; GAP 4: `glob A` past the initializations' writes)
+  -- EC: (the `auto` of `call(…); auto`)
   ec_auto; ec_progress
-  have h := congrArg (FVP.fvP A).touched_getter.get ‹SORO.Bounder.bounder.set _ _ = _›
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-  exact h
 
 /-- EC's `local lemma leq_ideal &m`. -/
 theorem leq_ideal (m : VariableAssignment) :
@@ -4927,11 +4848,7 @@ theorem rw_real (m : VariableAssignment) :
       ec_auto
     · ec_auto
   -- EC: by auto; smt().
-  --     (GAP 4: `glob A` past the initializations' writes)
   ec_auto; ec_progress
-  have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-  exact h
 
 set_option maxHeartbeats 40000000 in
 -- one declaration: EC's restriction checks and the losslessness of `Dist_of_CollAdv(A)`

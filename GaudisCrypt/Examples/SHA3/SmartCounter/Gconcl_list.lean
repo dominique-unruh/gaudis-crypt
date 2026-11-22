@@ -1191,8 +1191,9 @@ set_option ec.strict true
 * GAP 13: in a `phoare … = 1` goal, EC's `auto` passes a sampling of a lossless distribution
   behind a loop.  `phoare_auto` passes it too, and leaves its expectation of `1` in the
   postcondition: `simp only [cdistr_expected_one]` before `phoare_while` (`Ideal_lossless`).
-* GAP 14: after `auto`'s `skip`, `glob D` read past initializations outside `D` is not
-  rewritten (`sp` does it): `simp (disch := fp_disjoint) only [touched_set_of_le_compl]`.
+* GAP 14 (closed 2026-11-21): after `auto`'s `skip`, `glob D` read past initializations outside
+  `D` was not rewritten (`sp` does it); the strict `auto` rewrites it now
+  (`touched_set_of_le_compl` by `fp_disjoint`).
 * GAP 15: EC's `conseq` without a specification (`conseq=> />`: the postcondition without what
   the precondition gives on unwritten variables) has no automatic form: the postcondition is
   written out.
@@ -2365,7 +2366,10 @@ theorem equiv_L3_L4 :
       --       smt(DBlock.dunifin_ll nseq0 cats0 parse_valid);progress.
       --     (EC's `r3`, `x9` on the left and `r2`, `x4` on the right are our `r0`, `x2`)
       equiv_conseq (: _ ==> ={SLCommon.F.RO.m} ∧ §r0{1} = §r0{2} ∧ §x2{1} = §x2{2})
-      case post => ec_progress
+      --     (GAP 2: `rnd{1}`'s mass of `bdistr`)
+      case post =>
+        ec_progress
+        simp only [bdistr_expected_one]
       --     (EC's `smt` on what `sim` leaves: the two keys are the valid `p`)
       sim
       smt_close [format_one, parse_valid, valid]
@@ -4165,11 +4169,10 @@ theorem squeeze_squeezeless :
   on_goals 2 => ec_auto
   --     (the guard: EC's `valid` is `valid_block` by definition, ours its test)
   ec_auto; stmt_sp; stmt_if
-  · ec_prep
-    rw [valid, ‹x0₁.1 = _›, ‹x0₂.1 = _›]
+  · ec_close
   on_goals 2 =>
     ec_auto; ec_progress
-    exact INV_Real_mono ‹_› (by have := size_ge0 x0₁.1; omega)
+    exact INV_Real_mono ‹_› (by have := size_ge0 x0₂.1; omega)
   -- EC: conseq(: (exists (c_R : int),
   --         C.c{2} = c_R + size bl{2} + max (nb{2} - 1) 0 /\ xs{2} = bl{2} /\
   --         n{2} = nb{2} /\ z0{2} = [] /\ sc{2} = c0 /\ sa{2} = b0 /\ i{2} = 0 /\
@@ -5157,9 +5160,7 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
       SLCommon.incl §Simulator.unvalid_map{2} §BIRO2.IRO.mp{1})
     ec_close
   -- EC: + by auto.
-  · ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
+  · ec_auto; ec_close
   -- EC: proc; sp; if; auto.
   equiv_proc; stmt_sp; stmt_if
   · ec_close
@@ -5343,11 +5344,7 @@ theorem equal2 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   · equiv_proc; stmt_inline*
     sim (_ : §Simulator.unvalid_map{1} = §IRO2.RO.m{2})
   -- EC: + by auto=> />.
-  --     (GAP 14: after `auto`'s `skip`, `glob D` is read past the initializations, which are
-  --     outside `D`: `sp` rewrites that, `skip` does not)
   · ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   -- EC: proc; sp; if; auto.
   equiv_proc; stmt_sp; stmt_if
   · ec_close

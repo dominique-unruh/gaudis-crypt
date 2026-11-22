@@ -64,8 +64,8 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   `Dist`), is opened by `equiv_proc` as EC's `proc` does.
 * GAP 2: inside the library's `RO.sample` the callee is the library's `RO.get` itself, not the
   procedure of the module `ERO.RO`, so EC's `inline ERO.RO.get` does not name it: by index.
-* GAP 3: after a call whose result is discarded, the strict `auto` does not read through the
-  discarding write: `simp only [Setter.throwaway_set]` first.
+* GAP 3 (closed 2026-11-21): after a call whose result is discarded, the strict `auto` did not
+  read through the discarding write (`Setter.throwaway_set` is now among the reads' lemmas).
 * GAP 4: the abstract call asks all of `HYBRID_IRO`'s procedures, where EC's `{HI.f}` restricts
   `D` to `f`: one more goal, for `init`.  (`HybridIROLazy.init`, `.f` are declared as the module
   type's procedures of `HybridIROLazy`, the form in which a call of an oracle names them; the
@@ -91,10 +91,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * `call (_ : ={HybridIROEager.mp})` on the concrete `fill_in` needs its footprint, which EC reads
   off the code: `fvP_HybridIROEager_fill_in`, `fvP_BIRO_IRO_fill_in` (`@[fp_bound]`).  The
   callee's goal (EC: `if=> //; wp; rnd; auto`) is then closed by the tactic.
-* GAP 12: the strict `auto` and `equiv_skip` run out of recursion depth on a goal whose
-  conditions have `bs{1} = take n1 bs{2}` next to `={bs}` (the exit of the loop pair after
-  `splitwhile{2} 1 : i < n1` in `HybridIROEager_f_BlockIRO_f`): `prhlStmt_skip` and the
-  implication by hand.
+* GAP 12 (closed 2026-11-21): the strict `auto` and `equiv_skip` ran out of recursion depth on a
+  goal whose conditions have `bs{1} = take n1 bs{2}` next to `={bs}`; EC's `skip; smt(take_size)`
+  since the closers' runtime limits are caught (2026-11-21).
 * GAP 13: `sim` does not pass an inlined call that copies its parameters and has a loop
   (`inline HybridIROEagerTrans.next_block; sim`): the `while` rule, as in the loop lemma.
 * A middle program of `transitivity` is over the variables the goal mentions, not the whole
@@ -1390,10 +1389,7 @@ theorem HIRO_RO_HybridIROEager_f :
   -- EC: while (={i, m, xs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}).
   --     wp; call RO_sample_HybridIROEager_fill_in; auto.
   equiv_while (={i, m, xs} ∧ §ERO.RO.m{1} = §HybridIROEager.mp{2})
-  --     (GAP 3: both calls discard their results, and the strict `auto` does not read through
-  --     the discarding write: `Setter.throwaway_set` first)
   · stmt_wp; equiv_call RO_sample_HybridIROEager_fill_in
-    simp only [Setter.throwaway_set]
     ec_auto
   -- EC: while (={i, n, xs, bs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}).
   --     wp; call RO_get_HybridIROEager_fill_in; auto.
@@ -1419,10 +1415,7 @@ theorem Exper_HybridIROLazy_LRO (m : VariableAssignment) :
   -- EC: conseq HybridIROLazy_HIRO_LRO_f.
   · equiv_conseq HybridIROLazy_HIRO_LRO_f <;> conseq_side
   -- EC: auto.
-  --     (GAP 14 of `SmartCounter/Gconcl_list.lean`: `glob D` past the initialization)
   ec_auto
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-  ec_close
 
 /-- EC's `local lemma Exper_RO_HybridIROEager &m :
 Pr[EROExper(ERO.RO, RODist).main() @ &m : res] =
@@ -1440,8 +1433,6 @@ theorem Exper_RO_HybridIROEager (m : VariableAssignment) :
   · equiv_conseq HIRO_RO_HybridIROEager_f <;> conseq_side
   -- EC: auto.
   ec_auto
-  simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-  ec_close
 
 -- EC reads `RODist`'s globals off its code (for `LRO_RO`'s restriction)
 attribute [local fp_bound] GaudisCrypt.SHA3.Sponge.HybridIRO.fvP_RODist_le
@@ -3271,8 +3262,6 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
       n1 ≤ size §bs{2} ∧ §bs{1} = take n1 §bs{2})
     · stmt_wp
       equiv_call (_ : ={HybridIROEager.mp})
-      --     (GAP 3: the left call discards its result)
-      simp only [Setter.throwaway_set]
       ec_auto
       rintro mp₁ xs₁ i₁ m₁ bs₁ mp₂ xs₂ i₂ m₂ bs₂
         ⟨⟨⟨rfl, rfl, rfl, rfl⟩, hnm, hni, him, hsz, rfl⟩, hg, -⟩
@@ -3286,16 +3275,8 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
       · rfl
       · have h' : n1 = size bs₂ := by omega
         rw [h', sub_self, take0, cats0, take_size]
-    --     (GAP 12: the strict `auto` and `equiv_skip` run out of recursion depth on this goal,
-    --     whose conditions have `bs{1} = take n1 bs{2}` next to `={bs}`: the rule `prhlStmt_skip`
-    --     and the implication by hand)
-    refine prhlStmt_skip ?_
-    rintro σ₁ σ₂ ⟨⟨hmp, hxs, hbs, hi, hm⟩, hin, hnm, hsz⟩
-    exact ⟨⟨⟨⟨hmp, hxs, hi, hm⟩, hnm, hin.ge, hin.le.trans hnm,
-        le_of_eq (hsz.symm.trans (congrArg size hbs)),
-        (take_size _).symm.trans (congrArg₂ take hsz hbs)⟩,
-        congrArg₂ (fun a b : ℤ => decide (a < b)) hi hm⟩,
-      fun τ₁ τ₂ _ _ ⟨⟨tmp, _, _, _⟩, _, _, _, _, tbs⟩ _ _ => ⟨tmp, tbs⟩⟩
+    ec_auto
+    smt_close [take_size]
   -- (* now we can use HybridIROEagerTrans_BlockSpongeTrans_next_block *)
   -- EC: transitivity{1}
   --       { (bs, i) <@ HybridIROEagerTrans.next_block(xs, i, m, bs);
@@ -3662,12 +3643,7 @@ theorem Ideal_IRO_Experiment_HybridLazy (m : VariableAssignment) :
     simp only [RaiseSim, Module.app_comp]
     stmt_inline*; stmt_wp
     equiv_call (BlockSim_init_call BlockSim Dist BlockSim_rep _ _)
-    --     (GAP 3: the calls' discarded results; GAP 14 of `SmartCounter/Gconcl_list.lean`: `glob`
-    --     past the initializations)
-    simp only [Setter.throwaway_set]
     ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   -- EC: call (_ : ={glob Dist, glob BlockSim} /\ IRO.mp{1} = empty /\
   --       HIRO.HybridIROLazy.mp{2} = empty ==> ={res}).
   --     proc (={glob BlockSim} /\ HIRO.lazy_invar IRO.mp{1} HIRO.HybridIROLazy.mp{2})=> //.
@@ -3715,10 +3691,7 @@ theorem Experiment_HybridIROExper_Lazy (m : VariableAssignment) :
     --     the call's invariant says what the swap would: `init` keeps the map just emptied)
     stmt_wp
     equiv_call (_ : ={glob Dist, glob BlockSim} ∧ §HybridIRO.HybridIROLazy.mp{2} = FMap.empty)
-    simp only [Setter.throwaway_set]
     ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   -- EC: sim.
   --     (GAP 15: `sim` finds no equality set for the call, the precondition's being a `glob`
   --     region and a variable; the call with EC's set, its oracles by `sim`)
@@ -3755,10 +3728,7 @@ theorem HybridIROExper_Experiment_Eager (m : VariableAssignment) :
     --     (GAP 14, as in `Experiment_HybridIROExper_Lazy`)
     stmt_wp
     equiv_call (_ : ={glob Dist, glob BlockSim} ∧ §HybridIRO.HybridIROEager.mp{1} = FMap.empty)
-    simp only [Setter.throwaway_set]
     ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   -- EC: sim.
   --     (GAP 15, as in `Experiment_HybridIROExper_Lazy`)
   stmt_wp
@@ -3876,12 +3846,7 @@ theorem Experiment_HybridEager_Ideal_BlockIRO (m : VariableAssignment) :
   · -- EC: inline*; wp; call (_ : true); auto.
     stmt_inline*; stmt_wp
     equiv_call (BlockSim_init_call BlockSim Dist BlockSim_rep _ _)
-    --     (GAP 3, and GAP 14 of `SmartCounter/Gconcl_list.lean`, as in
-    --     `Ideal_IRO_Experiment_HybridLazy`)
-    simp only [Setter.throwaway_set]
     ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   -- EC: call (_ : ={glob Dist, glob BlockSim} /\ HIRO.HybridIROEager.mp{1} = empty /\
   --       BlockSponge.BIRO.IRO.mp{2} = empty ==> ={res}).
   --     proc (={glob BlockSim} /\

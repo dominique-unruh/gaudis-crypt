@@ -53,7 +53,9 @@ def normalize (g : MVarId) (σs : Array FVarId) : MetaM MVarId := g.withContext 
   -- reads through writes, resets, renamings
   let g ← do
     let ty ← instantiateMVars (← g.getType)
-    let r ← Judgment.simpWithNames PRHLWp.relSimpDecls [] ty
+    -- (and a discarded result's write, `_ <- call …`, which writes nothing: EC's reads see
+    -- through it; the older tactics' `simp_reads` leave it for the hand proofs written on them)
+    let r ← Judgment.simpWithNames (PRHLWp.relSimpDecls ++ [``Setter.throwaway_set]) [] ty
     if r.expr == ty then pure g else applySimpResultToTarget g ty r
   g.withContext do
     -- expressions around reads

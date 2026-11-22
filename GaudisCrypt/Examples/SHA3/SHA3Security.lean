@@ -46,8 +46,8 @@ Translation:
 
 Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 1 (closed 2026-11-17): `inline*` opens `Perm.f` behind the first port's views.
-* GAP 2: the closers split `={sa, sc}` at `x <- (sa, sc)` into components; the pair's equation is
-  put back by hand before the leaf is closed (as in `SHA3_OIndiff.lean`).
+* GAP 2 (closed 2026-11-21): the closers split `={sa, sc}` at `x <- (sa, sc)` into components and
+  did not put the pair's equation back; `ec_prep` does now (`pair_ext_hyps`).
 * GAP 3: EC's path `inline FC(Sponge(Perm)).f` does not elaborate over the first port's views:
   by index.  (`FInit(F).get` is `F.f`, EC's alias, since 2026-11-20; before, a call inlined
   first, exception E5.)  EC's
@@ -59,9 +59,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   module types, where `inline` and the lemmas stated at the sponge's types do not see them:
   rewritten right after `proc` by `CSetSize_Sponge_Perm_init`, `CSetSize_Sponge_Perm_f`,
   `SimSetSize_init_eq` (they hold by `rfl`).
-* GAP 7: after `sp` through a game's initializations, `DPre.h` and `glob A` are equal in the
-  two memories by the memories' equation, taken out by hand (`congrArg` of the getter,
-  `simp_reads_all` / `touched_set_of_le_compl`); GAP 14 of `SmartCounter/Gconcl_list.lean`.
+* GAP 7 (closed 2026-11-21): after `sp` through a game's initializations, `DPre.h` and `glob A`
+  are equal in the two memories by the memories' equation, which was taken out by hand;
+  `ec_progress` reads it off now (`mem_eq_read`).
 * GAP 8 (closed 2026-11-21): `conseq (: _ ==> Q)` in front of the adversary's call did not keep
   `DPre.h`, which neither the adversary nor its oracles write (EC's does); its frame now keeps a
   global across a declared adversary's call by the oracles' writes (`Stmt.Keeps.call_app_writes`).
@@ -576,21 +576,14 @@ theorem equiv_sponge_perm (c' : ℤ) (m : List Bool) :
     -- EC: + sp; if; auto; sp; if; auto; progress.
     --       rewrite invm_set //=.
     --       by move:H4; rewrite supp_dexcepted.
-    --     (GAP 2: the pair `x1` back from its components)
     · stmt_sp; stmt_if
       · ec_close
       · stmt_sp; stmt_if
-        · ec_progress
-          have e : x1₁ = x1₂ := Prod.ext ‹x1₁.1 = x1₂.1› ‹x1₁.2 = x1₂.2›
-          simp [e]
+        · ec_close
         · ec_auto; ec_prep
-          have e : x1₁ = x1₂ := Prod.ext ‹x1₁.1 = x1₂.1› ‹x1₁.2 = x1₂.2›
-          subst e
           exact fun a ha => ⟨⟨rfl, rfl, rfl, rfl⟩,
             SLCommon.Prefix.invm_set _ _ _ _ ‹_› (EC.not_of_mem_support_dexcepted ha) ‹_›⟩
         · ec_auto; ec_prep
-          have e : x1₁ = x1₂ := Prod.ext ‹x1₁.1 = x1₂.1› ‹x1₁.2 = x1₂.2›
-          subst e
           ec_close
       · ec_auto; ec_close
     -- EC: sp; conseq(:_==> ={i, n, sa, sc, glob Perm} /\ invm Perm.m{1} Perm.mi{1}); auto.
@@ -1025,18 +1018,7 @@ theorem Sponge_preimage_resistant (m : VariableAssignment) (ha : f_out) :
         · ec_auto
       -- EC: auto; progress.
       --     by rewrite /invm=> x y; rewrite 2!emptyE.
-      --     (GAP 7: `DPre.h` and `glob A` past the initializations' writes, from the two
-      --     memories' equation, by hand)
       ec_auto; ec_progress
-      · have h := congrArg DPre.h.get ‹Perm.m.set _ _ = _›
-        simp_reads_all; exact h
-      · have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
-        simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-        exact h
-      · have h := congrArg DPre.h.get ‹Perm.m.set _ _ = _›
-        simp_reads_all; exact h
-      · have h := congrArg DPre.h.get ‹Perm.m.set _ _ = _›
-        simp_reads_all; exact h
   -- EC: have->//:Pr[Indiff0.Indif(RO, SimSetSize(Simulator, RO), DPre(A)).main() @ &m : res] =
   --       Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(DPre(A)))).main() @ &m : res].
   have h2 : Pr[ Indiff0.GIdeal(RO, SimSetSize(Simulator), DPre(A)).main () @ &m : §res ] =
@@ -1097,15 +1079,7 @@ theorem Sponge_preimage_resistant (m : VariableAssignment) (ha : f_out) :
             · exact (‹SRO.Counter.c.get g₁ = _›).trans (‹Cntr.c.get g₂ = _›).symm
           · ec_auto; ec_close
         · ec_auto
-      --     (GAP 7: `DPre.h` and `glob A` past the initializations' writes)
       ec_auto; ec_progress
-      · have h := congrArg DPre.h.get ‹Simulator.m.set _ _ = _›
-        simp_reads_all; exact h
-      · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-        simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-        exact h
-      · have h := congrArg DPre.h.get ‹Simulator.m.set _ _ = _›
-        simp_reads_all; exact h
       -- EC: smt(mem_empty).
       · have h := ‹(SRO.RO.m.get globals₁).dom m›
         rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
@@ -1264,20 +1238,13 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
           --     (EC's `sim` through the two loops is the `while` rule on each)
           · stmt_sp; stmt_wp
             equiv_while (={i, sa, sc, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
-            --     (GAP 2: the pair `x2` back from its components)
             · stmt_sp; stmt_if
               · ec_close
               · stmt_sp; stmt_if
-                · ec_progress
-                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
-                  simp [e]
+                · ec_close
                 · ec_auto; ec_prep
-                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
-                  subst e
                   exact fun a _ => ⟨rfl, rfl, rfl, rfl⟩
                 · ec_auto; ec_prep
-                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
-                  subst e
                   exact ⟨rfl, rfl⟩
               · ec_auto; ec_close
             equiv_while (={xs, sa, sc, i, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
@@ -1396,15 +1363,7 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
       · ec_auto
     -- EC: inline*; auto; progress.
     --     by rewrite /invm=> x y; rewrite 2!emptyE.
-    --     (GAP 7: `D2Pre.m2` and `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    · have h := congrArg D2Pre.m2.get ‹Perm.m.set _ _ = _›
-      simp_reads_all; exact h
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
-    · have h := congrArg D2Pre.m2.get ‹Perm.m.set _ _ = _›
-      simp_reads_all; exact h
   -- EC: have->:Pr[Indiff0.Indif(RO, SimSetSize(Simulator, RO), D2Pre(A)).main() @ &m : res] =
   --       Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(D2Pre(A)))).main() @ &m : res].
   have h2 : Pr[ Indiff0.GIdeal(RO, SimSetSize(Simulator), D2Pre(A)).main () @ &m : §res ] =
@@ -1526,13 +1485,7 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
         · ec_auto; ec_close
       · ec_auto
     -- EC: smt(mem_empty).
-    --     (GAP 7: `D2Pre.m2` and `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    · have h := congrArg D2Pre.m2.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
     · have h := ‹(SRO.RO.m.get globals₁).dom m›
       rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
       exact absurd h (FMap.mem_empty _)
@@ -1542,8 +1495,6 @@ theorem Sponge_second_preimage_resistant (m : VariableAssignment) (mess : List B
     · have h := ‹(SRO.RO.m.get globals₁).dom m›
       rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
       exact absurd h (FMap.mem_empty _)
-    · have h := congrArg D2Pre.m2.get ‹Simulator.m.set _ _ = _›
-      simp_reads_all; exact h
   rw [h1, h2]
   -- EC: have->//=:= SHA3Indiff (DSetSize(D2Pre(A))) &m _.
   refine @Pilot.SHA3Indiff.SHA3Indiff _ _ _ (DSetSize (D2Pre A)) ⟨by fp_finite, by fp_disjoint⟩
@@ -1691,20 +1642,13 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
           --     (EC's `sim` through the two loops is the `while` rule on each)
           · stmt_sp; stmt_wp
             equiv_while (={i, sa, sc, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
-            --     (GAP 2: the pair `x2` back from its components)
             · stmt_sp; stmt_if
               · ec_close
               · stmt_sp; stmt_if
-                · ec_progress
-                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
-                  simp [e]
+                · ec_close
                 · ec_auto; ec_prep
-                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
-                  subst e
                   exact fun a _ => ⟨rfl, rfl, rfl, rfl⟩
                 · ec_auto; ec_prep
-                  have e : x2₁ = x3₂ := Prod.ext ‹x2₁.1 = x3₂.1› ‹x2₁.2 = x3₂.2›
-                  subst e
                   exact ⟨rfl, rfl⟩
               · ec_auto; ec_close
             equiv_while (={xs, sa, sc, i, Perm.m, Perm.mi} ∧ §n{1} = §n0{2})
@@ -1823,11 +1767,7 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
       · ec_auto
     -- EC: inline*; auto; progress.
     --     by rewrite /invm=> x y; rewrite 2!emptyE.
-    --     (GAP 7: `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    have h := congrArg (FVP.fvP A).touched_getter.get ‹Perm.m.set _ _ = _›
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-    exact h
   -- EC: have->:Pr[Indiff0.Indif(RO, SimSetSize(Simulator, RO), DColl(A)).main() @ &m : res] =
   --       Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(DColl(A)))).main() @ &m : res].
   have h2 : Pr[ Indiff0.GIdeal(RO, SimSetSize(Simulator), DColl(A)).main () @ &m : §res ] =
@@ -1949,11 +1889,7 @@ theorem Sponge_coll_resistant (m : VariableAssignment) :
         · ec_auto; ec_close
       · ec_auto
     -- EC: smt(mem_empty).
-    --     (GAP 7: `glob A` past the initializations' writes)
     ec_auto; ec_progress
-    · have h := congrArg (FVP.fvP A).touched_getter.get ‹Simulator.m.set _ _ = _›
-      simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at h
-      exact h
     · have h := ‹(SRO.RO.m.get globals₁).dom m›
       rw [‹SRO.RO.m.get globals₁ = FMap.empty›] at h
       exact absurd h (FMap.mem_empty _)

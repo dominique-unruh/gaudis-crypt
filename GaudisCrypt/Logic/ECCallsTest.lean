@@ -7,6 +7,7 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Logic.ECCallUpto
 import GaudisCrypt.Logic.ECConseq
+import GaudisCrypt.Logic.ECProgress
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.FootprintUpper
@@ -768,6 +769,16 @@ module Run using (O : Orc, A : ADV) {
 section
 
 declare module A <: ADV {-cCount, -cFlag}
+
+-- `glob A` past a write of another module's variable (`cCount`, outside `A`): the strict `auto`
+-- reads it off (`touched_set_of_le_compl` by `fp_disjoint`), as EC's `auto` reads `glob` off the
+-- code
+example : equiv[ ={glob A} ==> ={glob A} ] {
+      cCount <- 0;
+    } ~ {
+      cCount <- 1;
+    } := by
+  ec_auto
 
 -- `conseq (: _ ==> ={r, glob A, cCount})` before a call of the declared `A` on `Peek`: its frame
 -- keeps `cFlag{1} = true` (EC's frame by writes through an abstract call: `A` stays out of

@@ -124,10 +124,107 @@ not introduced: its reads are generalized to values first (an error if it surviv
 elab "ec_intros" : tactic =>
   liftMetaTactic1 fun g => some <$> GaudisCrypt.ECProgress.introAll "ec_intros" g
 
+open Lean Elab Tactic Meta in
+/-- **The memories' equation read off, for every read of the goal** (before the reads become
+values): for each hypothesis equating two memories' globals as chains of writes (`X.set v (… x)
+= Y.set w (… y)`, what `sp` leaves from `byequiv`'s `={glob}`, also inside a conjunction) and each
+read `G.get x` of a memory in the goal (a variable, a `glob` region), the hypothesis
+`G.get x = G.get y`, when reading `G` through both sides' writes gives that
+(`touched_set_of_le_compl` by `fp_disjoint`, the reads' lemmas). -/
+elab "mem_eq_reads" : tactic => withMainContext do
+  let tgt ← instantiateMVars (← getMainTarget)
+  let isVA (e : Lean.Expr) : MetaM Bool := do
+    return (← instantiateMVars (← inferType e)).isConstOf ``GaudisCrypt.VariableAssignment
+  -- the memories' equations, inside conjunctions
+  let hasSet (e : Lean.Expr) : Bool := (e.find? fun t =>
+    t.isAppOf ``GaudisCrypt.Setter.set).isSome
+  let rec eqsOf (t pf : Lean.Expr) (fuel : Nat) : MetaM (Array Lean.Expr) := do
+    match fuel with
+    | 0 => return #[]
+    | fuel + 1 =>
+      let t ← instantiateMVars t
+      if t.isAppOfArity ``And 2 then
+        return (← eqsOf (t.getArg! 0) (← mkAppM ``And.left #[pf]) fuel) ++
+          (← eqsOf (t.getArg! 1) (← mkAppM ``And.right #[pf]) fuel)
+      let some (ty, a, b) := t.eq? | return #[]
+      if ty.isConstOf ``GaudisCrypt.VariableAssignment && (hasSet a || hasSet b) then
+        return #[pf]
+      return #[]
+  let mut eqs : Array Lean.Expr := #[]
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    eqs := eqs ++ (← eqsOf d.type d.toExpr 8)
+  if eqs.isEmpty then throwError "mem_eq_reads: no equation of the memories"
+  -- the reads of memories in the goal
+  let Gs ← IO.mkRef (#[] : Array Lean.Expr)
+  Meta.forEachExpr tgt fun e => do
+    if e.isAppOfArity ``GaudisCrypt.Getter.get 4 && e.appArg!.isFVar && !e.hasLooseBVars then
+      if ← isVA e.appArg! then
+        let G := e.getArg! 2
+        unless (← Gs.get).contains G do Gs.modify (·.push G)
+  let Gs ← Gs.get
+  if Gs.isEmpty then throwError "mem_eq_reads: no read of a memory in the goal"
+  let simps : Array Ident := GaudisCrypt.PRHLWp.relSimpDecls.toArray.map mkIdent
+  let mut added := false
+  for pf in eqs do
+    for G in Gs do
+      let s ← saveState
+      try
+        let f ← mkAppM ``GaudisCrypt.Getter.get #[G]
+        let pf' ← mkCongrArg f pf
+        let pfS ← Term.exprToSyntax pf'
+        evalTactic (← `(tactic| (
+          have hmem := $pfS
+          (try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at hmem)
+          (try simp only [$[$simps:ident],*] at hmem))))
+        -- kept only as `G.get x = G.get y`, two memories' reads
+        let ok ← withMainContext do
+          let some d := (← getLCtx).lastDecl | return false
+          let some (_, l, r) := (← instantiateMVars d.type).eq? | return false
+          return l.isAppOfArity ``GaudisCrypt.Getter.get 4 &&
+            r.isAppOfArity ``GaudisCrypt.Getter.get 4 && l.appArg!.isFVar &&
+            r.appArg!.isFVar && l.appArg! != r.appArg!
+        if ok then added := true else s.restore
+      catch _ => s.restore
+  unless added do throwError "mem_eq_reads: nothing read off"
+
+open Lean Elab Tactic Meta in
+/-- **Pairs put back together**: for hypotheses `a.1 = b.1` and `a.2 = b.2` (`a`, `b` variables
+of a product type, what taking `={sa, sc}` apart at `x <- (sa, sc)` leaves), the hypothesis
+`a = b` (`Prod.ext`), which `subst_vars` then uses (EC's `auto` sees the pair). -/
+elab "pair_ext_hyps" : tactic => withMainContext do
+  let comp? (t : Lean.Expr) (fst : Bool) : Option (Lean.Expr × Lean.Expr) := do
+    let some (_, l, r) := t.eq? | none
+    let n := if fst then ``Prod.fst else ``Prod.snd
+    guard (l.isAppOfArity n 3 && r.isAppOfArity n 3)
+    let (a, b) := (l.appArg!, r.appArg!)
+    guard (a.isFVar && b.isFVar && a != b)
+    return (a, b)
+  let mut fsts : Array (Lean.Expr × Lean.Expr × Lean.Expr) := #[]
+  let mut snds : Array (Lean.Expr × Lean.Expr × Lean.Expr) := #[]
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if let some (a, b) := comp? t true then fsts := fsts.push (a, b, d.toExpr)
+    if let some (a, b) := comp? t false then snds := snds.push (a, b, d.toExpr)
+  let mut added := false
+  for (a, b, h₁) in fsts do
+    let some (_, _, h₂) := snds.find? fun (a', b', _) => a' == a && b' == b | continue
+    let pf ← mkAppM ``Prod.ext #[h₁, h₂]
+    let g ← getMainGoal
+    let (_, g') ← (← g.assert `hpair (← inferType pf) pf).intro1
+    replaceMainGoal [g']
+    added := true
+  unless added do throwError "pair_ext_hyps: no pair's components"
+
 /-- **The preparation of a goal about values**: see the module docstring. -/
 macro "ec_prep" : tactic => `(tactic| (
+  (try mem_eq_reads)
   ec_values
   ec_intros
+  -- the memories' equation that `sp` leaves, read off for the goal's reads before they become
+  -- values (`mem_eq_reads`)
+  all_goals try mem_eq_reads
   -- a memory of the context (the other side's, in the side goal of a one-sided rule): its reads
   -- values too
   all_goals try generalize_reads_all
@@ -145,7 +242,42 @@ macro "ec_prep" : tactic => `(tactic| (
   all_goals try mp_hyps
   all_goals try casesm* _ ∧ _
   all_goals try subst_named
-  all_goals try subst_vars))
+  all_goals try subst_vars
+  -- the pairs taken apart, put back together (`x <- (sa, sc)` against `={sa, sc}`)
+  all_goals try (pair_ext_hyps; subst_vars)))
+
+open Lean Elab Tactic Meta in
+/-- **The memories' equation read off** (EC's `auto` after `sp` through a game's initializations):
+a goal `G.get x = G.get y` (a variable or a `glob` region read in two memories), and a hypothesis
+`a = b` equating the two memories' globals as chains of writes (`X.set v (… x) = Y.set w (… y)`,
+what `sp` leaves from `byequiv`'s `={glob}`): `G.get` of both sides, read through the writes
+(`simp_reads_all`; `touched_set_of_le_compl` by `fp_disjoint` for a region), is the goal. -/
+elab "mem_eq_read" : tactic => withMainContext do
+  let tgt ← instantiateMVars (← getMainTarget)
+  let some (_, l, r) := tgt.eq? | throwError "mem_eq_read: not an equation"
+  unless l.isAppOfArity ``GaudisCrypt.Getter.get 4 && r.isAppOfArity ``GaudisCrypt.Getter.get 4 do
+    throwError "mem_eq_read: not an equation of reads"
+  let G := l.getArg! 2
+  unless ← isDefEq G (r.getArg! 2) do throwError "mem_eq_read: two different reads"
+  let hasSet (e : Lean.Expr) : Bool := (e.find? fun t =>
+    t.isAppOf ``GaudisCrypt.Setter.set).isSome
+  let Gs ← Term.exprToSyntax G
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let some (ty, a, b) := (← instantiateMVars d.type).eq? | continue
+    unless ty.isConstOf ``GaudisCrypt.VariableAssignment && (hasSet a || hasSet b) do continue
+    let s ← saveState
+    try
+      let hs ← Term.exprToSyntax d.toExpr
+      let hG := mkIdent `hG_mem
+      evalTactic (← `(tactic| (
+        have $hG := congrArg (GaudisCrypt.Getter.get $Gs) $hs
+        (try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at $hG:ident)
+        (try simp_reads_all)
+        first | exact $hG | exact ($hG).symm)))
+      return
+    catch _ => s.restore
+  throwError "mem_eq_read: no equation of the memories gives it"
 
 /-- **EC's `progress`** on a goal about values: `ec_prep`, the goal split (`∧`, `if`), each part
 closed by `rfl`, an assumption (either way round), `trivial`, `omega` or `simp_all`; the parts it
@@ -165,6 +297,7 @@ macro_rules
         | (apply And.intro <;> ec_progress)
         | (split_ifs <;> ec_progress)
         | (intro _; ec_progress)
+        | mem_eq_read
         | simp_all_done_safe
         | skip))
 

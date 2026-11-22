@@ -306,4 +306,20 @@ example (f : ℕ → ℕ) (R : ℕ → Prop) : hoare[ §x = f §x ==> R §x ] { 
   trace_state
   sorry
 
+/-! ## Pairs and the memories' equation -/
+
+-- a pair's components known equal (`={sa, sc}` taken apart at `x <- (sa, sc)`): the pair put back
+-- together (`pair_ext_hyps`, in `ec_prep`)
+example (R : ℤ × ℤ → Prop) (a b : ℤ × ℤ) (h₁ : a.1 = b.1) (h₂ : a.2 = b.2) (h : R a) : R b := by
+  ec_close
+
+global_var pCount : ℤ
+global_var pFlag : Bool
+
+-- the memories' equation that `sp` leaves (`X.set v (… x) = Y.set w (… y)`): a variable both
+-- writes leave alone is equal in the two memories (`mem_eq_read`, in `ec_progress`)
+example (g₁ g₂ : VariableAssignment) (v w : ℤ) (h : pCount.set v g₁ = pCount.set w g₂) :
+    pFlag.get g₁ = pFlag.get g₂ := by
+  ec_close
+
 end GaudisCrypt.ECProgressTest

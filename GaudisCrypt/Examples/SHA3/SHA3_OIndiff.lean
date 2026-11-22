@@ -22,9 +22,7 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   it is since 2026-11-17 (procedures across clones' module types), and the hand unfolding left
   over from before went on 2026-11-21.
 * GAP 2: `sim` does not go through the loops of the inlined `Sponge.f` (GAP 2 of
-  `SHA3Indiff.lean`): the `while` rule with the variables' equalities.  In the body of
-  `Sponge.f`'s second loop the closers split `={sa, sc}` at `x <- (sa, sc)` into components, and
-  the pair's equation is put back by hand.  (`IRO.f`'s loop, whose relation after it reads
+  `SHA3Indiff.lean`): the `while` rule with the variables' equalities.  (`IRO.f`'s loop, whose relation after it reads
   `x0{1}` against `x1{2}`, which the loops keep: EC's `sim` since 2026-11-21, its framed loop
   rule.)
 * GAP 3: EC's `sim n m` and `sp` at the start of the two games are positions in EC's inlined
@@ -452,21 +450,13 @@ theorem SHA3OIndiff (m : VariableAssignment) :
         equiv_while (={Perm.m, Perm.mi, sa, sc, i} ∧ §n{1} = §n0{2} ∧
           §z0{1} = §(localVarLens "z1" (List Bool)){2})
         -- EC: - by sp; if; auto; sp; if; auto.
-        --     (GAP 2: the closers split `={sa, sc}` at the pair `x4 <- (sa, sc)` into components;
-        --     the pair's equation is put back by hand)
         · stmt_sp; stmt_if
           · ec_close
           · stmt_sp; stmt_if
-            · ec_progress
-              have e : x7₁ = x4₂ := Prod.ext ‹x7₁.1 = x4₂.1› ‹x7₁.2 = x4₂.2›
-              simp [e]
+            · ec_close
             · ec_auto; ec_prep
-              have e : x7₁ = x4₂ := Prod.ext ‹x7₁.1 = x4₂.1› ‹x7₁.2 = x4₂.2›
-              subst e
               ec_close
             · ec_auto; ec_prep
-              have e : x7₁ = x4₂ := Prod.ext ‹x7₁.1 = x4₂.1› ‹x7₁.2 = x4₂.2›
-              subst e
               ec_close
           · ec_auto; ec_close
         -- EC: conseq(:_==> ={glob Perm, sa, sc})=> />; sim.
@@ -480,11 +470,8 @@ theorem SHA3OIndiff (m : VariableAssignment) :
           · ec_auto; ec_close
         ec_auto
       · ec_auto
-    --     (EC's `auto` after the call; GAP 14 of `SmartCounter/Gconcl_list.lean`: `glob Dist`
-    --     past the initializations)
+    --     (EC's `auto` after the call)
     ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   -- EC: have->: Pr[OGIdeal(FSome(IRO), OSimulator, ODRestr(Dist)).main() @ &m : res] =
   --       Pr[IdealIndif(IRO, Simulator, DRestr(OD(Dist))).main() @ &m : res].
   have h2 : Pr[ OGIdeal(FSome(IRO.asF), OSimulator, ODRestr(Dist)).main () @ &m : §res ] =
@@ -572,11 +559,8 @@ theorem SHA3OIndiff (m : VariableAssignment) :
           sim; ec_close
         · ec_auto; ec_close
       · ec_auto
-    --     (EC's `auto` after the call; GAP 14 of `SmartCounter/Gconcl_list.lean`: `glob Dist`
-    --     past the initializations)
+    --     (EC's `auto` after the call)
     ec_auto
-    simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl]
-    ec_close
   rw [h1, h2]
   -- EC: apply (security (OD(Dist)) _ &m).
   refine @Pilot.SHA3Indiff.security _ _ _ (OD Dist) ⟨by fp_finite, by fp_disjoint⟩
