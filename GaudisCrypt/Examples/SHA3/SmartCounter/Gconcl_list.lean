@@ -1231,19 +1231,16 @@ variables.) -/
 local macro "l3l4_round" : tactic => `(tactic| (
   intro σ₂
   (try stmt_wp)
-  hoare_while_raw (§i < §n)
+  hoare_while (§i < §n)
   · stmt_sp; stmt_if
     · stmt_sp; stmt_if
-      · ec_auto; hoare_while_raw (§i < §n)
+      · ec_auto; hoare_while (§i < §n)
         · ec_auto <;> ec_close
-        · ec_close
         · ec_auto <;> ec_close
-      · ec_auto; hoare_while_raw (§i < §n)
+      · ec_auto; hoare_while (§i < §n)
         · ec_auto <;> ec_close
-        · ec_close
         · ec_auto <;> ec_close
     · ec_auto <;> ec_close
-  · ec_close
   · ec_auto <;> ec_close))
 
 set_option hygiene false in
@@ -1253,13 +1250,9 @@ and `n` is positive (`parse_gt0`).  (No hygiene: `§i`, `§n` are the program's 
 local macro "l3l4_i_lt_n" : tactic => `(tactic| (
   intro σ
   (try ec_auto)
-  hoare_while_raw (§i < §n)
+  hoare_while (§i < §n)
   · ec_auto <;> ec_close
-  · first
-    | ec_close
-    | (ec_prep; simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega)
-  · ec_auto; ec_prep
-    first | exact parse_gt0 _ | omega))
+  · ec_auto <;> smt_close [parse_valid, parse_gt0]))
 
 set_option hygiene false in
 /-- EC's `smt(size_cat size_nseq)` on the guards of `equiv_sponge`'s split loops: the sizes of
@@ -1278,14 +1271,12 @@ the program's variables.) -/
 local macro "sponge_round" : tactic => `(tactic| (
   intro σ
   (try stmt_wp)
-  hoare_while_raw (§i < §n)
+  hoare_while (§i < §n)
   · stmt_sp; stmt_if
-    · ec_auto; stmt_sp; hoare_while_raw (§i < §n)
+    · ec_auto; stmt_sp; hoare_while (§i < §n)
       · ec_auto <;> ec_close
-      · ec_close
       · ec_auto <;> ec_close
     · ec_auto <;> ec_close
-  · ec_close
   · ec_auto <;> ec_close))
 
 set_option hygiene false in
@@ -1297,22 +1288,12 @@ last round first.  No hygiene: `§i1`, `§p1` are the program's variables.) -/
 local macro "sponge_last" : tactic => `(tactic| (
   intro σ
   (try ec_auto)
-  hoare_while_raw (§i1 < size §p1)
+  hoare_while (§i1 < size §p1)
   · ec_auto; ec_progress
     all_goals
       simp only [Bool.and_eq_true, decide_eq_true_eq] at *
       omega
-  · first
-    | ec_close
-    | (ec_prep
-       have h : size p1 ≤ i1 + 1 := by
-         simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
-         omega
-       split_ifs <;> simp [h])
-  · ec_auto; ec_prep
-    simp only [format, size_cat, size_nseq]
-    refine lt_of_lt_of_le ?_ (le_add_of_nonneg_left (size_ge0 _))
-    omega))
+  · ec_auto <;> smt_close [size_format, size_ge0]))
 
 set_option hygiene false in
 /-- EC's `by while(i<n);auto;2:smt();sp;if;auto;sp;if;auto.`, the side goal of each `rcond` on the
@@ -1321,9 +1302,8 @@ keeps `i < n`.  (No hygiene: `§i`, `§n` are the program's variables.) -/
 local macro "sponge_round_r" : tactic => `(tactic| (
   intro σ
   (try stmt_wp)
-  hoare_while_raw (§i < §n)
+  hoare_while (§i < §n)
   · ec_auto <;> ec_close
-  · ec_close
   · ec_auto <;> ec_close))
 
 /-! ## Section `Ideal` -/
@@ -1418,13 +1398,11 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     --     (EC's `auto` on the judgment: nothing to do here)
     -- EC: * by while(i < n);auto;sp;if;auto;sp;if;auto;if;auto.
     --     * by while(i < n);auto;sp;if;auto;sp;if;auto;if;auto.
-    · intro σ; hoare_while_raw (§i < §n)
+    · intro σ; hoare_while (§i < §n)
       · hoare_auto
-      · auto_close
       · hoare_auto
-    · intro σ; hoare_while_raw (§i < §n)
+    · intro σ; hoare_while (§i < §n)
       · hoare_auto
-      · auto_close
       · hoare_auto
     -- EC: rcondf{1}8;2:rcondf{2}8;auto.
     stmt_rcondf{1} 8
@@ -1435,13 +1413,11 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     --       sp;if;auto;2:smt();if;auto;smt().
     --     * while(i < n);auto;2:smt();sp;if;auto;sp;if;auto;if;auto.
     --     (our `while` needs the loop last: `wp` over the unrolled round's head first)
-    · intro σ; stmt_wp; hoare_while_raw (§i < §n)
+    · intro σ; stmt_wp; hoare_while (§i < §n)
       · hoare_auto
-      · auto_close
       · hoare_auto
-    · intro σ; stmt_wp; hoare_while_raw (§i < §n)
+    · intro σ; stmt_wp; hoare_while (§i < §n)
       · hoare_auto
-      · auto_close
       · hoare_auto
     -- EC: rcondf{1}8;2:rcondf{2}8;auto.
     --     * while(i < n);auto.
@@ -1450,13 +1426,11 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     --     * by while(i < n);auto;2:smt();sp;if;auto;sp;if;auto;if;auto.
     stmt_rcondf{1} 8
     on_goals 2 => stmt_rcondf{2} 8
-    · intro σ; stmt_wp; hoare_while_raw (§i < §n)
+    · intro σ; stmt_wp; hoare_while (§i < §n)
       · hoare_auto
-      · auto_close
       · hoare_auto
-    · intro σ; stmt_wp; hoare_while_raw (§i < §n)
+    · intro σ; stmt_wp; hoare_while (§i < §n)
       · hoare_auto
-      · auto_close
       · hoare_auto
     --     (EC's `auto` on the judgment: the unrolled round's head, after the loops)
     equiv_auto
@@ -2428,19 +2402,17 @@ theorem equiv_L3_L4 :
     --     - by while(i1 < n1);auto;smt(parse_gt0 parse_valid parseK formatK).
     stmt_rcondt{1} 2
     · intro σ₂
-      hoare_while_raw (§i1 < §n1)
+      hoare_while (§i1 < §n1)
       · ec_auto
-      · ec_close
-      · ec_auto; ec_prep; exact parse_gt0 _
+      · ec_auto; smt_close [parse_gt0, parse_valid, parseK, formatK]
     -- EC: rcondf{1}7;1:auto.
     --     - by while(i1 < n1);auto;smt(parse_gt0 parse_valid parseK formatK).
     stmt_rcondf{1} 7
     · intro σ₂
       ec_auto
-      hoare_while_raw (§i1 < §n1)
+      hoare_while (§i1 < §n1)
       · ec_auto
-      · ec_close
-      · ec_auto; ec_prep; exact parse_gt0 _
+      · ec_auto; smt_close [parse_gt0, parse_valid, parseK, formatK]
     -- EC: rcondf{1}9;1:auto.
     --     - conseq(:_==> i1 + 1 = n1);1:smt(mem_set parseK parse_valid formatK).
     --       by while(i1 + 1 <= n1);auto;smt(parse_gt0 parse_valid parseK formatK).
@@ -5210,19 +5182,13 @@ theorem equal1 : ∀ (D <: DISTINGUISHER {-Simulator, -SLCommon.F.RO, -BIRO.IRO,
   stmt_rcondf{2} 4
   · intro σ₁
     ec_auto
-    hoare_while_raw (0 < §k ∧ §i ≤ §k ∧ (0 < §i → FMap.dom §IRO2.RO.m (§q, §i - 1)))
+    hoare_while (0 < §k ∧ §i ≤ §k ∧ (0 < §i → FMap.dom §IRO2.RO.m (§q, §i - 1)))
     · ec_auto
       ec_prep
       refine ⟨‹_›, by omega, fun _ => ?_⟩
       simp only [Int.add_sub_cancel]
       split_ifs <;> simp_all [FMap.mem_set]
-    · ec_prep
-      have hk : i = k := le_antisymm ‹_› ‹_›
-      subst hk
-      simpa using ‹0 < i → _› ‹0 < i›
-    · ec_auto
-      ec_prep
-      exact ⟨‹_›, le_of_lt ‹_›, fun h => absurd h (lt_irrefl 0)⟩
+    · ec_auto; smt_close
   -- EC: wp; rnd{2}; wp=> /=; conseq=> />.
   stmt_wp; equiv_rnd{2}; stmt_wp
   -- EC: conseq(:_==> i{2} = k{2} /\

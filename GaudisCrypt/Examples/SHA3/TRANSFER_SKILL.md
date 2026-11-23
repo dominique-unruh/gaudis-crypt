@@ -356,6 +356,24 @@ in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
 * Do not add rules to `auto_prep`'s simp set that change the *shape* of hypotheses (decoding
   boolean guards broke ConcreteF's `apply db_* <;> assumption`): decode locally
   (`simp only [Bool.and_eq_true, decide_eq_true_eq] at *`) where a closer needs it.
+* A four-goal `equiv_while_raw`/`hoare_while_raw` moved to EC's `while I` (ConcreteF, Sponge,
+  Gconcl_list, 2026-11-23): the old `exit` goal is the second half of `hpre`, so its closer
+  joins the closer of the code before the loop (`· ec_auto <;> ec_close`, or an alternative in
+  that closer's `all_goals first | …`); the body's postcondition gains `b₁ = b₂`, which the
+  closers take.  The exit's reads are no longer generalized: a hand step written against the old
+  exit (`apply db_first_exit <;> assumption`) needs `generalize_reads_all; subst_vars` first.
+* A heartbeat timeout is not caught by `first`: a probe `first | t | (trace_state; sorry)` then
+  prints nothing, and the error at `t` is the sign.  `maxHeartbeats` is the budget of the whole
+  declaration: the tactic the error points at is the one running when it ran out (an error at
+  the declaration's first line too, `timeout at isDefEq`).  A proof that grows (EC's `while I`
+  in place of the raw rule) can need `set_option maxHeartbeats 400000 in`.
+* Scratch compiles must use the module's own setup, `lake env lean copy.lean --setup
+  .lake/build/ir/<path>/X.setup.json`: the module name changes the heartbeats a proof uses (a
+  proof that passed as `copy.lean` ran out of them in `lake build`, Sponge 2026-11-23); the
+  `-D` options alone are not enough.
+* `smt_close` with EC's lemmas over a definition `grind` does not unfold
+  (`smt(size_cat size_nseq size_ge0)` on `size (format p n)`) can run for half an hour instead of
+  failing: give it the definition's lemma (`smt_close [size_format, size_ge0]`).
 
 Mappings for ssreflect idioms:
 

@@ -130,6 +130,9 @@ Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
   (`equiv_call (_ : ={glob BlockSim} ∧ §mp{1} = §mp{2})`), the simulator's oracles by
   `equiv_proc (I)` and `sim`, the concrete one by a judgment `={x, mp} ==> ={res, mp}` (`sim`)
   under `equiv_conseq_frame`.
+* GAP 16: `equiv_auto` on `skip ~ skip` whose postcondition is `equiv_while`'s `hpre` (the
+  second loop of `Sponge_Raise_BlockSponge_f`: the invariant, and the exit under the loops'
+  frames) leaves the exit, which `ec_close` closes: `equiv_skip; ec_close`.
 * EC's `call (_ : P ==> Q). proc (I)=> //.` on the declared `Dist` is one step,
   `equiv_call (_ : ={glob BlockSim} ∧ I)` (the `={…} ∧` without parentheses); the implication
   that EC proves next (`progress; apply lazy_invar0`) is then in the last goal, with the code
@@ -3461,6 +3464,8 @@ module_subtype (PRP.StrongPRP.PRP (block × capacity)) <: BlockSponge.DPRIMITIVE
 noncomputable abbrev BlockSpongePerm : BlockSponge.FUNCTIONALITY :=
   Module.app BlockSponge.Sponge (Perm : BlockSponge.DPRIMITIVE)
 
+-- the two loops' exits under EC's frames take the declaration past the default budget
+set_option maxHeartbeats 400000 in
 /-- EC's `local lemma Sponge_Raise_BlockSponge_f : equiv[Sponge(Perm).f ~
 RaiseFun(BlockSponge.Sponge(Perm)).f : ={bs, n, glob Perm} ==> ={res, glob Perm}]`, its proof EC's
 (see the module docstring). -/
@@ -3476,17 +3481,15 @@ theorem Sponge_Raise_BlockSponge_f :
     stmt_wp
     equiv_seq 1 1 : (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
         §n0{2} = (§n{1} + r - 1) / r)
-    · equiv_while_raw (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
+    · equiv_while (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
           §n0{2} = (§n{1} + r - 1) / r)
       case body =>
         -- EC: wp. call (_ : ={glob Perm}). sim. auto.
         stmt_wp; equiv_call (_ : ={glob Perm})
         · equiv_proc; sim
         equiv_auto
-      case guard => intros; simp_all
-      case exit => intros; simp_all
       case hpre => equiv_auto
-    · equiv_while_raw (={n, sa, sc, i, glob Perm} ∧ blocks2bits §z0{2} = §z{1} ∧
+    · equiv_while (={n, sa, sc, i, glob Perm} ∧ blocks2bits §z0{2} = §z{1} ∧
           §n0{2} = (§n{1} + r - 1) / r)
       case body =>
         equiv_case (§i{1} + 1 < (§n{1} + r - 1) / r)
@@ -3504,9 +3507,7 @@ theorem Sponge_Raise_BlockSponge_f :
           stmt_rcondf{2} 3
           · hoare_auto
           equiv_auto; intros; simp_all [rcons, blocks2bits_cat, blocks2bits_sing]
-      case guard => intros; simp_all
-      case exit => intros; simp_all
-      case hpre => equiv_auto; intros; simp_all [blocks2bits_nil]
+      case hpre => equiv_skip; ec_close
 
 /-! ### Footprints of the concrete modules of the final section
 

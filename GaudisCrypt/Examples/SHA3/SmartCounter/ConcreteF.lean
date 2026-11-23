@@ -586,7 +586,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
           · generalize_reads_all; subst_vars; apply db_query_block <;> assumption
           · generalize_reads_all; subst_vars; apply db_query_prefixes <;> assumption
           · generalize_reads_all; subst_vars; apply db_query_extend <;> assumption
-        · equiv_while_raw (={sa, Redo.prefixes, glob D, glob P, i, C.c, p, sc} ∧ §p{1} = §bs{1} ∧
+        · equiv_while (={sa, Redo.prefixes, glob D, glob P, i, C.c, p, sc} ∧ §p{1} = §bs{1} ∧
               all_prefixes §Redo.prefixes{2} ∧ FMap.get §Redo.prefixes{2} [] = some (b0, c0) ∧
               (∀ x, FMap.dom §query{2} x → FMap.dom §Redo.prefixes{2} x) ∧
               (§i{1} < size §p{1} → ¬ FMap.dom §Redo.prefixes{1} (take (§i{1} + 1) §p{1})) ∧
@@ -615,8 +615,6 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
                     | (apply db_loop_next (h := by assumption) <;> first | assumption | omega)
                     | (apply db_loop_dom <;> first | assumption | omega))
             · auto_close
-          · auto_close
-          · auto_close
           · stmt_sp
             equiv_conseq (: _ ==> ={sa, Redo.prefixes, glob D, glob P, i, C.c, p, sc, bs} ∧
                 §p{1} = §bs{1} ∧ §Redo.prefixes{2} = §pref{2} ∧
@@ -626,11 +624,12 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
                 §DBounder.FBounder.c{2} = §C.c{2} - size §bs{1} +
                   «prefix» §bs{1} (get_max_prefix §bs{1} (elems (FMap.fdom §C.queries{1}))))
             · auto_progress
-              · smt_close [all_prefixes]
-              · generalize_reads_all; subst_vars; apply db_first_post_false <;> assumption
-              · generalize_reads_all; exact prefix_ge0 _ _
-              · generalize_reads_all; subst_vars; exact prefix_sizel _ _
-              · generalize_reads_all; subst_vars; apply db_first_dom <;> assumption
+              all_goals first
+                | smt_close [all_prefixes]
+                | (generalize_reads_all; subst_vars; apply db_first_post_false <;> assumption)
+                | (generalize_reads_all; exact prefix_ge0 _ _)
+                | (generalize_reads_all; subst_vars; exact prefix_sizel _ _)
+                | (generalize_reads_all; subst_vars; apply db_first_dom <;> assumption)
             stmt_alias{2} 1 k = §DBounder.FBounder.c
             stmt_sp
             equiv_conseq (: _ ==> ={sa, Redo.prefixes, glob D, glob P, i, C.c, p, sc, bs} ∧
@@ -640,7 +639,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
                 FMap.get §Redo.prefixes{1} (take §i{1} §bs{1}) = some (§sa{1}, §sc{1}) ∧
                 §DBounder.FBounder.c{2} = §k{2})
             · smt_close
-            equiv_while_raw (={sa, Redo.prefixes, glob D, glob P, i, C.c, p, sc, bs, C.queries} ∧
+            equiv_while (={sa, Redo.prefixes, glob D, glob P, i, C.c, p, sc, bs, C.queries} ∧
                 §p{1} = §bs{1} ∧ §Redo.prefixes{2} = §pref{2} ∧
                 (∀ x, FMap.dom §query{2} x → FMap.dom §Redo.prefixes{2} x) ∧
                 prefix_inv §C.queries{2} §Redo.prefixes{2} ∧ all_prefixes §Redo.prefixes{2} ∧
@@ -656,11 +655,9 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
               · hoare_auto
               equiv_auto
               auto_progress
-              · apply db_first_step <;> assumption
-              · apply db_first_get; assumption
-            · auto_close
-            · auto_progress
-              apply db_first_exit <;> assumption
+              all_goals first
+                | (apply db_first_step <;> assumption)
+                | (apply db_first_get; assumption)
             · equiv_skip
               auto_progress
               all_goals first
@@ -668,6 +665,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
                 | (generalize_reads_all; subst_vars; apply db_first_init <;> assumption)
                 | (generalize_reads_all; subst_vars
                    simp only [take, Int.toNat_zero, List.take_zero]; assumption)
+                | (generalize_reads_all; subst_vars; apply db_first_exit <;> assumption)
       · ec_skip; auto_close
       · auto_close
     · stmt_wp; equiv_skip; auto_close
@@ -735,7 +733,7 @@ theorem Real_GReal' (m : VariableAssignment) :
               | (apply rc_query_extend <;> assumption)
               | (apply rc_nil <;> assumption)
               | (apply rc_all_prefixes <;> assumption))
-      equiv_while_raw (§sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧ §p{1} = §p0{2} ∧
+      equiv_while (§sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧ §p{1} = §p0{2} ∧
           §C.c{1} = §C.c{2} - size §p0{2} + §i{2} ∧
           all_prefixes §Redo.prefixes{2} ∧ all_prefixes §pref{2} ∧
           prefix_inv §C.queries{2} §pref{2} ∧
@@ -764,8 +762,6 @@ theorem Real_GReal' (m : VariableAssignment) :
               | (apply rc_loop_pref <;> assumption)
               | (apply rc_loop_in <;> assumption)
               | (apply rc_loop_out <;> assumption))
-      · auto_close
-      · auto_close
       · equiv_conseq (: _ ==> §sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧
             §p{1} = §p0{2} ∧ §C.c{1} = §C.c{2} - size §p0{2} + §i{2} ∧
             §pref{2} = §Redo.prefixes{2} ∧ all_prefixes §pref{2} ∧
@@ -779,7 +775,7 @@ theorem Real_GReal' (m : VariableAssignment) :
                first
                 | exact prefix_sizel _ _
                 | (apply rc_first_in <;> first | assumption | rfl))
-        equiv_while_raw (§sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧
+        equiv_while (§sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧
             §p{1} = §p0{2} ∧
             §C.c{1} = §C.c{2} - size §p0{2} +
               «prefix» §p0{2} (get_max_prefix §p0{2} (elems (FMap.fdom §C.queries{2}))) ∧
@@ -793,17 +789,17 @@ theorem Real_GReal' (m : VariableAssignment) :
           · hoare_auto
           equiv_auto
           auto_progress
-          · apply db_first_step <;> assumption
-          · apply db_first_get; assumption
-        · auto_close
-        · auto_progress
-          all_goals
-            have := rc_first_exit (by assumption) (by assumption) (by assumption) (by assumption)
-              (by assumption)
-            omega
+          all_goals first
+            | (apply db_first_step <;> assumption)
+            | (apply db_first_get; assumption)
         · equiv_skip
           auto_progress
-          generalize_reads_all; exact prefix_ge0 _ _
+          all_goals first
+            | (generalize_reads_all; exact prefix_ge0 _ _)
+            | (generalize_reads_all; subst_vars
+               have := rc_first_exit (by assumption) (by assumption) (by assumption)
+                 (by assumption) (by assumption)
+               omega)
     · stmt_wp
       equiv_conseq (: _ ==> §sa{1} = (oget (FMap.get §Redo.prefixes{1} (take §i{1} §p{1}))).1 ∧
           §i{1} = size §p{1} ∧ FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧
