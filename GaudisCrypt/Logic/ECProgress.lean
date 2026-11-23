@@ -306,8 +306,9 @@ elab "mem_eq_read" : tactic => withMainContext do
   throwError "mem_eq_read: no equation of the memories gives it"
 
 /-- **EC's `progress`** on a goal about values: `ec_prep`, the goal split (`∧`, `if`), each part
-closed by `rfl`, an assumption (either way round), `trivial`, `omega` or `simp_all`; the parts it
-cannot close are left. -/
+closed by `rfl`, an assumption (either way round), `trivial`, `omega` (also with the boolean
+guards `(a && b) = true`/`= false` taken apart) or `simp_all`; the parts it cannot close are left
+as they were. -/
 syntax "ec_progress" : tactic
 
 macro_rules
@@ -320,6 +321,11 @@ macro_rules
         | assumption
         | (apply Eq.symm; assumption)
         | omega
+        -- a split loop's guard, `(a && b) = true` or `= false` (and `decide p = !false`), taken
+        -- apart for `omega` only where that closes the goal: a `= false` is a case split, which
+        -- would leave two goals where there was one
+        | (simp only [Bool.and_eq_true, Bool.and_eq_false_iff, Bool.not_false, decide_eq_true_eq,
+            decide_eq_false_iff_not] at *; omega)
         | (apply And.intro <;> ec_progress)
         | (split_ifs <;> ec_progress)
         | (intro _; ec_progress)

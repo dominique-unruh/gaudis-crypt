@@ -1179,9 +1179,11 @@ set_option ec.strict true
   known equal by their components only (`x{1}.1 = …`, `x{2}.1 = …`), and the closer does not put
   them together: the guard `x{1} \in Perm.m <=> x{2} \in Perm.m` and the goals after it start
   with `have hx : x₁ = x₂ := Prod.ext …`.
-* GAP 9: the closer leaves the guard of a split loop, `(a && b) = true` or `= false`, as it is
-  (also `decide p = !false`): `simp only [Bool.and_eq_true, …] at *; omega`.  No `seq` on a Hoare
-  triple: in the `rcond` side goals our `auto` takes the code after the loop first.
+* GAP 9 (closed 2026-11-23): the closer left the guard of a split loop, `(a && b) = true` or
+  `= false` (also `decide p = !false`), as it was; `ec_progress` now takes it apart for `omega`
+  where that closes the goal.  (After `auto_prep` the guard is still decoded by hand, which
+  ConcreteF's lemmas over the guard need.)  No `seq` on a Hoare triple: in the `rcond` side
+  goals our `auto` takes the code after the loop first.
 * GAP 10: `splitwhile`'s condition reads the variables of the code left only: `p`, which is in
   the conditions alone, is written with its lens.
 * GAP 11 (closed 2026-11-17): `inline*` opens the calls of `Perm` behind the first port's
@@ -1255,13 +1257,9 @@ local macro "l3l4_i_lt_n" : tactic => `(tactic| (
   · ec_auto <;> smt_close [parse_valid, parse_gt0]))
 
 set_option hygiene false in
-/-- EC's `smt(size_cat size_nseq)` on the guards of `equiv_sponge`'s split loops: the sizes of
-the formats and the guards' conjunctions as linear facts, then `omega`.  (GAP 9: the closer
-leaves a split loop's guard `a && b` as it is.) -/
-local macro "sponge_guard" : tactic => `(tactic| (
-  simp only [size_format, Bool.and_eq_true, Bool.and_eq_false_iff, decide_eq_true_eq,
-    decide_eq_false_iff_not] at *
-  omega))
+/-- EC's `smt(size_cat size_nseq)` on a guard of `equiv_sponge`'s split loops: the sizes of the
+formats (`size_format`), then the closer. -/
+local macro "sponge_guard" : tactic => `(tactic| (simp only [size_format] at *; ec_close))
 
 set_option hygiene false in
 /-- EC's `auto` and `while(i < n);auto;2:smt(). by sp;if;auto;sp;while(i < n);auto;if;auto;sp;if;
@@ -1289,10 +1287,7 @@ local macro "sponge_last" : tactic => `(tactic| (
   intro σ
   (try ec_auto)
   hoare_while (§i1 < size §p1)
-  · ec_auto; ec_progress
-    all_goals
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-      omega
+  · ec_auto <;> ec_close
   · ec_auto <;> smt_close [size_format, size_ge0]))
 
 set_option hygiene false in
@@ -2496,8 +2491,7 @@ theorem equiv_L3_L4 :
       · ec_auto; ec_prep
         simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_false] at *
         apply_assumption; constructor <;> omega
-      ec_auto; ec_progress
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega
+      ec_auto; ec_close
     -- EC: by auto;smt(parse_gt0 parseK formatK parse_valid).
     --     (EC's `smt`, by hand: `parseK` on the valid `p`, then arithmetic)
     ec_auto; ec_progress
@@ -2507,7 +2501,6 @@ theorem equiv_L3_L4 :
       simp (disch := omega) only [hK] at *
     all_goals first
       | omega
-      | (simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega)
       | (apply_assumption; constructor <;> omega)
   -- EC: proc; sp; if; auto; call(: ={glob S, glob F.RO, glob F2.RO}); auto.
   equiv_proc; stmt_sp; stmt_if
@@ -2595,7 +2588,6 @@ theorem equiv_L3_L4 :
     · ec_auto; ec_progress
     ec_auto; ec_progress
     · exact Int.add_one_le_iff.mpr (parse_gt0 _)
-    · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
   -- EC: sp;rcondf{2}1;1:(auto;smt(parse_gt0)).
   --     (EC's `sp`: nothing to do here)
   stmt_rcondf{2} 1; on_goals 1 => (ec_auto; ec_prep; exact parse_gt0 _)
@@ -2657,7 +2649,6 @@ theorem equiv_L3_L4 :
   ec_auto; ec_progress
   · rw [formatK]
   · exact Int.add_one_le_iff.mpr (parse_gt0 _)
-  · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
 
 -- the oracles' three judgments, over the squeezing loops against the indexed oracles
 set_option maxHeartbeats 16000000 in
@@ -3693,8 +3684,6 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
     rotate_left
     · ec_auto; ec_progress
       · exact ⟨sc₁, by rw [zero_add, format_one]; assumption⟩
-      · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
-        omega
     -- EC: sp;rcondt{1}1;2:rcondt{2}1;auto.
     stmt_sp; stmt_rcondt{1} 1
     on_goals 2 => stmt_rcondt{2} 1
@@ -3888,15 +3877,13 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
       on_goals 2 => stmt_rcondt{2} 1
       · intro σ₂; ec_auto; ec_prep
         exact squeeze_known_tail ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)› ‹size _ ≤ _›
-          (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+          (by ec_close)
       · intro σ₁; ec_auto; ec_prep
         exact squeeze_known_tail ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)› ‹size _ ≤ _›
-          (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+          (by ec_close)
       ec_auto; ec_progress
       --       + smt().
       --       + smt(size_cat size_nseq).
-      · simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-        omega
       --       + have->:take (i1{2} + 1) (format bl{2} (i{2} + 1)) =
       --                take (i1{2} + 1) (format bl{2} i{2}).
       --         - smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
@@ -3905,9 +3892,7 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
       --         - smt(take_format size_ge0 size_eq0 valid_spec size_cat size_nseq).
       --         have all_pref:=all_prefixes_of_INV_real _ _ _ _ _ H.
       --         by have:=all_pref _ H0 (i1{2}+1); rewrite domE; smt().
-      · have hg : i1₂ < size (format p₂ (i₂ + 1)) - 1 := by
-          simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-          omega
+      · have hg : i1₂ < size (format p₂ (i₂ + 1)) - 1 := by ec_close
         have hk := squeeze_known_tail ‹INV_Real _ _ _ _ _› ‹FMap.dom prefixes₂ (format p₂ i₂)›
           ‹size p₂ ≤ i1₂› hg
         have hs := size_format p₂ (i₂ + 1)
@@ -3935,7 +3920,6 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
         rw [take_size] at h
         rw [sub_self, zero_add, format_one]
         exact h
-      · sponge_guard
     -- EC: while(...);last first.
     equiv_while (={nb, bl, n, p, p1, i, i1, lres, sa0, sc0, C.c, SLCommon.Redo.prefixes,
         Perm.m, Perm.mi} ∧
@@ -3975,10 +3959,10 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
     on_goals 2 => stmt_rcondt{2} 1
     · intro σ₂; ec_auto; ec_prep
       exact squeeze_known_head ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)›
-        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+        (by ec_close)
     · intro σ₁; ec_auto; ec_prep
       exact squeeze_known_head ‹INV_Real _ _ _ _ _› ‹FMap.dom _ (format _ _)›
-        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+        (by ec_close)
     --     - smt().
     --     - smt().
     --     - have->:take (i1{2} + 1) (format bl{2} (i{2} + 1)) =
@@ -3989,9 +3973,7 @@ theorem equiv_sponge : ∀ (D <: DISTINGUISHER {-Perm, -SLCommon.Redo, -C, -SLCo
     --         by smt(take_cat take_le0 cats0).
     --       smt(all_prefixes_of_INV_real).
     ec_auto; ec_progress
-    have hg : i1₂ < size p₂ := by
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-      omega
+    have hg : i1₂ < size p₂ := by ec_close
     have hk := squeeze_known_head (i := i₂) ‹INV_Real _ _ _ _ _› ‹FMap.dom prefixes₂ (format p₂ i₂)›
       hg
     rw [take_format_le p₂ (i₂ + 1) (i1₂ + 1) (by omega)] at hk ⊢
@@ -4361,10 +4343,10 @@ theorem squeeze_squeezeless :
     rw [zero_add, format_one]
     assumption
   -- EC: sp;if;auto;sp.
-  --     (GAP 9: the branch `!(i < n)` contradicts the split loop's guard)
+  --     (the branch `!(i < n)` contradicts the split loop's guard)
   stmt_sp; stmt_if
   · ec_close
-  on_goals 2 => (ec_auto; ec_progress; sponge_guard)
+  on_goals 2 => (ec_auto; ec_close)
   ec_auto; stmt_sp
   -- EC: splitwhile{1}1: i1 < size p1 - 1.
   stmt_splitwhile{1} 1 : §i1 < size §p1 - 1
@@ -4550,21 +4532,16 @@ theorem squeeze_squeezeless :
     stmt_rcondt 1
     · ec_auto; ec_prep
       exact squeeze_known ‹INV_Real _ _ _ _ _› ‹FMap.dom prefixes (format p i)› ‹0 < i›
-        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+        (by ec_close)
     ec_auto
   · intro σ₂ k
     stmt_rcondt 1
     · ec_auto; ec_prep
       exact squeeze_known ‹INV_Real _ _ _ _ _› ‹FMap.dom prefixes (format p i)› ‹0 < i›
-        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega)
+        (by ec_close)
     ec_auto; ec_progress
-    · simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-      omega
-    · exact FMap.get_some _ _ (squeeze_known ‹INV_Real _ _ _ _ _›
-        ‹FMap.dom prefixes (format p i)› ‹0 < i›
-        (by simp only [Bool.and_eq_true, decide_eq_true_eq] at *; omega))
-    · simp only [Bool.and_eq_true, decide_eq_true_eq] at *
-      omega
+    exact FMap.get_some _ _ (squeeze_known ‹INV_Real _ _ _ _ _›
+      ‹FMap.dom prefixes (format p i)› ‹0 < i› (by ec_close))
   -- EC: + progress.
   --       + smt(size_cat size_nseq size_ge0 size_eq0 valid_spec).
   --       + smt().
@@ -4581,8 +4558,6 @@ theorem squeeze_squeezeless :
   · rw [take0]
     obtain ⟨-, ⟨h0, -⟩, -⟩ := ‹INV_Real _ _ _ _ _›
     exact h0
-  · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *
-    omega
 
 /-- EC's `lemma pr_real (D <: DISTINGUISHER{-SLCommon.C, -C, -Perm, -Redo}) &m :
 Pr [ GReal(A(D)).main() @ &m : res /\ SLCommon.C.c <= max_size] =

@@ -262,9 +262,9 @@ set_option ec.strict true
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * (GAP 3, fixed: `glob IRO` read off its code as `={IRO.mp}`, `Logic/GlobWrites.lean`; the call's
   frame through `RaiseSim(…)(IRO)`.)
-* GAP 4: after `byequiv` (all globals equal) and `sp` over the initializations, the two memories'
-  equation (`X.set v (…σ₁.globals) = Y.set w (…σ₂.globals)`) is not used for `glob D`'s
-  equality: by hand (`congrArg` of `glob D`'s getter, `touched_set_of_le_compl`).
+* GAP 4 (closed 2026-11-23): after `byequiv` (all globals equal) and `sp` over the
+  initializations, the two memories' equation (`X.set v (…σ₁.globals) = Y.set w (…σ₂.globals)`)
+  was not used for `glob D`'s equality; the closer's `mem_eq_reads` reads it off now.
 * GAP 5: `RaiseSim(S)` views `S`'s block-level procedures at the bit level (`PRIMITIVE`'s
   parameters spelled differently): the inliner applies `SimLast`'s `apply_simp` there only at
   default transparency, by `set_option inline.defEqApply true` (always on, it inlines further than
@@ -572,12 +572,9 @@ theorem replace_simulator (m : VariableAssignment) :
     · equiv_auto
   -- EC: by proc;sim.
   · equiv_proc; sim
-  --     (EC's `auto` after the call; GAP 4: `glob Dist` from the equation of the two memories
-  --     `sp` leaves, by hand)
-  · equiv_auto; auto_prep
-    have h := congrArg (FVP.fvP Dist).touched_getter.get ‹Gconcl_list.BIRO2.IRO.mp.set _ _ = _›
-    simp (disch := fp_disjoint) only [touched_set_of_le_compl] at h
-    auto_close
+  --     (EC's `auto` after the call; `glob Dist` from the equation of the two memories `sp`
+  --     leaves, `mem_eq_reads`)
+  · equiv_auto; ec_close
 
 set_option synthInstance.maxHeartbeats 400000 in
 -- EC's restriction checks by instance search (`Dist` against the modules of the lemmas used)

@@ -322,4 +322,18 @@ example (g₁ g₂ : VariableAssignment) (v w : ℤ) (h : pCount.set v g₁ = pC
     pFlag.get g₁ = pFlag.get g₂ := by
   ec_close
 
+/-! ## Boolean guards -/
+
+-- a split loop's guard, `(a && b) = true` or `= false`, and `decide p = !false`: taken apart
+-- for `omega` (`ec_progress`'s alternative; the goals it does not close keep the guards)
+example (i n : ℤ) (h : (decide (i < n) && decide (i + 1 < n)) = true) : i + 1 < n := by
+  ec_close
+
+example (i n : ℤ) (h : (decide (i < n) && decide (i < n - 1)) = false) (h' : i < n) :
+    n ≤ i + 1 := by
+  ec_close
+
+example (i n : ℤ) (h : decide (i < n) = !false) : i < n := by
+  ec_close
+
 end GaudisCrypt.ECProgressTest

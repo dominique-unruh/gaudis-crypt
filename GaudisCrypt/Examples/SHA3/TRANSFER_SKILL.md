@@ -356,6 +356,9 @@ in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
 * Do not add rules to `auto_prep`'s simp set that change the *shape* of hypotheses (decoding
   boolean guards broke ConcreteF's `apply db_* <;> assumption`): decode locally
   (`simp only [Bool.and_eq_true, decide_eq_true_eq] at *`) where a closer needs it.
+  `ec_progress`/`ec_close` decode a split loop's guard (`(a && b) = true`/`= false`) for
+  `omega` themselves, and only where that closes the goal (a `= false` is a case split: decoded
+  in place, it would turn one leftover goal into two and shift the bullets after it).
 * A four-goal `equiv_while_raw`/`hoare_while_raw` moved to EC's `while I` (ConcreteF, Sponge,
   Gconcl_list, 2026-11-23): the old `exit` goal is the second half of `hpre`, so its closer
   joins the closer of the code before the loop (`· ec_auto <;> ec_close`, or an alternative in
