@@ -352,6 +352,16 @@ module NoTypeNoParams {
 -- a one-procedure record is that procedure (`moduletype` nests its fields the same way)
 #check (NoTypeNoParams : Module.Proc (procsig () -> Unit))
 
+-- a procedure module called in a block of statements outside a `module` (EasyCrypt's
+-- `x <@ M.f(a)` in a `transitivity` block): its procedure is called, `(M).procedure` by hand
+example : (GaudiProg[ call NoTypeNoParams (); ] : Stmt) =
+    GaudiProg[ call (NoTypeNoParams).procedure (); ] :=
+  rfl
+-- a procedure is called as it is
+example (p : Procedure (procsig () -> Unit)) :
+    (GaudiProg[ call p (); ] : Stmt) = StmtWithHoles.call Setter.throwaway p GaudiExpr[ () ] :=
+  rfl
+
 
 /- ### Lean parameters
 

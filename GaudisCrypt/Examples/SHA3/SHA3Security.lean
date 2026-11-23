@@ -618,7 +618,7 @@ theorem dout_LoopSnoc :
         (localVarLens "r" f_out) <$ dout; } ~
       { var l : List Bool;
         l <- call
-          (GaudisCrypt.SHA3.SHA3Security.Preimage.Prog.LoopSnoc.sample).procedure (size_out);
+          GaudisCrypt.SHA3.SHA3Security.Preimage.Prog.LoopSnoc.sample (size_out);
         (localVarLens "r" f_out) <- oget (of_list §l); } := by
   stmt_wp; stmt_sp
   stmt_split{1} 1
@@ -775,7 +775,7 @@ theorem equiv_ro_iro (c' : ℤ) (m : List Bool) :
     --     (one step: EC's module `Sample` is not ported, `dout_LoopSnoc`)
     equiv_trans{1} {
         l <- call
-          (GaudisCrypt.SHA3.SHA3Security.Preimage.Prog.LoopSnoc.sample).procedure (size_out);
+          GaudisCrypt.SHA3.SHA3Security.Preimage.Prog.LoopSnoc.sample (size_out);
         (localVarLens "r" f_out) <- oget (of_list §l); }
       (§allGlobals{1} = §allGlobals{2} ==>
         §allGlobals{1} = §allGlobals{2} ∧

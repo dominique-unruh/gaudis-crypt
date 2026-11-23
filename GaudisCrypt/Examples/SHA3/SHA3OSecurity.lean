@@ -718,7 +718,7 @@ theorem dlist_LoopSnoc :
         z <$ dlist dbool size_out; } ~
       { var z : List Bool;
         z <- call
-          (GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample).procedure (size_out); } := by
+          GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample (size_out); } := by
   refine prhlStmt_dlist_left _ { get := fun _ => size_out } (fun _ => rfl) ?_
   equiv_call (_ : ={arg} ==> ={res})
   · equiv_proc; sim
@@ -739,7 +739,7 @@ theorem rw_RF_List_While :
   --       (true ==> z{1} = l{2})=>/>; last first.
   --     (one step: EC's module `Sample` is not ported, `dlist_LoopSnoc`)
   equiv_trans{1} {
-      z <- call (GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample).procedure (size_out); }
+      z <- call GaudisCrypt.SHA3.SHA3OSecurity.PBool.LoopSnoc.sample (size_out); }
     (True ==> §z{1} = §z{2}) (True ==> §z{1} = §l{2})
   · intro σ₁ σ₂ _
     exact ⟨σ₁, trivial⟩

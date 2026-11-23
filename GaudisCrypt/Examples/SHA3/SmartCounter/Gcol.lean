@@ -186,7 +186,7 @@ module Gcol.M : DFUNCTIONALITY {
         if (decide ($counter < size $p - «prefix» $p (get_max_prefix $p
             (elems (FMap.fdom ($C.queries : FMap (List block) block)))))) {
           sc <- call Gcol.sample_c ();
-          sa' <- call (PROM.FullRO.ROmap.get (List block) block F.RO) (take ($i + 1) $p);
+          sa' <- call F.RO.get (take ($i + 1) $p);
           sa <- $sa +^ nth default $p $i;
           G1.mh <- FMap.set $G1.mh ($sa, $h) ($sa', $G1.chandle);
           G1.mhi <- FMap.set $G1.mhi ($sa', $G1.chandle) ($sa, $h);
@@ -198,7 +198,7 @@ module Gcol.M : DFUNCTIONALITY {
       }
       i <- $i + 1;
     }
-    sa <- call (PROM.FullRO.ROmap.get (List block) block F.RO) ($p);
+    sa <- call F.RO.get ($p);
     return $sa
   };
 }
@@ -217,7 +217,7 @@ module Gcol.S : DPRIMITIVE {
       hx2 <- oget (hinvK $FRO.m ($x).2);
       if (decide (FMap.dom ($G1.paths : FMap capacity (List block × block)) ($x).2)) {
         p, v <- oget (FMap.get ($G1.paths : FMap capacity (List block × block)) ($x).2);
-        y1 <- call (PROM.FullRO.ROmap.get (List block) block F.RO) (rcons $p ($v +^ ($x).1));
+        y1 <- call F.RO.get (rcons $p ($v +^ ($x).1));
         y2 <- call Gcol.sample_c ();
       } else {
         y1 <$ bdistr;
@@ -301,7 +301,7 @@ module Gcol (D : DISTINGUISHER) {
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
     Gcol.count <- 0;
-    b <- call (Module.app (DRestr D) (Module.pair Gcol.M Gcol.S)) ();
+    b <- call DRestr(D, Gcol.M, Gcol.S).distinguish ();
     return $b
   };
 }

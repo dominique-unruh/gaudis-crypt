@@ -2167,7 +2167,7 @@ theorem next_block_split_BlockSpongeTrans (i2 : ℤ) :
       --       { w <@ BlockGen.loop(); }
       --       (true ==> cs{1} = ofblock w{2})
       --       (true ==> ={w})=> //.
-      equiv_trans{2} { var w : block; w <- call (BlockGen.loop).procedure (); }
+      equiv_trans{2} { var w : block; w <- call BlockGen.loop (); }
         (True ==> §cs{1} = ofblock §w{2}) (True ==> §w{1} = §(localVarLens "r" block){2})
       · exact fun σ _ => ⟨σ, trivial⟩
       · intro τ₁ τ τ₂ h1 h2; rw [h1, h2]
@@ -2197,7 +2197,7 @@ theorem next_block_split_BlockSpongeTrans (i2 : ℤ) :
       --       (true ==> ={w})=> //.
       --     call BlockGen_loop_direct; auto.
       --     inline BlockGen.direct; sim.
-      · equiv_trans{2} { var w : block; w <- call (BlockGen.direct).procedure (); }
+      · equiv_trans{2} { var w : block; w <- call BlockGen.direct (); }
           (True ==> ={w}) (True ==> §w{1} = §(localVarLens "r" block){2})
         · exact fun σ _ => ⟨σ, trivial⟩
         · intro τ₁ τ τ₂ h1 h2; rw [h1, h2]
@@ -2487,7 +2487,7 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
       equiv_trans{1} {
           i <- 0; bs <- [];
           while (decide ($i < $n * r)) {
-            b <- call (HybridIROEager.fill_in).procedure ($xs, $i);
+            b <- call HybridIROEager.fill_in ($xs, $i);
             bs <- rcons $bs $b;
             i <- $i + 1;
           } }
@@ -2543,7 +2543,7 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
       · equiv_trans{2} {
             i <- 0; bs <- [];
             while (decide ($i < $n)) {
-              b <- call (BlockSponge.BIRO.IRO.fill_in).procedure ($xs, $i);
+              b <- call BlockSponge.BIRO.IRO.fill_in ($xs, $i);
               bs <- rcons $bs $b;
               i <- $i + 1;
             } }
@@ -2601,7 +2601,7 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
     --        bs{1} = blocks2bits bs{2} /\
     --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})=> //.
     equiv_trans{1} {
-        bs, i <- call (HybridIROEagerTrans.next_block).procedure ($xs, $i, (n' + 1) * r, $bs); }
+        bs, i <- call HybridIROEagerTrans.next_block ($xs, $i, (n' + 1) * r, $bs); }
       (={xs, i, HybridIROEager.mp} ∧
         §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2} ∧
         §n{1} = n' + 1 ==>
@@ -2645,7 +2645,7 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
     --       (={xs, bs, i, BlockSponge.BIRO.IRO.mp} ==>
     --        ={xs, bs, i, BlockSponge.BIRO.IRO.mp})=> //.
     · equiv_trans{2} {
-          bs, i <- call (BlockSpongeTrans.next_block).procedure ($xs, $i, $bs); }
+          bs, i <- call BlockSpongeTrans.next_block ($xs, $i, $bs); }
         (={xs} ∧ §i{1} = n' * r ∧ §i{2} = n' ∧ size §(localVarLens "bs" (List block)){2} = n' ∧
           §(localVarLens "bs" (List Bool)){1} =
             blocks2bits §(localVarLens "bs" (List block)){2} ∧
@@ -2855,7 +2855,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
     --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})=> //.
     equiv_trans{1} {
         while (decide ($i < n1 / r * r)) {
-          b <- call (HybridIROEager.fill_in).procedure ($xs, $i);
+          b <- call HybridIROEager.fill_in ($xs, $i);
           bs <- rcons $bs $b;
           i <- $i + 1;
         } }
@@ -2914,7 +2914,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
     --       first last.
     · equiv_trans{2} {
           while (decide ($i < n1 / r)) {
-            b <- call (BlockSponge.BIRO.IRO.fill_in).procedure ($x, $i);
+            b <- call BlockSponge.BIRO.IRO.fill_in ($x, $i);
             bs <- rcons $bs $b;
             i <- $i + 1;
           } }
@@ -2985,7 +2985,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
       --        size bs{2} = n1 %/ r /\ bs{1} = blocks2bits bs{2} /\
       --        eager_invar BlockSponge.BIRO.IRO.mp{2} HybridIROEager.mp{1})=> //.
       equiv_trans{1} {
-          i, bs <- call (HybridIROEagerTrans.loop).procedure (n1 / r, $xs); }
+          i, bs <- call HybridIROEagerTrans.loop (n1 / r, $xs); }
         (={xs, HybridIROEager.mp} ∧ §i{1} = 0 ∧ §(localVarLens "bs" (List Bool)){1} = [] ==>
           ={i, xs, HybridIROEager.mp} ∧
             §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2})
@@ -3026,7 +3026,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
       --        first progress; exists BlockSponge.BIRO.IRO.mp{2} x{2}=> //);
       --       last first.
       · equiv_trans{2} {
-            i, bs <- call (BlockSpongeTrans.loop).procedure (n1 / r, $x); }
+            i, bs <- call BlockSpongeTrans.loop (n1 / r, $x); }
           (§xs{1} = §x{2} ∧ 0 ≤ n1 ∧
             eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager.mp{1} ==>
             §i{1} = n1 / r * r ∧ §i{2} = n1 / r ∧
@@ -3188,7 +3188,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
   --     progress; smt(take_cat).
   equiv_trans{1} {
       while (decide ($i < $m)) {
-        b <- call (HybridIROEager.fill_in).procedure ($xs, $i);
+        b <- call HybridIROEager.fill_in ($xs, $i);
         bs <- rcons $bs $b;
         i <- $i + 1;
       } }
@@ -3288,7 +3288,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
   --       exists HybridIROEager.mp{1} (blocks2bits bs{2}) (size bs{2} * r)
   --              m{1} x{2}=> //.
   · equiv_trans{1} {
-        bs, i <- call (HybridIROEagerTrans.next_block).procedure ($xs, $i, $m, $bs); }
+        bs, i <- call HybridIROEagerTrans.next_block ($xs, $i, $m, $bs); }
       (={i, m, xs, HybridIROEager.mp} ∧
         §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2} ==>
         ={i, m, xs, HybridIROEager.mp} ∧
@@ -3320,7 +3320,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
     --                exists BlockSponge.BIRO.IRO.mp{2} bs{2} (size bs{2}) x{2}=> //);
     --       last first.
     · equiv_trans{2} {
-          bs, i <- call (BlockSpongeTrans.next_block).procedure ($x, $i, $bs); }
+          bs, i <- call BlockSpongeTrans.next_block ($x, $i, $bs); }
         (§xs{1} = §x{2} ∧ 0 ≤ §i{2} ∧ §i{1} = §i{2} * r ∧ §m{1} - §i{1} = r ∧
         size §(localVarLens "bs" (List block)){2} = §i{2} ∧
           §(localVarLens "bs" (List Bool)){1} = blocks2bits §(localVarLens "bs" (List block)){2} ∧

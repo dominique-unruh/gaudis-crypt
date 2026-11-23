@@ -139,6 +139,15 @@ call to them).
   `Eager(G2(DRestr(D))).main1` is the procedure module `Eager.main1 (G2 (DRestr D))`; its
   parameter names are found through abbreviations (a pilot's `abbrev Eager.main1 := PROM.…`).
   Mathlib's token `C(` breaks `C(P)`: write `«C»(P)`.
+* Calls: EC's `x <@ M.f(a)` is `x <- call M.f (a)` also in a block of statements outside a
+  `module` (`equiv_trans{1} { … }`, `stmt_alias`): a procedure module as callee is called through
+  its procedure (`gaudi_callee%`, `Syntax/ProgramSyntax.lean`), so `call (M.f).procedure (a)` is
+  not needed.  EC's paths work as callees: `call DRestr(D, Gcol.M, Gcol.S).distinguish ()`,
+  `call F.RO.get (x)`, `call RRO.set (h, c)` (not `call (Module.app (DRestr D) (Module.pair …))`
+  or `call (PROM.FullRO.FRO_T.set handle capacity RRO)`).  One exception: a module with more
+  procedures passed where a module type with fewer is expected (EC's structural subtyping,
+  `Iter(ReSample)` with `ReSample` of two procedures) still needs the record,
+  `Module.app (IterProc.Iter handle) (IterProc.Orcl.mk handle { f := ReSample.f })`.
 * Variables: EC's `x{1}` is `§x{1}`; module variables `§G1.bcol{2}`; `={x, y}`, `={res}`,
   `={arg}`, `={glob A}`, `={glob A, glob B}` (one region, the join — don't split it).
 * `glob C` of a **concrete** module = its variables (`C.c`, `C.queries`); of a declared/abstract

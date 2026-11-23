@@ -364,15 +364,34 @@ private def mkArgTuple (args : List Term) : MacroM Term := do
   | [e]     => pure e
   | e :: es => do `(($e, $(← mkArgTuple es)))
 
+/-- The callee of a `call`: a procedure, or a procedure module — a `module`'s procedure
+`M.f`, any `Module.Proc sig` — whose procedure is called, `Module.Proc.procedure M` (what
+`(M).procedure` spells).  EasyCrypt's `x <@ M.f(a)` in a block of statements outside a
+`module` (`equiv_trans{1} { … }`) is then `x <- call M.f (a)`.  Anything else is left as it is,
+to be unified with `Procedure sig` by the application around it.  (`Module.Proc` by its full
+name: this file comes before the modules.) -/
+syntax (name := gaudiCallee) "gaudi_callee% " term:max : term
+
+open Lean Elab Term Meta in
+@[term_elab gaudiCallee] def elabGaudiCallee : TermElab := fun stx _ => do
+  let e ← elabTerm stx[1] none
+  let ty ← whnfR (← instantiateMVars (← inferType e))
+  if ty.isAppOfArity `GaudisCrypt.Module.Proc 1 then
+    return mkApp2 (← mkConstWithFreshMVarLevels `GaudisCrypt.Module.Proc.procedure)
+      ty.appArg! e
+  return e
+
 -- `call` (procedure) and `holecall` (hole) statements.  `holecall` is *internal*: the
 -- `proc` macro rewrites `call <holeName>` to it; users only ever write `call`.  In both
 -- cases the callee is listed first so its `sig` is unified before the result l-value/args.
 open Lean in
 macro_rules
   | `([gstmt| $xs:term,* <- call $p:term ( $args:term,* );]) => do
-      `(StmtWithHoles.call [lval| $xs,*] $p (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+      `(StmtWithHoles.call [lval| $xs,*] (gaudi_callee% $p)
+        (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
   | `([gstmt| call $p:term ( $args:term,* );]) => do
-      `(StmtWithHoles.call Setter.throwaway $p (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+      `(StmtWithHoles.call Setter.throwaway (gaudi_callee% $p)
+        (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
   | `([gstmt| $xs:term,* <- holecall $n:term ( $args:term,* );]) => do
       `(StmtWithHoles.hole $n [lval| $xs,*] (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
   | `([gstmt| holecall $n:term ( $args:term,* );]) => do

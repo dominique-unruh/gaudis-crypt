@@ -841,8 +841,8 @@ module Gext.M : DFUNCTIONALITY {
       } else {
         if (decide ($counter < size $p - «prefix» $p (get_max_prefix $p
             (elems (FMap.fdom ($C.queries : FMap (List block) block)))))) {
-          _ <- call (PROM.FullRO.FRO_T.sample handle capacity RRO) ($G1.chandle);
-          sa' <- call (PROM.FullRO.ROmap.get (List block) block F.RO) (take ($i + 1) $p);
+          _ <- call RRO.sample ($G1.chandle);
+          sa' <- call F.RO.get (take ($i + 1) $p);
           sa <- $sa +^ nth default $p $i;
           G1.mh <- FMap.set $G1.mh ($sa, $h) ($sa', $G1.chandle);
           G1.mhi <- FMap.set $G1.mhi ($sa', $G1.chandle) ($sa, $h);
@@ -853,7 +853,7 @@ module Gext.M : DFUNCTIONALITY {
       }
       i <- $i + 1;
     }
-    sa <- call (PROM.FullRO.ROmap.get (List block) block F.RO) ($p);
+    sa <- call F.RO.get ($p);
     return $sa
   };
 }
@@ -866,32 +866,32 @@ module Gext.S : DPRIMITIVE {
     if (!(decide (FMap.dom ($G1.m : smap) $x))) {
       if (decide (FMap.dom ($G1.paths : FMap capacity (List block × block)) ($x).2)) {
         p, v <- oget (FMap.get ($G1.paths : FMap capacity (List block × block)) ($x).2);
-        y1 <- call (PROM.FullRO.ROmap.get (List block) block F.RO) (rcons $p ($v +^ ($x).1));
+        y1 <- call F.RO.get (rcons $p ($v +^ ($x).1));
       } else {
         y1 <$ bdistr;
       }
       y2 <$ cdistr;
       y <- ($y1, $y2);
-      handles_ <- call (PROM.FullRO.FRO_T.allKnown handle capacity RRO) ();
+      handles_ <- call RRO.allKnown ();
       if (!(decide (FMap.rng $handles_ ($x).2))) {
-        _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) ($G1.chandle, ($x).2);
+        _ <- call RRO.set ($G1.chandle, ($x).2);
         G1.chandle <- $G1.chandle + 1;
       }
-      handles_ <- call (PROM.FullRO.FRO_T.allKnown handle capacity RRO) ();
+      handles_ <- call RRO.allKnown ();
       hx2 <- oget (hinvc $handles_ ($x).2);
-      t <- call (PROM.FullRO.FRO_T.queried handle capacity RRO)
+      t <- call RRO.queried
         ((oget (FMap.get ($G1.mh : hsmap) (($x).1, $hx2))).2, Unknown);
       if (decide (FMap.dom ($G1.mh : hsmap) (($x).1, $hx2)) && $t) {
         hy2 <- (oget (FMap.get ($G1.mh : hsmap) (($x).1, $hx2))).2;
         _ <- call ReSample.f1 (($x).2, $hy2);
-        y2 <- call (PROM.FullRO.FRO_T.get handle capacity ROhandle.FRO) ($hy2);
+        y2 <- call ROhandle.FRO.get ($hy2);
         y <- (($y).1, $y2);
         G1.m <- FMap.set $G1.m $x $y;
         G1.mi <- FMap.set $G1.mi $y $x;
       } else {
         hy2 <- $G1.chandle;
         G1.chandle <- $G1.chandle + 1;
-        _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) ($hy2, ($y).2);
+        _ <- call RRO.set ($hy2, ($y).2);
         G1.m <- FMap.set $G1.m $x $y;
         G1.mh <- FMap.set $G1.mh (($x).1, $hx2) (($y).1, $hy2);
         G1.mi <- FMap.set $G1.mi $y $x;
@@ -910,29 +910,29 @@ module Gext.S : DPRIMITIVE {
     var y : SLCommon.state, y1 : block, y2 : capacity, hx2 : handle, hy2 : handle,
       handles_ : FMap handle capacity, t : Bool;
     if (!(decide (FMap.dom ($G1.mi : smap) $x))) {
-      handles_ <- call (PROM.FullRO.FRO_T.allKnown handle capacity RRO) ();
+      handles_ <- call RRO.allKnown ();
       if (!(decide (FMap.rng $handles_ ($x).2))) {
-        _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) ($G1.chandle, ($x).2);
+        _ <- call RRO.set ($G1.chandle, ($x).2);
         G1.chandle <- $G1.chandle + 1;
       }
-      handles_ <- call (PROM.FullRO.FRO_T.allKnown handle capacity RRO) ();
+      handles_ <- call RRO.allKnown ();
       hx2 <- oget (hinvc $handles_ ($x).2);
       y1 <$ bdistr;
       y2 <$ cdistr;
       y <- ($y1, $y2);
-      t <- call (PROM.FullRO.FRO_T.queried handle capacity RRO)
+      t <- call RRO.queried
         ((oget (FMap.get ($G1.mhi : hsmap) (($x).1, $hx2))).2, Unknown);
       if (decide (FMap.dom ($G1.mhi : hsmap) (($x).1, $hx2)) && $t) {
         y1, hy2 <- oget (FMap.get ($G1.mhi : hsmap) (($x).1, $hx2));
         _ <- call ReSample.f1 (($x).2, $hy2);
-        y2 <- call (PROM.FullRO.FRO_T.get handle capacity ROhandle.FRO) ($hy2);
+        y2 <- call ROhandle.FRO.get ($hy2);
         y <- (($y).1, $y2);
         G1.mi <- FMap.set $G1.mi $x $y;
         G1.m <- FMap.set $G1.m $y $x;
       } else {
         hy2 <- $G1.chandle;
         G1.chandle <- $G1.chandle + 1;
-        _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) ($hy2, ($y).2);
+        _ <- call RRO.set ($hy2, ($y).2);
         G1.mi <- FMap.set $G1.mi $x $y;
         G1.mhi <- FMap.set $G1.mhi (($x).1, $hx2) (($y).1, $hy2);
         G1.m <- FMap.set $G1.m $y $x;
@@ -960,10 +960,10 @@ module Gext (D : DISTINGUISHER) {
     ReSample.count <- 0;
     FRO.m <- (FMap.empty : FMap handle (capacity × flag));
     -- the empty path is initially known by the adversary to lead to capacity 0^c
-    _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) (0, c0);
+    _ <- call RRO.set (0, c0);
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
-    b <- call (Module.app (DRestr D) (Module.pair Gext.M Gext.S)) ();
+    b <- call DRestr(D, Gext.M, Gext.S).distinguish ();
     _ <- call Gext.resample ();
     return $b
   };
