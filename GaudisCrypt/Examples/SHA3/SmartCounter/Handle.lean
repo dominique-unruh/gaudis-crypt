@@ -3532,8 +3532,8 @@ theorem PFf_Cf_dom_next (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh 
   exact all_prefixes_of_m_p _ _ _ hmp _ ((FMap.domE _ _).2 (by simp [hc])) _
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 2: the second loop still uses the older `equiv_while_raw` (four goals, no frame); the
-  first is EC's `while I` (`equiv_while`) with EC's `auto; progress` and its bullets.
+* GAP 2 (closed 2026-11-23): the second loop used the older `equiv_while_raw` (four goals, no
+  frame); both loops are now EC's `while I` (`equiv_while`) with EC's `auto; progress`.
 * GAP 5: the pilot's oracle lemmas (`eq_f`, `eq_fi`, `PFf_Cf`, in EC's paths through
   `module_subtype` coercions) match `CF_G1`'s oracles (the old port's `CF`/`G1` views) only by
   heavy unfolding (~2M heartbeats per `conseq`): goes away with EC-form `CF`/`G1` declarations.
@@ -3850,7 +3850,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
   --         /\ (if i{2} = 0 then (sa{2}, h{2}) = (b0, 0)
   --             else F.RO.m{2}.[take i{2} p{2}] = Some sa{1})
   --         /\ (i{2} < size p{2} => ! take (i{2}+1) p{2} \in Redo.prefixes{1})));last first.
-  equiv_while_raw (={i, p, C.queries, C.c} ∧
+  equiv_while (={i, p, C.queries, C.c} ∧
       «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2}))) ≤ §i{1} ∧
       §i{1} ≤ size §p{1} ∧
       FMap.get §Redo.prefixes{1} (take §i{2} §p{2}) = some (§sa{1}, §sc{1}) ∧
@@ -3872,44 +3872,47 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         (if §i{2} = 0 then (§sa{2}, §h{2}) = (b0, 0)
           else FMap.get §F.RO.m{2} (take §i{2} §p{2}) = some §sa{1}) ∧
         (§i{2} < size §p{2} → ¬FMap.dom §Redo.prefixes{1} (take (§i{2} + 1) §p{2}))))
-  case guard => auto_close
-  -- EC (of the second goal): part of `auto;progress.`: `rewrite/#`, `smt(take_size)`
-  case exit =>
-    auto_prep
-    rename_i pref sa sc pm pmi pref0 i p q c bcol bext hs ch gm gmi mh mhi ro paths bad1 sa2 cnt h
-      hpref hq hpi hi hJ hg
-    have hip : i = size p := by omega
-    refine ⟨hip, fun hb => ?_⟩
-    obtain ⟨hI, -, hmp, -, -, rfl, -, -, -, hif, -⟩ := hJ hb
-    obtain ⟨-, hq0, -, -, -⟩ := hmp
-    have hp0 : p ≠ [] := by rintro rfl; exact hq ((FMap.domE _ _).2 (by simp [hq0]))
-    have hi0 : i ≠ 0 := by
-      rw [hip]; cases p with
-      | nil => exact absurd rfl hp0
-      | cons _ _ => simp only [size, List.length_cons]; omega
-    rw [if_neg hi0] at hif
-    simp only [hip, take_size] at hI hif ⊢
-    exact ⟨hI, by simp, hif⟩
   -- EC: + auto;progress.
   --     (fifteen bullets: `prefix_sizel`, `m_p_of_INV`, `mem_set`, `prefix_exchange_prefix_inv`,
   --     `take_size`; the old port's `PJ1_PJ2`, the first loop's end as the second's start —
   --     deviation)
   case hpre =>
     equiv_auto
-    rintro p₁ i₁ c₁ q₁ bs₁ pref sa₁ sc₁ m₁ mi₁ pref0 p₂ i₂ c₂ q₂ bs₂ bcol bext hs ch gm gmi mh mhi ro
-      paths sa₂ cnt h bad1 ⟨⟨⟨⟨hp, hi, ⟨hc, hqq⟩, hbs⟩, hbs2, hpi, hpref, -, -, hq, hJ, -, hsz⟩, rfl⟩,
-        rfl⟩
+    rintro p₁ i₁ c₁ q₁ bs₁ pref sa₁ sc₁ m₁ mi₁ pref0 bcol₁ bext₁ hs₁ ch₁ gm₁ gmi₁ mh₁ mhi₁ ro₁
+      paths₁ p₂ i₂ c₂ q₂ bs₂ bcol bext hs ch gm gmi mh mhi ro paths sa₂ cnt h bad1 m₂ mi₂ pref₂
+      ⟨⟨⟨⟨hp, hi, ⟨hc, hqq⟩, hbs⟩, hbs2, hpi, hpref, -, -, hq, hJ, -, hsz⟩, rfl⟩, rfl⟩
     subst hp hi hc hqq hbs hbs2
-    refine ⟨⟨rfl, rfl, rfl, rfl⟩, hpi.le, by rw [← hpi]; exact prefix_sizel _ _, hpref, rfl, hq,
-      fun hb => ?_⟩
-    obtain ⟨hI, rfl, rfl, ⟨f, hh⟩, hb', hif⟩ := hJ hb
-    have hJ1 : PJ1 hs ch m₁ mi₁ gm gmi mh mhi ro paths pref0 q₁ bs₁ i₁ sa₁ sc₁ h :=
-      ⟨hI, hpref, ⟨f, hh⟩, hb', by simpa using hif, by rw [← hpi]; exact prefix_ge0 _ _, hpi.ge,
-        hq, hsz⟩
-    obtain ⟨⟨hI2, hmp, -, -, -⟩, ⟨-, -, -, hnext, -⟩⟩ :=
-      PJ1_PJ2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ1 (by unfold qpre; omega)
-    exact ⟨hI2, hb, hmp, fun _ _ => rfl, fun _ hl => Or.inl hl, rfl, by omega, ⟨f, hh⟩, hb', hif,
-      hnext⟩
+    refine ⟨⟨⟨⟨rfl, rfl, rfl, rfl⟩, hpi.le, by rw [← hpi]; exact prefix_sizel _ _, hpref, rfl, hq,
+      fun hb => ?_⟩, rfl⟩, ?_⟩
+    · obtain ⟨hI, rfl, rfl, ⟨f, hh⟩, hb', hif⟩ := hJ hb
+      have hJ1 : PJ1 hs ch m₁ mi₁ gm gmi mh mhi ro paths pref0 q₁ bs₁ i₁ sa₁ sc₁ h :=
+        ⟨hI, hpref, ⟨f, hh⟩, hb', by simpa using hif, by rw [← hpi]; exact prefix_ge0 _ _, hpi.ge,
+          hq, hsz⟩
+      obtain ⟨⟨hI2, hmp, -, -, -⟩, ⟨-, -, -, hnext, -⟩⟩ :=
+        PJ1_PJ2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ1 (by unfold qpre; omega)
+      exact ⟨hI2, hb, hmp, fun _ _ => rfl, fun _ hl => Or.inl hl, rfl, by omega, ⟨f, hh⟩, hb', hif,
+        hnext⟩
+    -- the exit (`rewrite/#`, `smt(take_size)`)
+    intro τ₁ τ₂
+    auto_prep
+    glob_tuples
+    have hip := le_antisymm ‹(localVarLens "i" ℤ).get τ₁ ≤ _› ‹_ ≤ (localVarLens "i" ℤ).get τ₁›
+    have hpb := ‹(localVarLens "p" (List block)).get τ₁ = (localVarLens "bs" (List block)).get τ₁›
+    refine ⟨⟨trivial, trivial, ?_⟩, hip, hpb, fun hb => ?_⟩
+    · exact ⟨‹_›, ‹_›⟩
+    obtain ⟨hI, -, hmp, -, -, hsa, -, -, -, hif, -⟩ :=
+      ‹¬(G1.bcol.get τ₂.globals = true ∨ G1.bext.get τ₂.globals = true) → _› hb
+    obtain ⟨-, hq0, -, -, -⟩ := hmp
+    rw [← hpb, hip, take_size] at hI
+    rw [hip, take_size] at hif
+    rw [← hpb, hip, take_size]
+    refine ⟨hI, hsa, ?_⟩
+    split_ifs at hif with h0
+    · exfalso
+      apply ‹¬(C.queries.get τ₁.globals).dom _›
+      rw [List.eq_nil_of_length_eq_zero (Int.ofNat_eq_zero.mp h0)]
+      exact (FMap.domE _ _).2 (by simp [hq0])
+    · exact hif
   case body =>
     -- EC: case : (! (G1.bcol{2} \/ G1.bext{2}));last first.
     equiv_case (¬(§G1.bcol{2} ∨ §G1.bext{2}))
@@ -3972,7 +3975,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       equiv_auto
       auto_prep
       rename_i pref m mi pref0 i p q c bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h w hb hpref
-        hq hb1 hmp hpp hext hcnt hqi hisz hI hpath hi hif f hh hnd hdom
+        hq hb1 hmp hpp hext hcnt hqi hisz hI hpath hi' hi hif f hh hnd hdom
       have hJ : PJ2 hs ch m mi gm gmi mh mhi ro paths pref pref0 q p i w.1 w.2 h :=
         ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
       have hL : PJ2L pref pref0 q p i w.1 w.2 :=
@@ -4004,7 +4007,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       --       `mh_of_INV`, `lemma5'`) — the old port's `PJ2_fresh` (deviation)
       · hoare_auto; auto_prep
         rename_i σ bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y2 hy2 y1 hx w hb hisz hb1 hpp
-          hpbs hy1 hpref hext hmp hI hqi hq hcnt hpath hdom hi hif f hh hsa hsc hnd
+          hpbs hy1 hpref hext hmp hI hqi hq hcnt hpath hdom hi hi' hif f hh hsa hsc hnd
         rw [← hpbs] at hI
         have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ w.1 w.2 h :=
           ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
@@ -4022,7 +4025,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       --     `PJ2_fresh` (with `f_fresh_inv`) and `PJ2L_step`: deviation)
       auto_prep
       rename_i pref m mi pref0 i p q c bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y1 hy1 y2 hy2
-        w hb hpref hq hb1 hmp hpp hext hcnt hqi hisz hI hpath hi hif f hh hnd hdom
+        w hb hpref hq hb1 hmp hpp hext hcnt hqi hisz hI hpath hi' hi hif f hh hnd hdom
       have hJ : PJ2 hs ch m mi gm gmi mh mhi ro paths pref pref0 q p i w.1 w.2 h :=
         ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
       have hL : PJ2L pref pref0 q p i w.1 w.2 :=

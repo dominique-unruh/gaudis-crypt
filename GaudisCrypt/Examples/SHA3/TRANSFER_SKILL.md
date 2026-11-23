@@ -325,6 +325,18 @@ in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
   (`PJ2 …`): build the predicate from the named hypotheses (`⟨hI, hmp, ⟨f, hh⟩, …⟩`), apply the
   lemma, take its result apart, `refine` the goal.  Name long terms with `set x := … with hx`
   when a lemma argument is not determined by unification.
+* The exit part of `equiv_while`'s `hpre` by hand (`∀ τ₁ τ₂, frames → I → ¬b₁ → ¬b₂ → Q`, Handle
+  `PFf_Cf`'s second loop): `intro τ₁ τ₂; auto_prep; glob_tuples` — `auto_prep`'s own
+  `glob_tuples` runs while the region is still behind `§`, so `={glob C}` is left as a
+  `touched_getter` equation until it runs again.  Take the terms from the hypotheses
+  (`have hip := le_antisymm ‹(localVarLens "i" ℤ).get τ₁ ≤ _› ‹_ ≤ (localVarLens "i" ℤ).get τ₁›`,
+  `have hpb := ‹(localVarLens "p" (List block)).get τ₁ = _›`) instead of restating reads: a
+  restated `localVarLens "p" (List block)` can elaborate to another `block` than the program's,
+  and `omega`/`rw` see two different terms that print the same.
+* An EC `op` with an axiom, ported as a class field plus a `def`
+  (`def size_out := Params.size_out`): state EC's axiom on the `def` (`theorem size_out_gt0 : 0 < size_out := Params.size_out_gt0`) and
+  open it next to the `def`; the field `Params.size_out_gt0` is about the other constant, and
+  `smt_close [Params.size_out_gt0]` cannot relate it to the goal's `size_out` (SHA3OSecurity).
 * EC's pair `((oget m.[x]).1, (oget m.[x]).2)` vs `oget m.[x]`: `simp only [Prod.mk.eta]`;
   `x ∈ m → m.[x] = Some (oget m.[x])` is EC's `FMap.get_some`.
 * One EC closer repeated over many leaves (`smt(get_setE mem_set DBlock.dunifin_ll …)`): one

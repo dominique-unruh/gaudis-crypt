@@ -8,6 +8,7 @@ import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.DListCall
 import GaudisCrypt.Logic.FootprintUpper
 import GaudisCrypt.Logic.PRHLFrame
+import GaudisCrypt.Logic.ECWhileHoare
 
 /-!
 # Top-level proof of SHA-3 security, with failing oracles (EasyCrypt `proof/SHA3OSecurity.ec`) —
@@ -50,8 +51,8 @@ Translation:
   that EC proves inline by `smt` (`inv_fresh`, `eq_extend_size_set_lt`, …) are the first port's;
 * `FSetSize`'s `proc get = f` (outside its module type) makes `FSetSize(F)` an `Oracle` in EC:
   a coercion of `SH.OIndif.OFUNCTIONALITY` to `SORO.Oracle` (`get` is `f`);
-* a loop that does not write a variable the condition after it reads (EC's `conseq (: _ ==>
-  true)`): the variable's fact is kept in the Hoare loop's invariant (GAP 1);
+* (GAP 1, closed 2026-11-23: a loop that does not write a variable the condition after it reads
+  is EC's `conseq (: _ ==> true)` and `while I`, with EC's frame;)
 * `clone import FullRO as Eager with …` is the first port's namespace `SHA3OSecurity.Eager`
   (`RO_T`, `RO`, `LRO`, the variables `Eager.RO.m`, `Eager.FRO.m`), re-exported under `Eager`;
 * a variable of an inlined callee whose name is also one of the other side, or of the
@@ -198,6 +199,8 @@ class Params : Type 1 where
 variable [Params]
 
 def size_out : ℤ := Params.size_out
+/-- EC's axiom `size_out_gt0`, of the operator. -/
+theorem size_out_gt0 : 0 < size_out := Params.size_out_gt0
 /-- `op sigma : int = SHA3Indiff.limit`. -/
 def sigma : ℤ := SHA3Indiff.limit
 abbrev f_out : Type := Params.f_out
@@ -431,7 +434,8 @@ open GaudisCrypt.SHA3.SHA3Indiff (Simulator Cntr FC PC DRestr)
 open GaudisCrypt.SHA3.SHA3_OIndiff (FSome PSome Poget CSome OSimulator Counter OFC OPC ODRestr
   DFSome DPSome OD)
 open GaudisCrypt.SHA3.SHA3_OIndiff.OIndif
-open GaudisCrypt.SHA3.SHA3OSecurity (size_out sigma f_out dout to_list of_list doutE1)
+open GaudisCrypt.SHA3.SHA3OSecurity (size_out size_out_gt0 sigma f_out dout to_list of_list
+  doutE1)
 
 variable [SLCommon.Params] [BlockSponge.Params] [Gconcl_list.Params]
   [GaudisCrypt.SHA3.SHA3OSecurity.Params]
@@ -982,11 +986,11 @@ theorem eq_extend :
     stmt_rcondf{2} 8
     · intro σ₁
       stmt_wp
-      --     (GAP 1: `k`, which the loop does not write, is kept by the invariant)
-      hoare_while_raw (§k ≤ size_out)
+      hoare_conseq (: _ ==> True)
+      · smt_close
+      hoare_while (True)
       · hoare_auto
-      · intros; simp_all
-      · hoare_auto
+      hoare_auto
     -- EC: auto=> /=.
     stmt_wp
     -- EC: conseq(:_==> ={bs, k} /\ size bs{1} = size_out /\
@@ -1332,15 +1336,11 @@ theorem eq_eager_ideal2 :
     --       by while(i <= n); auto=> />; smt(size_out_gt0).
     stmt_rcondf{2} 2
     · intro σ₁
-      --     (GAP 1: `n`, which the loop does not write, is kept by the invariant)
-      hoare_while_raw (§i ≤ §n ∧ size_out < §n)
+      hoare_conseq (: _ ==> §i = §n)
+      · smt_close
+      hoare_while (§i ≤ §n)
       · hoare_auto
-      · ec_progress
-      · hoare_auto; ec_progress
-        have h0 : (0 : ℤ) < size_out := GaudisCrypt.SHA3.SHA3OSecurity.Params.size_out_gt0
-        have h1 := ‹size_out < _›
-        have h2 := ‹_ = v.2›
-        omega
+      hoare_auto; smt_close [size_out_gt0]
     -- EC: while(i0{1} = i{2} /\ x3{1} = x0{2} /\ n0{1} = n{2} /\ bs0{1} = l{2} /\
     --       BIRO.IRO.mp{1} = RO.m{2}).
     equiv_while (§i0{1} = §i{2} ∧ §x4{1} = §x0{2} ∧ §n1{1} = §n{2} ∧ §bs0{1} = §l{2} ∧

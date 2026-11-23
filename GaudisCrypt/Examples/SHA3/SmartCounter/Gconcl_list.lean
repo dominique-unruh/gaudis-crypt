@@ -7,6 +7,7 @@ import GaudisCrypt.Logic.PHoareLossless
 import GaudisCrypt.Logic.WritesKeepFrame
 import GaudisCrypt.Logic.LoopTransform
 import GaudisCrypt.Lib.EC.DexceptedSupport
+import GaudisCrypt.Logic.ECWhileHoare
 
 /-!
 # From the squeezeless sponge to the block sponge (EasyCrypt `proof/smart_counter/Gconcl_list.ec`)
@@ -1169,11 +1170,10 @@ set_option ec.strict true
 * GAP 6 (closed 2026-11-21): the frame of `equiv_call (_ : P ==> Q)` was the callee module's
   (`S(F)`), not the procedure's: `S(F).fi` does not call `F`, but the call lost the oracles'
   maps.  The frame is now by writes.
-* GAP 7: a fact about unmodified variables (`(p, n) = parse x`) is carried in the new
-  postcondition of `hoare_conseq (: _ ==> Q)` and in the loop invariant.  (Written when these
-  had no frame.  Since 2026-11-16 `hoare_conseq` and `hoare_while` have EC's frame — the
-  variables the code does not modify keep their values from the precondition; the loops here
-  are the older `hoare_while_raw`, and the scripts are not redone.)
+* GAP 7 (closed 2026-11-23): a fact about unmodified variables (`(p, n) = parse x`) was
+  carried in the new postcondition of `hoare_conseq (: _ ==> Q)` and in the loop invariant;
+  `equiv_L3_L4`'s three loops are now EC's `while I` (`hoare_while`, with EC's frame) and its
+  `smt` lists.
 
 * GAP 8: after `sp` over `sa, sc <- (sa +^ b, sc); x <- (sa, sc)` on both sides, the two `x` are
   known equal by their components only (`x{1}.1 = …`, `x{2}.1 = …`), and the closer does not put
@@ -2447,18 +2447,11 @@ theorem equiv_L3_L4 :
     stmt_rcondf{1} 9
     · intro σ₂
       ec_auto
-      --     (GAP 7: what the loop keeps, `(p1, n1) = parse x7`, is carried in the new
-      --     postcondition and in the invariant)
-      hoare_conseq (: _ ==> §i1 + 1 = §n1 ∧ (§p1, §n1) = parse §x7)
-      case post =>
-        ec_prep
-        rw [‹i11 + 1 = _›, formatK]
-        split_ifs <;> simp_all [FMap.mem_set]
-      hoare_while_raw (§i1 + 1 ≤ §n1 ∧ (§p1, §n1) = parse §x7)
+      hoare_conseq (: _ ==> §i1 + 1 = §n1)
+      case post => smt_close [FMap.mem_set, parseK, parse_valid, formatK]
+      hoare_while (§i1 + 1 ≤ §n1)
       · ec_auto
-      · ec_prep; simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
-      · ec_auto; ec_prep
-        exact Int.add_one_le_iff.mpr (parse_gt0 _)
+      ec_auto; smt_close [parse_gt0, parse_valid, parseK, formatK]
     -- EC: wp 8 2;rnd{1};wp 6 2.
     stmt_wp 8 2; equiv_rnd{1}; stmt_wp 6 2
     -- EC: conseq(:_==> n1{1} = i{2} /\ ={F.RO.m} /\ i1{1} = n1{1}
@@ -2593,19 +2586,12 @@ theorem equiv_L3_L4 :
     -- EC: rcondf{1}9;1:auto.
     --     - by while(i+1<=n);auto;
     --       smt(parse_valid parse_gt0 parseK mem_set formatK).
-    --     (GAP 7: no frame in the Hoare `while`: `(p, n) = parse x` is carried in the invariant)
     stmt_rcondf{1} 9
     · intro σ₂
       ec_auto
-      hoare_while_raw (§i + 1 ≤ §n ∧ (§p, §n) = parse §x)
+      hoare_while (§i + 1 ≤ §n)
       · ec_auto
-      · ec_prep
-        have hi : i + 1 = (parse x).2 := by
-          simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
-        rw [hi, formatK]
-        split_ifs <;> simp_all [FMap.mem_set]
-      · ec_auto; ec_prep
-        exact Int.add_one_le_iff.mpr (parse_gt0 _)
+      ec_auto; smt_close [parse_valid, parse_gt0, parseK, FMap.mem_set, formatK]
     -- EC: wp 8 5;rnd{1};wp 6 5.
     stmt_wp 8 5; equiv_rnd{1}; stmt_wp 6 5
     -- EC: conseq(:_==> ={F.RO.m} /\ p{2} = x0{2});progress.
@@ -2661,19 +2647,12 @@ theorem equiv_L3_L4 :
   -- EC: rcondf{1}9;1:auto.
   --     - by while(i+1<=n);auto;
   --       smt(parse_valid parse_gt0 parseK mem_set formatK).
-  --     (GAP 7, as above)
   stmt_rcondf{1} 9
   · intro σ₂
     ec_auto
-    hoare_while_raw (§i + 1 ≤ §n ∧ (§p, §n) = parse §x)
+    hoare_while (§i + 1 ≤ §n)
     · ec_auto
-    · ec_prep
-      have hi : i + 1 = (parse x).2 := by
-        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at *; omega
-      rw [hi, formatK]
-      split_ifs <;> simp_all [FMap.mem_set]
-    · ec_auto; ec_prep
-      exact Int.add_one_le_iff.mpr (parse_gt0 _)
+    ec_auto; smt_close [parse_valid, parse_gt0, parseK, FMap.mem_set, formatK]
   -- EC: wp 8 5;rnd{1};wp 6 5.
   stmt_wp 8 5; equiv_rnd{1}; stmt_wp 6 5
   -- EC: conseq(:_==> ={F2.RO.m} /\ format pp{2} n{2} = x3{2}).
